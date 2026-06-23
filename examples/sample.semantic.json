@@ -1,30 +1,83 @@
 {
+  "schema_version": "0.1",
+  "meta": {
+    "source_title": "AI 模型的'幻觉'问题",
+    "source_url": "",
+    "source_name": "manual",
+    "published_at": "2026-06-23",
+    "lang": "zh"
+  },
+  "structure_type": "causal_chain",
   "title": "AI 模型的'幻觉'问题",
   "summary": "为什么大型语言模型会一本正经地编造事实？",
-  "layout": "causal_chain",
   "nodes": [
     {
       "id": "n1",
       "label": "训练数据噪声",
-      "narration": "大语言模型在训练时学习了海量的网络文本，这些数据里既有真实信息，也混杂着错误、矛盾甚至伪造的内容。模型无法自动分辨哪些是事实，哪些只是噪声。"
+      "sub": "数据中混杂错误",
+      "role": "source"
     },
     {
       "id": "n2",
       "label": "统计模式预测",
-      "narration": "模型的核心任务只是预测下一个最可能的 token，它并不真正'理解'事实，而是基于统计模式进行组合。当遇到不确定的问题时，它倾向输出'听起来合理'的内容。"
+      "sub": "不理解事实",
+      "role": "neutral"
     },
     {
       "id": "n3",
       "label": "幻觉产生",
-      "narration": "于是，当用户提出冷门问题、或训练数据覆盖不足的话题时，模型就会用流畅的语言编造答案。这就是所谓的 AI 幻觉现象。"
+      "sub": "模型编造答案",
+      "role": "target"
     }
   ],
   "edges": [
-    {"from": "n1", "to": "n2"},
-    {"from": "n2", "to": "n3"}
+    {"id": "e1", "from": "n1", "to": "n2", "label": "导致"},
+    {"id": "e2", "from": "n2", "to": "n3", "label": "引发"}
   ],
   "callouts": [
-    {"id": "c1", "text": "数据噪声", "attach_to": "n1"},
-    {"id": "c2", "text": "不理解事实", "attach_to": "n2"}
+    {"id": "c1", "on": "n1", "text": "数据噪声", "tone": "alert"},
+    {"id": "c2", "on": "n2", "text": "不理解事实", "tone": "info"}
+  ],
+  "beats": [
+    {
+      "id": "b1",
+      "reveal": "title",
+      "narration": "今天我们来聊一聊大语言模型的'幻觉'问题，看看它为什么会一本正经地编造事实。"
+    },
+    {
+      "id": "b2",
+      "reveal": "n1",
+      "narration": "首先，大语言模型在训练时学习了海量的网络文本，这些数据是模型能力的来源。"
+    },
+    {
+      "id": "b3",
+      "reveal": "c1",
+      "narration": "但问题在于，这些数据里既有真实信息，也混杂着错误、矛盾甚至伪造的内容，模型无法自动分辨哪些是事实、哪些只是噪声。"
+    },
+    {
+      "id": "b4",
+      "reveal": "e1",
+      "narration": "于是，模型只能用统计模式去'猜'下一个最可能的 token。"
+    },
+    {
+      "id": "b5",
+      "reveal": "n2",
+      "narration": "它并不真正理解事实，遇到不确定的问题时只会倾向输出'听起来合理'的内容。"
+    },
+    {
+      "id": "b6",
+      "reveal": "c2",
+      "narration": "这种'猜测式生成'正是幻觉的温床。"
+    },
+    {
+      "id": "b7",
+      "reveal": "e2",
+      "narration": "当用户问冷门话题、或训练数据覆盖不足时，问题就彻底爆发。"
+    },
+    {
+      "id": "b8",
+      "reveal": "n3",
+      "narration": "最终，模型会用流畅的语言编造答案——这就是所谓的 AI 幻觉。"
+    }
   ]
 }

@@ -22,37 +22,32 @@
      width="{{ render_ir.canvas.width }}" height="{{ render_ir.canvas.height }}">
 
   <defs>
-    <!-- Subtle grid pattern for the blackboard -->
     <pattern id="boardGrid" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
       <rect width="40" height="40" fill="#143b2e"/>
       <line x1="0" y1="0" x2="40" y2="0" stroke="#1f523e" stroke-width="1"/>
       <line x1="0" y1="0" x2="0" y2="40" stroke="#1f523e" stroke-width="1"/>
     </pattern>
 
-    <!-- Soft chalk filter -->
     <filter id="chalkRough" x="-2%" y="-2%" width="104%" height="104%">
       <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" result="t"/>
       <feDisplacementMap in="SourceGraphic" in2="t" scale="0.8"/>
     </filter>
 
-    <!-- Arrow marker for edges -->
     <marker id="arrowhead" markerWidth="12" markerHeight="12"
             refX="10" refY="4" orient="auto" markerUnits="userSpaceOnUse">
       <path d="M0,0 L0,8 L10,4 z" fill="#f8f8f2"/>
     </marker>
 
-    <!-- Paper-card drop shadow for nodes -->
     <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="120%">
       <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000" flood-opacity="0.35"/>
     </filter>
   </defs>
 
-  <!-- Blackboard background -->
   <rect width="{{ render_ir.canvas.width }}" height="{{ render_ir.canvas.height }}"
         fill="url(#boardGrid)"/>
 
-  <!-- Title -->
-  <g id="title-group">
+  <!-- Title group: fades in once on the first beat that reveals 'title', then stays -->
+  <g id="title-group" opacity="0">
     <text id="title-text" x="{{ render_ir.title.x }}" y="{{ render_ir.title.y }}"
           text-anchor="middle" fill="#f8f8f2"
           font-family="'Comic Sans MS', 'Chalkboard SE', 'Comic Neue', cursive, sans-serif"
@@ -63,16 +58,10 @@
           font-size="20" filter="url(#chalkRough)">{{ render_ir.summary.text }}</text>
   </g>
 
-  <!-- Edges (drawn under nodes) -->
   <g id="edges-group"></g>
-
-  <!-- Nodes -->
   <g id="nodes-group"></g>
-
-  <!-- Callouts -->
   <g id="callouts-group"></g>
 
-  <!-- Subtitle -->
   <g id="subtitle-group">
     <rect x="{{ render_ir.subtitles.bar.x }}" y="{{ render_ir.subtitles.bar.y }}"
           width="{{ render_ir.subtitles.bar.w }}" height="{{ render_ir.subtitles.bar.h }}"
@@ -95,6 +84,7 @@
   const edgesGroup = document.getElementById("edges-group");
   const nodesGroup = document.getElementById("nodes-group");
   const calloutsGroup = document.getElementById("callouts-group");
+  const titleGroup = document.getElementById("title-group");
   const subtitleText = document.getElementById("subtitle-text");
 
   // ---------- helpers ----------
@@ -112,54 +102,56 @@
     return e;
   }
 
-  // Greedy line wrap by character count (good enough for Chinese + short English).
   function wrapText(text, maxChars) {
     const out = [];
     if (!text) return out;
     let line = "";
     for (const ch of String(text)) {
-      // Treat space as break opportunity too
-      if (ch === "\n") {
-        out.push(line);
-        line = "";
-        continue;
-      }
-      if (line.length >= maxChars) {
-        out.push(line);
-        line = "";
-      }
+      if (ch === "\n") { out.push(line); line = ""; continue; }
+      if (line.length >= maxChars) { out.push(line); line = ""; }
       line += ch;
     }
     if (line) out.push(line);
     return out;
   }
 
-  function findTimeline(nodeId) {
-    return RENDER_IR.timeline.find(function (t) { return t.node_id === nodeId; });
-  }
+  // ---------- id sets used to interpret timeline.reveal ----------
 
-  function findNode(id) {
-    return RENDER_IR.nodes.find(function (n) { return n.id === id; });
-  }
-
-  function findCalloutsForNode(nodeId) {
-    return RENDER_IR.callouts.filter(function (c) { return c.attach_to === nodeId; });
-  }
+  const NODE_IDS = new Set(RENDER_IR.nodes.map(function (n) { return n.id; }));
+  const EDGE_IDS = new Set(RENDER_IR.edges.map(function (e) { return e.id; }));
+  const CALLOUT_IDS = new Set(RENDER_IR.callouts.map(function (c) { return c.id; }));
 
   // ---------- build static structure ----------
 
-  // Edges
+  // Edges (each is its own group so the line + label fade together)
   RENDER_IR.edges.forEach(function (edge) {
-    const line = el("line", {
+    const g = el("g", {
+      opacity: 0,
+      "data-edge-id": edge.id,
+    }, edgesGroup);
+
+    el("line", {
       x1: edge.x1, y1: edge.y1,
       x2: edge.x2, y2: edge.y2,
       stroke: "#f8f8f2",
       "stroke-width": 3,
-      opacity: 0,
       "marker-end": "url(#arrowhead)",
-      "data-from": edge.from,
-      "data-to": edge.to,
-    }, edgesGroup);
+    }, g);
+
+    if (edge.label) {
+      const midX = (edge.x1 + edge.x2) / 2;
+      const midY = (edge.y1 + edge.y2) / 2;
+      const t = el("text", {
+        x: midX,
+        y: midY - 8,
+        "text-anchor": "middle",
+        fill: "#f8f8f2",
+        "font-family": "Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif",
+        "font-size": 14,
+        opacity: 0.85,
+      }, g);
+      t.textContent = edge.label;
+    }
   });
 
   // Nodes
@@ -167,7 +159,6 @@
     const g = el("g", {
       opacity: 0,
       "data-node-id": node.id,
-      transform: "translate(0,0)",
     }, nodesGroup);
 
     el("rect", {
@@ -179,15 +170,14 @@
       filter: "url(#cardShadow)",
     }, g);
 
-    // Node number badge
+    // Index badge (1-based)
+    const idx = (RENDER_IR.nodes.indexOf(node) + 1).toString();
     el("circle", {
       cx: node.x + 22, cy: node.y + 22, r: 16,
       fill: "#143b2e",
       stroke: "#f0d77b",
       "stroke-width": 2,
     }, g);
-
-    const idx = (RENDER_IR.nodes.indexOf(node) + 1).toString();
     el("text", {
       x: node.x + 22, y: node.y + 28,
       "text-anchor": "middle",
@@ -197,9 +187,10 @@
       "font-weight": "bold",
     }, g).textContent = idx;
 
-    // Label (wrapped)
+    // Label (wrapped, up to 3 lines)
     const labelLines = wrapText(node.label || "", 8).slice(0, 3);
-    const baseY = node.y + 60;
+    let baseY = node.y + 64;
+    if (node.sub) baseY -= 8;
     labelLines.forEach(function (line, i) {
       const t = el("text", {
         x: node.cx,
@@ -212,6 +203,23 @@
       }, g);
       t.textContent = line;
     });
+
+    // Sub line (single line, smaller)
+    if (node.sub) {
+      const subY = baseY + labelLines.length * 24 + 4;
+      const subLines = wrapText(node.sub, 14).slice(0, 1);
+      subLines.forEach(function (line) {
+        const t = el("text", {
+          x: node.cx,
+          y: subY,
+          "text-anchor": "middle",
+          fill: "#5d6d7e",
+          "font-family": "Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif",
+          "font-size": 13,
+        }, g);
+        t.textContent = line;
+      });
+    }
   });
 
   // Callouts
@@ -221,25 +229,32 @@
       "data-callout-id": callout.id,
     }, calloutsGroup);
 
+    // Color by tone
+    let fill = "#ffe066";
+    let stroke = "#b58900";
+    let text = "#5d4037";
+    if (callout.tone === "alert")   { fill = "#ff8a65"; stroke = "#bf360c"; text = "#ffffff"; }
+    if (callout.tone === "positive"){ fill = "#a5d6a7"; stroke = "#2e7d32"; text = "#1b5e20"; }
+
     el("rect", {
       x: callout.x, y: callout.y,
       width: callout.w, height: callout.h,
       rx: 8, ry: 8,
-      fill: "#ffe066",
-      stroke: "#b58900",
+      fill: fill,
+      stroke: stroke,
       "stroke-width": 2,
       filter: "url(#cardShadow)",
     }, g);
 
-    // small connector to node (vertical line)
-    const target = findNode(callout.attach_to);
+    // Connector to node
+    const target = RENDER_IR.nodes.find(function (n) { return n.id === callout.on; });
     if (target) {
       el("line", {
         x1: callout.x + callout.w / 2,
         y1: callout.y + callout.h,
         x2: callout.x + callout.w / 2,
         y2: target.y - 2,
-        stroke: "#b58900",
+        stroke: stroke,
         "stroke-width": 2,
         "stroke-dasharray": "4 4",
       }, g);
@@ -253,7 +268,7 @@
         x: callout.x + callout.w / 2,
         y: cy + offset,
         "text-anchor": "middle",
-        fill: "#5d4037",
+        fill: text,
         "font-family": "Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif",
         "font-size": 14,
         "font-weight": "bold",
@@ -264,7 +279,10 @@
 
   // ---------- animation ----------
 
-  const FADE_IN = 0.4;
+  // Reveal sets are recomputed each frame from the timeline (monotonic).
+  const DIM_OPACITY = 0.62;  // already-shown but not the current beat
+  const FADE_IN = 0.4;       // seconds
+
   let isPaused = false;
   let currentTime = 0;
   let startTimestamp = null;
@@ -272,69 +290,78 @@
   function renderFrame(t) {
     currentTime = t;
 
+    // Current beat
+    let currentBeat = null;
+    for (let i = 0; i < RENDER_IR.timeline.length; i++) {
+      const tt = RENDER_IR.timeline[i];
+      if (t >= tt.at && t < tt.at + tt.duration) {
+        currentBeat = tt;
+        break;
+      }
+    }
+
+    // Compute revealed sets: every beat whose at <= t contributes its reveal.
+    const revealedTitle = RENDER_IR.timeline.some(function (tt) {
+      return tt.at <= t && tt.reveal === "title";
+    });
+    const revealedNodes = new Set();
+    const revealedEdges = new Set();
+    const revealedCallouts = new Set();
+    for (let i = 0; i < RENDER_IR.timeline.length; i++) {
+      const tt = RENDER_IR.timeline[i];
+      if (tt.at > t) break;
+      const r = tt.reveal;
+      if (r === "title") continue;
+      if (NODE_IDS.has(r))     revealedNodes.add(r);
+      else if (EDGE_IDS.has(r))    revealedEdges.add(r);
+      else if (CALLOUT_IDS.has(r)) revealedCallouts.add(r);
+      // unknown reveal strings are ignored on purpose
+    }
+
+    // Title group: shown from first 'title' beat onward, stays at full opacity.
+    if (!revealedTitle) {
+      titleGroup.setAttribute("opacity", 0);
+    } else if (currentBeat && currentBeat.reveal === "title") {
+      const into = t - currentBeat.at;
+      titleGroup.setAttribute("opacity", Math.min(1, into / FADE_IN).toFixed(3));
+    } else {
+      titleGroup.setAttribute("opacity", 1);
+    }
+
+    // Helper: pick opacity for a given id, given its revealed set
+    function opFor(revealedSet, id, isCallout) {
+      if (!revealedSet.has(id)) return 0;
+      const baseDim = isCallout ? 0.72 : DIM_OPACITY;
+      if (currentBeat && currentBeat.reveal === id) {
+        const into = t - currentBeat.at;
+        return Math.min(1, into / FADE_IN);
+      }
+      return baseDim;
+    }
+
     // Nodes
     RENDER_IR.nodes.forEach(function (node) {
-      const tt = findTimeline(node.id);
-      if (!tt) return;
       const g = nodesGroup.querySelector('g[data-node-id="' + node.id + '"]');
       if (!g) return;
-      const start = tt.at;
-      const end = tt.at + tt.duration;
-      let opacity = 0;
-      if (t >= start && t < start + FADE_IN) {
-        opacity = (t - start) / FADE_IN;
-      } else if (t >= start + FADE_IN && t < end - 0.3) {
-        opacity = 1;
-      } else if (t >= end - 0.3 && t < end) {
-        opacity = 1; // stay visible until the end
-      } else if (t >= end) {
-        opacity = 0.55; // dimmed "completed" look
-      }
-      g.setAttribute("opacity", opacity.toFixed(3));
+      g.setAttribute("opacity", opFor(revealedNodes, node.id, false).toFixed(3));
     });
 
     // Edges
     RENDER_IR.edges.forEach(function (edge) {
-      const line = edgesGroup.querySelector('line[data-from="' + edge.from + '"]');
-      if (!line) return;
-      const ttFrom = findTimeline(edge.from);
-      const ttTo = findTimeline(edge.to);
-      if (!ttFrom || !ttTo) { line.setAttribute("opacity", 0); return; }
-      // Edge becomes visible right after source finishes, fades when target ends.
-      const appearAt = ttFrom.at + ttFrom.duration * 0.4;
-      const hideAt = ttTo.at + ttTo.duration;
-      if (t >= appearAt && t < hideAt) {
-        line.setAttribute("opacity", 1);
-      } else {
-        line.setAttribute("opacity", 0);
-      }
+      const g = edgesGroup.querySelector('g[data-edge-id="' + edge.id + '"]');
+      if (!g) return;
+      g.setAttribute("opacity", opFor(revealedEdges, edge.id, false).toFixed(3));
     });
 
-    // Callouts: appear during their attached node's display
+    // Callouts
     RENDER_IR.callouts.forEach(function (callout) {
       const g = calloutsGroup.querySelector('g[data-callout-id="' + callout.id + '"]');
       if (!g) return;
-      const tt = findTimeline(callout.attach_to);
-      if (!tt) { g.setAttribute("opacity", 0); return; }
-      const showStart = tt.at + 0.3;
-      const showEnd = tt.at + tt.duration;
-      if (t >= showStart && t < showEnd) {
-        g.setAttribute("opacity", 1);
-      } else {
-        g.setAttribute("opacity", 0);
-      }
+      g.setAttribute("opacity", opFor(revealedCallouts, callout.id, true).toFixed(3));
     });
 
-    // Subtitle = current node's narration
-    let sub = "";
-    for (let i = 0; i < RENDER_IR.timeline.length; i++) {
-      const tt = RENDER_IR.timeline[i];
-      if (t >= tt.at && t < tt.at + tt.duration) {
-        sub = tt.narration;
-        break;
-      }
-    }
-    subtitleText.textContent = sub;
+    // Subtitle = current beat's narration
+    subtitleText.textContent = currentBeat ? currentBeat.narration : "";
   }
 
   // Expose controls for the exporter
@@ -342,7 +369,6 @@
     isPaused = true;
     renderFrame(t);
   };
-
   window.__getTotalDuration__ = function () {
     return RENDER_IR.total_duration + 1.0; // 1s tail
   };
@@ -356,7 +382,6 @@
     requestAnimationFrame(loop);
   }
 
-  // initial render so the first frame is not blank
   renderFrame(0);
   requestAnimationFrame(loop);
   window.__ANIMATION_READY__ = true;
