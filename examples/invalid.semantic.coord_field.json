@@ -1,0 +1,41 @@
+{
+  "schema_version": "0.1",
+  "meta": {
+    "source_title": "测试新闻",
+    "source_url": "https://example.com/test",
+    "source_name": "test_source",
+    "published_at": null,
+    "lang": "zh"
+  },
+  "structure_type": "causal_chain",
+  "title": "测试标题",
+  "summary": "测试摘要",
+  "nodes": [
+    {
+      "id": "n1",
+      "label": "节点一",
+      "sub": null,
+      "role": "source",
+      "x": 220,
+      "y": 340
+    },
+    {
+      "id": "n2",
+      "label": "节点二",
+      "sub": null,
+      "role": "neutral"
+    }
+  ],
+  "edges": [
+    {"id": "e1", "from": "n1", "to": "n2", "label": "导致"}
+  ],
+  "callouts": [],
+  "beats": [
+    {"id": "b1", "reveal": "title", "narration": "今天我们聊这个话题。"},
+    {"id": "b2", "reveal": "n1", "narration": "首先看第一个原因。"},
+    {"id": "b3", "reveal": "n2", "narration": "然后是结论部分。"},
+    {"id": "b4", "reveal": "e1", "narration": "整体回顾。"},
+    {"id": "b5", "reveal": "title", "narration": "结束语。"},
+    {"id": "b6", "reveal": "title", "narration": "再见。"}
+  ]
+}

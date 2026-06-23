@@ -103,13 +103,23 @@ def layout_causal_chain(semantic_ir):
 
     positioned_nodes, node_by_id = _layout_nodes_horizontal(nodes)
 
-    # Edges (horizontal arrows; skip dangling)
+    # Edges (horizontal arrows; raise on dangling references)
     positioned_edges = []
     for edge in edges:
         src = node_by_id.get(edge["from"])
         dst = node_by_id.get(edge["to"])
-        if not src or not dst:
-            continue
+        if not src:
+            raise ValueError(
+                f"edge '{edge.get('id')}' references from='{edge.get('from')}' "
+                f"which is not a known node id. "
+                f"Known node ids: {sorted(node_by_id.keys())}"
+            )
+        if not dst:
+            raise ValueError(
+                f"edge '{edge.get('id')}' references to='{edge.get('to')}' "
+                f"which is not a known node id. "
+                f"Known node ids: {sorted(node_by_id.keys())}"
+            )
         positioned_edges.append({
             "id": edge["id"],
             "from": edge["from"],
@@ -126,7 +136,11 @@ def layout_causal_chain(semantic_ir):
     for callout in callouts:
         target = node_by_id.get(callout.get("on"))
         if not target:
-            continue
+            raise ValueError(
+                f"callout '{callout.get('id')}' references on='{callout.get('on')}' "
+                f"which is not a known node id. "
+                f"Known node ids: {sorted(node_by_id.keys())}"
+            )
         cx = target["cx"] - CALLOUT_W // 2
         cy = target["y"] + CALLOUT_OFFSET_Y
         positioned_callouts.append({

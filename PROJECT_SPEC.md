@@ -121,21 +121,81 @@ profiles:
 - 自动 repair 需要：调用 LLM 二次、改 prompt、用 jsonschema 强校验。这些组合起来调试成本高，且需要 careful prompt engineering。
 - 最低限度 dict + 必填 key + 无坐标字段已经覆盖 90% 的"硬错"；剩下的"软错"留到 CP3 配 jsonschema + repair loop 一起做。
 
-## 文件清单（V0.7 新增 / 修改）
+## Checkpoint 3 — Validation Layer + Repair Loop
+
+职责边界：
+- **做**：强 jsonschema 校验 + 自定义业务规则校验；结构化 `ValidationIssue` 返回；可选 LLM repair loop（上限 N 次）
+- **不做**：layout 强校验（layout.py 仍只做坐标生成，只在引用缺失时显式报错）；TTS / Remotion / pipeline 自动编排
+
+### ValidationIssue 数据结构
+
+```python
+@dataclass
+class ValidationIssue:
+    code: str      # e.g. "FORBIDDEN_COORD", "UNKNOWN_REVEAL"
+    path: str      # JSON path, e.g. "nodes[0].x"
+    message: str   # 人类可读描述
+    severity: str = "error"  # "error" | "warning"
+```
+
+### 校验规则（A + B 两层）
+
+**A. jsonschema（Draft7）**
+- `required` / `type` / `enum` / `additionalProperties` / `minItems` / `maxItems`
+
+**B. 自定义业务规则**
+| 类别 | 规则 |
+|---|---|
+| 禁止字段 | 任意层级禁止 `x` `y` `w` `h` `cx` `cy`；顶层禁止 `layout`；node 禁止 `narration`；callout 禁止 `attach_to` |
+| nodes | 数量 2~5；id 唯一；推荐 `^n\d+$` |
+| edges | id 唯一；推荐 `^e\d+$`；from/to 必须引用存在的 node id；from ≠ to；数量 ≥ nodes-1；causal_chain 要求存在从 n1 出发的线性链 |
+| callouts | id 唯一；推荐 `^c\d+$`；on 必须引用存在的 node id；数量 0~3 |
+| beats | 数量 6~10；id 唯一；推荐 `^b\d+$`；第一个 beat.reveal = "title"；reveal 必须是已知 id 或 "title"；narration 非空且 ≤ 120 字符；每个 node/edge/callout 至少被 reveal 一次 |
+| meta | lang = "zh"；source_title / source_url / source_name 必须存在 |
+
+### Repair Loop
+
+触发条件：`--repair` 且 `validate_ir` 返回非空 issue。
+流程：
+1. 用 `prompts/repair_semantic_ir.md` 构造 repair prompt（附原始 IR + issues + schema）
+2. 调用 LLM 获取修复版本
+3. 再次 `validate_ir`
+4. 最多 N 次（`--repair-attempts`，默认 2）
+5. 仍不合法时写入 `debug_validation_issues.json` / `debug_repair_prompt.txt` / `debug_repair_response.txt`，退出 5
+
+### generate_ir 新增参数
+
+| 参数 | 作用 |
+|---|---|
+| `--validate` | 生成后调用 `validate_ir`，不合法则 exit 5 |
+| `--repair` | 不合法时自动调用 LLM 修复（最多 `--repair-attempts` 次） |
+| `--repair-attempts N` | 最大修复尝试次数（默认 2） |
+| `--save-invalid` | 允许保存非法 IR 到 `.invalid.json`（默认拒绝） |
+
+### layout.py 引用校验
+
+- `edge.from` / `edge.to` 找不到节点 → `ValueError`（不再 `continue`）
+- `callout.on` 找不到节点 → `ValueError`（不再 `continue`）
+- 错误信息包含具体的 edge/callout id 和缺失的引用值
+
+## 文件清单（V0.8 新增 / 修改）
 
 新增：
-- `src/generate_ir.py`
-- `src/llm/__init__.py` / `base.py` / `client.py` / `openai_compatible_provider.py` / `anthropic_messages_provider.py` / `json_utils.py`
-- `prompts/news_to_semantic_ir.md`
+- `src/validate_ir.py`
+- `prompts/repair_semantic_ir.md`
+- `examples/invalid.semantic.bad_reveal.json`
+- `examples/invalid.semantic.coord_field.json`
+- `examples/invalid.semantic.duplicate_id.json`
 
 修改：
-- `config/llm.yaml`（profile 结构）
-- `.env.example`（新增 6 个环境变量）
+- `src/generate_ir.py`（加 `--validate` / `--repair` / `--repair-attempts` / `--save-invalid`）
+- `src/layout.py`（`continue` → `ValueError`）
+- `requirements.txt`（+jsonschema）
 - `README.md` / `PROJECT_SPEC.md` / `BACKLOG.md`
 
 未修改：
-- `src/pipeline.py` / `layout.py` / `pace.py` / `render_html.py` / `export_video.py`
+- `src/pipeline.py` / `pace.py` / `render_html.py` / `export_video.py`
 - `src/fetch_news.py` / `src/config_loader.py` / `src/utils.py`
-- `schema/semantic_ir.schema.json`（prompt 引用其内容）
+- `schema/semantic_ir.schema.json`
 - `renderer/template.html`
 - `examples/sample.semantic.json`

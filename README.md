@@ -184,6 +184,80 @@ outputs/latest/debug_llm_response.txt    LLM 原始响应 / mock 输出
 outputs/latest/semantic_ir.json          解析后的 semantic_ir
 ```
 
+## 校验 semantic_ir
+
+```bash
+# 校验一个文件
+python -m src.validate_ir outputs/latest/semantic_ir.json
+
+# 输出 JSON 格式
+python -m src.validate_ir outputs/latest/semantic_ir.json --json
+
+# 把警告当错误
+python -m src.validate_ir outputs/latest/semantic_ir.json --strict
+```
+
+退出码：`0` = 合法，`1` = 不合法，`2` = 文件不存在 / JSON 解析失败。
+
+校验规则包括：
+- **jsonschema**：required / type / enum / additionalProperties / minItems / maxItems
+- **禁止坐标字段**：`x` `y` `w` `h` `cx` `cy` 任何层级出现都报错
+- **ID 唯一性**：nodes / edges / callouts / beats 的 id 不可重复
+- **引用完整性**：edge.from / edge.to / callout.on 必须指向存在的 node id
+- **beats 覆盖率**：每个 node / edge / callout 至少被一个 beat reveal 一次
+- **第一个 beat 必须是 title**
+- **narration 长度**：≤ 120 字符
+- **callout 数量**：0~3
+
+## 生成 + 校验（一步）
+
+```bash
+# 生成后自动校验；不合法则打印 issue 并退出 5
+python -m src.generate_ir --news examples/sample_news.json --mock --validate
+
+# 生成后自动校验 + 自动修复（需要真实 LLM 配置）
+python -m src.generate_ir --news outputs/latest/latest_news.json \
+    --profile minimax_m27_highspeed_anthropic --validate --repair
+
+# --repair 最多 2 次（可改）
+python -m src.generate_ir --news outputs/latest/latest_news.json \
+    --profile minimax_m27_highspeed_anthropic --validate --repair --repair-attempts 3
+```
+
+`--repair` 需要真实 LLM（不能 `--mock`）。修复尝试失败会写入：
+- `outputs/latest/debug_validation_issues.json`
+- `outputs/latest/debug_repair_prompt.txt`
+- `outputs/latest/debug_repair_response.txt`
+
+默认 `--no-save-invalid`：不合法的 semantic_ir **不会**被写入 `semantic_ir.json`。用 `--save-invalid` 强制保存到 `semantic_ir.invalid.json`。
+
+## 常见校验错误
+
+| code | 含义 |
+|------|------|
+| `FORBIDDEN_COORD` | LLM 输出了坐标字段（x/y/w/h/cx/cy） |
+| `UNKNOWN_REVEAL` | beat.reveal 引用了不存在的 id |
+| `DUPLICATE_NODE_ID` | node id 重复 |
+| `UNREVEALED_NODE` | 某个 node 从未被 beats reveal |
+| `FIRST_BEAT_NOT_TITLE` | 第一个 beat 的 reveal 不是 "title" |
+| `MISSING_EDGE_FROM` | edge.from 指向不存在的 node |
+
+## gitignore 说明
+
+以下文件类型都会被 `.gitignore` 屏蔽，**不会**被提交：
+```
+outputs/latest/*.json   # 含 semantic_ir.json / render_ir.json / debug_*.json
+outputs/latest/*.html   # animation.html
+outputs/latest/*.mp4   # output.mp4
+outputs/latest/*.txt    # debug_*.txt
+.env                   # 真实 key
+```
+
+## 当前 Checkpoint
+
+详见 [PROJECT_SPEC.md](PROJECT_SPEC.md) 和 [BACKLOG.md](BACKLOG.md)。
+
+
 ## 把生成的 semantic_ir 接到 pipeline
 
 ```bash
