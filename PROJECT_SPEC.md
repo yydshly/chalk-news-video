@@ -281,6 +281,52 @@ TTS 和数字人需要额外的外部服务集成，且视频质量依赖模型�
 
 双人对话需要脚本分析和角色分配，复杂度更高。单人口播验证 TTS 链路后，CP7 再扩展对话。
 
+## Checkpoint 6.1 — 音画同步
+
+### 契约优先级
+
+CP6.1 确立三层时间契约：
+
+1. **semantic_ir**：语义契约（beat_id、reveal、narration 文本）
+2. **narration_manifest**：音频时间契约（beat_id、start、duration、end，来自真实 TTS）
+3. **render_ir.timeline**：最终渲染时间契约（beat_id、at、duration，**必须与 manifest 一致**）
+
+TTS 模式下时间源优先级：
+```
+narration_manifest.start/duration  >  pace 估算
+```
+
+### apply_narration_timing
+
+`src/narration_timing.apply_narration_timing(render_ir, narration_manifest)`：
+- 用 `manifest.beats[].beat_id` 匹配 `render_ir.timeline[].beat_id`
+- 对每个匹配 beat：`timeline_item.at = manifest_beat.start`，`timeline_item.duration = manifest_beat.duration`
+- `render_ir.total_duration = narration_manifest.total_duration`
+- timeline 有但 manifest 没有的 beat → `ValueError`
+- manifest 有但 timeline 没有的 beat → `warnings.warn`（不失败）
+
+### narration_manifest 新增字段（CP6.1）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `speech_duration` | float | 最后一个 beat 的 end（不含尾静音） |
+| `tail_silence` | float | 追加的尾静音秒数（默认 0.5s） |
+| `total_duration` | float | speech_duration + tail_silence |
+| `sample_rate` | int | 来自 TTS provider（非硬编码 24000） |
+
+### Pipeline 顺序（CP6.1 with TTS）
+
+```
+generate_ir → validate_ir → tts → layout → apply_narration_timing
+→ save render_ir.json → render_html → export_video(audio_path)
+```
+
+### 错误处理（CP6.1）
+
+- `--tts` 开启但 `narration_manifest.json` 不存在 → 直接失败，exit 1
+- `--tts` 开启但 `combined_audio_path` 文件不存在 → 直接失败，exit 1
+- TTS 失败后不允许无声继续导出
+
 ## Checkpoint 7 — 双人对话脚本
 
 - 多角色对话分析

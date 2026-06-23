@@ -90,6 +90,20 @@
 - 双人对话 / 多角色 TTS（CP7+）
 - Remotion / 数字人（CP9+）
 
+## Checkpoint 6.1 — 音画同步
+
+- [x] `src/narration_timing.py`（apply_narration_timing 函数）
+- [x] `narration_manifest` 新增字段：speech_duration / tail_silence / total_duration / sample_rate
+- [x] `narration.py` 追加 tail_silence 到 narration.wav
+- [x] `narration.py` --output 参数实际生效
+- [x] `mock_tts_provider` 返回 sample_rate
+- [x] `pipeline.py` TTS 模式下校验 manifest 和音频文件存在，不存在则 fail
+- [x] `pipeline.py` apply_narration_timing 在 render_html 之前执行
+- [x] `pipeline.py` render_ir.json 在 render_html 之前保存
+- [x] `export_video.py` 添加音频 mux 日志
+- [x] README / PROJECT_SPEC / BACKLOG 更新
+- [x] 验收通过：音频总时长 ≈ render_ir.total_duration ≈ output.mp4 时长
+
 ## Checkpoint 7 — 双人对话脚本
 
 - 多角色对话分析

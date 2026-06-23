@@ -64,6 +64,7 @@ class MockTTSProvider(TTSProvider):
             "text": text,
             "audio_path": str(output_path),
             "duration": duration,
+            "sample_rate": self.sample_rate,
             "provider": "mock",
             "voice": voice or self.voice,
             "format": format,

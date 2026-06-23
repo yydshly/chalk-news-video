@@ -4,19 +4,29 @@
 
 ## 当前 Checkpoint
 
-**Checkpoint 6 — TTS 单人口播 + 音画同步（当前）**
+**Checkpoint 6.1 — 音画同步（当前）**
 
-一条命令跑通 news → semantic_ir → TTS narration → video（含音频）：
+CP6.1 在 CP6 基础上实现音画同步：`narration_manifest` 是音频时间源，
+`render_ir.timeline` 被回填为音频的实际时长。
 
 ```bash
 # 无音频（CP4/CP5 模式，不变）
 python -m src.pipeline --auto --mock
 
-# 带音频（CP6 新增）
+# 带音频 + 音画同步（CP6.1）
 python -m src.pipeline --auto --mock --tts --tts-profile mock
 ```
 
-TTS 使用 `config/tts.yaml` 配置，支持 mock（默认）和真实 MiniMax TTS。
+音画同步流程：
+1. TTS 生成 `narration_manifest.json`（含真实音频时长）
+2. `src/narration_timing.apply_narration_timing` 把 manifest 时间写入 `render_ir.timeline`
+3. `render_ir.total_duration` = `narration_manifest.total_duration`
+4. 动画按音频时长播放，不截断、不空放
+
+**CP6.1 关键约束**：
+- `--tts` 开启时，`narration_manifest.json` 或音频文件缺失会直接失败，不生成假装有音频的视频
+- `render_ir.timeline` 以 `narration_manifest` 的 start/duration 为准
+- 视频总时长 ≈ 音频总时长（误差 ±0.5s）
 
 不包含（后续 Checkpoint）：
 - 双人对话（CP7）
@@ -363,9 +373,21 @@ TTS 配置在 `config/tts.yaml`，默认 profile 为 `mock`。
 
 ```
 outputs/latest/audio/beat_001.wav   # 单句音频
-outputs/latest/audio/narration.wav  # 拼接后完整音频
+outputs/latest/audio/narration.wav  # 拼接后完整音频（含 tail_silence）
 outputs/latest/narration_manifest.json  # 音画时间轴 manifest
 ```
+
+### narration_manifest.json 字段说明
+
+| 字段 | 含义 |
+|------|------|
+| `speech_duration` | 最后一个 beat 的 end（不含尾静音） |
+| `tail_silence` | 追加的尾静音秒数（默认 0.5s） |
+| `total_duration` | speech_duration + tail_silence（最终音频时长） |
+| `sample_rate` | 来自 TTS provider（非硬编码） |
+| `beats[].start/duration/end` | 每个 beat 的真实音频时间 |
+
+CP6.1 时间优先级：`narration_manifest` > `pace` 估算。
 
 ## 把生成的 semantic_ir 接到 pipeline
 

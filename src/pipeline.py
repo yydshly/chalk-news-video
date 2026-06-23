@@ -21,6 +21,7 @@ from pathlib import Path
 
 from . import export_video, fetch_news, layout, render_html, validate_ir
 from .narration import generate_narration
+from .narration_timing import apply_narration_timing
 from .utils import PROJECT_ROOT, load_json, save_json
 
 
@@ -48,7 +49,15 @@ def _run_step(stage, fn, *args, **kwargs):
 
 
 def run_auto_pipeline(args):
-    """Run the full auto pipeline: news → semantic_ir → validate → render → export."""
+    """Run the full auto pipeline: news → semantic_ir → validate → render → export.
+
+    CP6.1 order with TTS:
+        generate_ir → validate_ir → tts → layout → apply_narration_timing
+        → save render_ir → render_html → export_video(audio_path)
+
+    Without TTS:
+        generate_ir → validate_ir → layout → save render_ir → render_html → export_video
+    """
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     # Clean up artifacts from previous runs to avoid stale file reuse
@@ -133,6 +142,7 @@ def run_auto_pipeline(args):
 
     # ---- Stage 3a: narration TTS (optional) ----
     audio_path = None
+    manifest = None
     if args.tts:
         print(f"[auto:tts] generating narration with profile={args.tts_profile}")
         narration_cmd = [
@@ -144,19 +154,35 @@ def run_auto_pipeline(args):
         if narration_result.returncode != 0:
             print(f"[auto:tts] exited with code {narration_result.returncode}", file=sys.stderr)
             sys.exit(narration_result.returncode)
+
         manifest_path = OUTPUT_DIR / "narration_manifest.json"
-        if manifest_path.exists():
-            manifest = load_json(manifest_path)
-            audio_path = manifest.get("combined_audio_path")
-            print(f"[auto:tts] audio ready: {audio_path}")
-        else:
-            print(f"[auto:tts] WARNING: manifest not found, continuing without audio", file=sys.stderr)
+        if not manifest_path.exists():
+            print(f"[auto:tts] narration_manifest.json not found", file=sys.stderr)
+            sys.exit(1)
+
+        manifest = load_json(manifest_path)
+        audio_path = manifest.get("combined_audio_path")
+        if not audio_path:
+            print(f"[auto:tts] combined_audio_path not in manifest", file=sys.stderr)
+            sys.exit(1)
+        audio_path = Path(audio_path)
+        if not audio_path.exists():
+            print(f"[auto:tts] audio file not found: {audio_path}", file=sys.stderr)
+            sys.exit(1)
+        print(f"[auto:tts] audio ready: {audio_path}")
     else:
         print(f"[auto:tts] SKIPPED (no --tts flag)")
 
     # ---- Stage 4: layout ----
     print(f"[auto:layout] building render_ir")
     render_ir = _run_step("layout", layout.build_render_ir, semantic_ir)
+
+    # ---- Stage 4b: apply narration timing (CP6.1) ----
+    if manifest is not None:
+        print(f"[auto:layout] syncing render_ir.timeline to narration_manifest timing")
+        render_ir = apply_narration_timing(render_ir, manifest)
+
+    # Save render_ir BEFORE render_html so timing is committed
     render_ir_path = save_json(render_ir, OUTPUT_DIR / "render_ir.json")
     print(f"[auto:layout] wrote {render_ir_path}")
 
@@ -253,7 +279,7 @@ def run_pipeline(semantic_ir_path, headless=True):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="chalk-news-video pipeline (V0.10 / Checkpoint 6)",
+        description="chalk-news-video pipeline (V0.10 / Checkpoint 6.1)",
     )
 
     # Auto pipeline group

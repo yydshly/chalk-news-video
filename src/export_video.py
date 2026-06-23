@@ -131,6 +131,7 @@ def export_video(html_path, output_path, fps=30, width=1280, height=720, headles
             audio_path = Path(audio_path)
             if not audio_path.exists():
                 raise RuntimeError(f"Audio file not found: {audio_path}")
+            print(f"[export] mux audio: {audio_path.name}")
             audio_mux_cmd = [
                 "ffmpeg",
                 "-y",
@@ -149,7 +150,23 @@ def export_video(html_path, output_path, fps=30, width=1280, height=720, headles
                     f"FFmpeg audio mux failed (exit {audio_result.returncode}). "
                     "See stderr above for details."
                 )
-            print(f"[export] muxed audio into video: {output_path}")
+            print(f"[export] muxed audio into video")
+
+            # Check final MP4 duration
+            try:
+                probe_cmd = [
+                    "ffprobe",
+                    "-v", "error",
+                    "-show_entries", "format=duration",
+                    "-of", "default=noprint_wrappers=1:nokey=1",
+                    str(output_path),
+                ]
+                probe_result = subprocess.run(probe_cmd, capture_output=True, text=True, errors="replace")
+                if probe_result.returncode == 0 and probe_result.stdout.strip():
+                    duration = float(probe_result.stdout.strip())
+                    print(f"[export] output duration={duration:.3f}s")
+            except Exception:
+                pass  # non-fatal
         else:
             # No audio, copy video_only to output_path (shutil.move handles cross-volume)
             import shutil
