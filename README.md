@@ -4,17 +4,16 @@
 
 ## 当前 Checkpoint
 
-**Checkpoint 2 — 可配置 LLM → semantic_ir**
+**Checkpoint 3 — Validation Layer + Repair Loop（当前）**
 
-`python -m src.generate_ir --news outputs/latest/latest_news.json` 把一条新闻通过 LLM 转换为 `outputs/latest/semantic_ir.json`，并保留 `debug_llm_prompt.txt` / `debug_llm_response.txt` 用于调试。
+`python -m src.generate_ir --news outputs/latest/latest_news.json` 把一条新闻通过 LLM 转换为 `outputs/latest/semantic_ir.json`，并保留 `debug_llm_prompt.txt` / `debug_llm_response.txt` 用于调试。生成后自动校验语义 IR。
 
 支持三种运行模式：
 1. **`--dry-run`**：拼装 prompt 并保存，不调用任何 LLM。
 2. **`--mock`**：使用内置 mock provider，无 key 也能生成合法 semantic_ir（不代表真实 LLM 效果）。
-3. **真实 provider**：使用 `config/llm.yaml` 中的 profile（`minimax_m27_highspeed_anthropic` / `mimo_openai_compatible`）。
+3. **真实 provider**：使用 `config/llm.yaml` 中的 profile（`minimax_m3_openai` / `minimax_m27_highspeed_openai` / `mimo_v25_pro_openai`）。
 
 不包含（后续 Checkpoint）：
-- validate_ir / 自动修复（Checkpoint 3）
 - TTS / 完整 pipeline 编排（Checkpoint 4）
 - Remotion / 数字人
 
@@ -22,7 +21,7 @@
 
 ## 项目定位
 
-V0.7: News → LLM → semantic_ir；视频仍由 `src.pipeline` 显式触发。
+V0.8: News → LLM → semantic_ir；视频仍由 `src.pipeline` 显式触发。
 
 ## 架构
 
@@ -149,8 +148,7 @@ MIMO_BASE_URL=<your Mimo endpoint>
 MIMO_MODEL=<your Mimo model>
 ```
 
-> **不要提交真实 API key 或真实 base_url**。本仓库 `.env.example` 全部留空。
-> **不要猜** MiniMax / Mimo 的真实 base_url——除非来自已验证的官方文档或你本地跑通过的项目代码。
+> **不要提交真实 API key**。本仓库 `.env.example` 全部留空或使用官方示例值。
 
 ## 运行 generate_ir
 
@@ -161,13 +159,21 @@ python -m src.generate_ir --news examples/sample_news.json --dry-run
 # 2) Mock：无 key 本地测试（推荐方式，绕过 llm.yaml 的 profile 选择）
 python -m src.generate_ir --news examples/sample_news.json --mock
 
-# 3) 真实 MiniMax（读 .env / 系统环境变量）
+# 3) 真实 MiniMax M3 OpenAI-compatible（读 .env / 系统环境变量）
 python -m src.generate_ir --news outputs/latest/latest_news.json \
-    --profile minimax_m27_highspeed_anthropic
+    --profile minimax_m3_openai
 
-# 4) 真实 Mimo
+# 4) 真实 MiniMax M2.7-highspeed OpenAI-compatible
 python -m src.generate_ir --news outputs/latest/latest_news.json \
-    --profile mimo_openai_compatible
+    --profile minimax_m27_highspeed_openai
+
+# 5) 真实 MiMo 按量
+python -m src.generate_ir --news outputs/latest/latest_news.json \
+    --profile mimo_v25_pro_openai
+
+# 6) 真实 MiMo Token Plan（需先设置 MIMO_BASE_URL 和 MIMO_API_KEY）
+python -m src.generate_ir --news outputs/latest/latest_news.json \
+    --profile mimo_token_plan_v25_pro_openai
 ```
 
 可选参数：
@@ -208,6 +214,7 @@ python -m src.validate_ir outputs/latest/semantic_ir.json --strict
 - **第一个 beat 必须是 title**
 - **narration 长度**：≤ 120 字符
 - **callout 数量**：0~3
+- **causal_chain 连通性**：必须存在一条线性路径覆盖所有 node，断链报错 `BROKEN_CAUSAL_CHAIN`
 
 ## 生成 + 校验（一步）
 

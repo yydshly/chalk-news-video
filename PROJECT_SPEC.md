@@ -80,8 +80,30 @@ profiles:
 ### 端点规则
 
 - openai_compatible：`POST {base_url}/chat/completions`。若 base_url 已以 `/chat/completions` 结尾则不重复追加。
-- anthropic_messages：`POST {base_url}/messages`。若 base_url 已以 `/messages` 结尾则不重复追加。
+- anthropic_messages：`POST {base_url}{endpoint_path}`（默认 `/v1/messages`）。若 base_url 已以 `endpoint_path` 结尾则不重复追加。
 - 两者缺 `base_url` 或缺 API key 时**清晰报错**，不静默回退。
+
+### LLM Provider Official Config（CP3.2 校准）
+
+**auth_type 支持**：
+- `bearer` → `Authorization: Bearer {key}`（MiniMax OpenAI-compatible）
+- `api-key` → `{api_key_header}: {key}`（MiMo，默认 header 为 `api-key`）
+
+**max_tokens_param**：不同 provider 支持不同字段名。
+- MiniMax M3 推荐 `max_completion_tokens`
+- MiniMax M2.7-highspeed 可用 `max_tokens`
+- MiMo 使用 `max_completion_tokens`
+
+**extra_body**：profile.extra_body 合并进请求 payload，标准字段优先。
+
+**环境变量优先级**：`env > yaml 静态值`。用户可通过 env 覆盖默认官方 base_url / model。
+
+**官方 base_url**（已验证）：
+- MiniMax OpenAI-compatible：`https://api.minimaxi.com/v1`
+- MiniMax Anthropic-compatible：`https://api.minimaxi.com/anthropic`
+- MiMo 按量：`https://api.xiaomimimo.com/v1`
+
+**注意**：MiMo 不可直接等同普通 OpenAI-compatible；它使用 `api-key` header 和 `max_completion_tokens`。
 
 ## generate_ir 输入输出契约
 
@@ -178,7 +200,7 @@ class ValidationIssue:
 - `callout.on` 找不到节点 → `ValueError`（不再 `continue`）
 - 错误信息包含具体的 edge/callout id 和缺失的引用值
 
-## 文件清单（V0.8 新增 / 修改）
+## 文件清单（V0.9 新增 / 修改）
 
 新增：
 - `src/validate_ir.py`
@@ -186,10 +208,15 @@ class ValidationIssue:
 - `examples/invalid.semantic.bad_reveal.json`
 - `examples/invalid.semantic.coord_field.json`
 - `examples/invalid.semantic.duplicate_id.json`
+- `examples/invalid.semantic.disconnected_chain.json`
 
 修改：
 - `src/generate_ir.py`（加 `--validate` / `--repair` / `--repair-attempts` / `--save-invalid`）
 - `src/layout.py`（`continue` → `ValueError`）
+- `src/llm/openai_compatible_provider.py`（支持 auth_type / api_key_header / max_tokens_param / extra_body）
+- `src/llm/anthropic_messages_provider.py`（支持 endpoint_path / api_key_header / extra_body）
+- `config/llm.yaml`（5 个 official profiles）
+- `.env.example`（官方 base_url / model 示例）
 - `requirements.txt`（+jsonschema）
 - `README.md` / `PROJECT_SPEC.md` / `BACKLOG.md`
 

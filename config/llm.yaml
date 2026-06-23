@@ -7,43 +7,109 @@
 # (see .env.example) and reference them via api_key_env / base_url_env /
 # model_env.
 #
-# Real base_urls for MiniMax / Mimo are NOT committed (we don't want to
-# guess them and have them break). Leave `base_url` empty in this file and
-# set the corresponding env var in your local `.env`.
-#
 # Note: there is intentionally NO `mock` profile here. The supported way to
 # run offline is `python -m src.generate_ir --mock`, which bypasses this
 # config file entirely. Do NOT add a `mock` profile unless you know what
 # you're doing — an empty mock profile silently returns "" and looks like
 # a working LLM call.
 
-default_profile: minimax_m27_highspeed_anthropic
+default_profile: minimax_m3_openai
 
 profiles:
 
-  # ---- MiniMax (Anthropic Messages style) -------------------------------
-  minimax_m27_highspeed_anthropic:
+  # ---- MiniMax OpenAI-compatible (recommended default) -----------------------
+  minimax_m3_openai:
     provider: minimax
-    protocol: anthropic_messages
+    protocol: openai_compatible
     api_key_env: MINIMAX_API_KEY
-    base_url: ""                    # fill in via env MINIMAX_BASE_URL
+    base_url: "https://api.minimaxi.com/v1"
+    base_url_env: MINIMAX_BASE_URL
+    model: "MiniMax-M3"
+    model_env: MINIMAX_MODEL
+    auth_type: bearer
+    max_tokens_param: max_completion_tokens
+    temperature: 0.2
+    max_tokens: 4000
+    timeout_seconds: 60
+    extra_body:
+      thinking:
+        type: disabled
+
+  # ---- MiniMax M2.7-highspeed OpenAI-compatible ----------------------------
+  minimax_m27_highspeed_openai:
+    provider: minimax
+    protocol: openai_compatible
+    api_key_env: MINIMAX_API_KEY
+    base_url: "https://api.minimaxi.com/v1"
     base_url_env: MINIMAX_BASE_URL
     model: "MiniMax-M2.7-highspeed"
     model_env: MINIMAX_MODEL
+    auth_type: bearer
+    max_tokens_param: max_tokens
+    temperature: 0.2
+    max_tokens: 4000
+    timeout_seconds: 60
+    extra_body: {}
+
+  # ---- MiniMax Anthropic-compatible (optional) ----------------------------
+  minimax_m3_anthropic:
+    provider: minimax
+    protocol: anthropic_messages
+    api_key_env: MINIMAX_API_KEY
+    base_url: "https://api.minimaxi.com/anthropic"
+    base_url_env: MINIMAX_ANTHROPIC_BASE_URL
+    endpoint_path: "/v1/messages"
+    model: "MiniMax-M3"
+    model_env: MINIMAX_MODEL
+    api_key_header: x-api-key
     anthropic_version: "2023-06-01"
     temperature: 0.2
     max_tokens: 4000
     timeout_seconds: 60
+    extra_body:
+      thinking:
+        type: disabled
 
-  # ---- Mimo (OpenAI-compatible /chat/completions) -----------------------
-  mimo_openai_compatible:
+  # ---- MiMo pay-as-you-go OpenAI-compatible -------------------------------
+  mimo_v25_pro_openai:
     provider: mimo
     protocol: openai_compatible
     api_key_env: MIMO_API_KEY
-    base_url: ""                    # fill in via env MIMO_BASE_URL
+    base_url: "https://api.xiaomimimo.com/v1"
     base_url_env: MIMO_BASE_URL
-    model: ""                       # fill in via env MIMO_MODEL
+    model: "mimo-v2.5-pro"
     model_env: MIMO_MODEL
+    auth_type: api-key
+    api_key_header: api-key
+    max_tokens_param: max_completion_tokens
     temperature: 0.2
     max_tokens: 4000
     timeout_seconds: 60
+    extra_body:
+      top_p: 0.95
+      stream: false
+      thinking:
+        type: disabled
+
+  # ---- MiMo Token Plan OpenAI-compatible ---------------------------------
+  # Note: Token Plan base_url is set via env var MIMO_BASE_URL.
+  # Do NOT hardcode token-plan-cn base_url here without official confirmation.
+  mimo_token_plan_v25_pro_openai:
+    provider: mimo
+    protocol: openai_compatible
+    api_key_env: MIMO_API_KEY
+    base_url: ""
+    base_url_env: MIMO_BASE_URL
+    model: "mimo-v2.5-pro"
+    model_env: MIMO_MODEL
+    auth_type: api-key
+    api_key_header: api-key
+    max_tokens_param: max_completion_tokens
+    temperature: 0.2
+    max_tokens: 4000
+    timeout_seconds: 60
+    extra_body:
+      top_p: 0.95
+      stream: false
+      thinking:
+        type: disabled

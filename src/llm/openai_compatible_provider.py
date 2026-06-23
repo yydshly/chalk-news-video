@@ -2,17 +2,20 @@
 
 POST {base_url}/chat/completions (or {base_url} if it already ends in /chat/completions).
 
-Headers:
-  Authorization: Bearer {api_key}
-  Content-Type: application/json
+Supports two auth schemes:
+  auth_type: bearer  → Authorization: Bearer {api_key}
+  auth_type: api-key  → {api_key_header}: {api_key}  (default header: "api-key")
 
 Body:
   {
     "model": "...",
-    "messages": [{"role": "system", "content": ...}, {"role": "user", "content": ...}],
+    "messages": [...],
     "temperature": 0.2,
-    "max_tokens": 4000
+    "max_tokens": 4000,          # or max_completion_tokens per profile
+    ...extra_body fields...
   }
+
+Environment variables always override llm.yaml static values for base_url and model.
 """
 
 
@@ -28,7 +31,7 @@ class OpenAICompatibleProvider(LLMProvider):
         self.cfg = cfg or {}
         self.timeout = int(cfg.get("timeout_seconds", 60))
 
-        # Resolve base_url from config + env
+        # Resolve base_url: env > yaml static value
         base_url, url_src = self._resolve(
             cfg.get("base_url"), cfg.get("base_url_env"), "base_url"
         )
@@ -45,7 +48,7 @@ class OpenAICompatibleProvider(LLMProvider):
         else:
             self.endpoint = self.base_url + "/chat/completions"
 
-        # Resolve model
+        # Resolve model: env > yaml static value
         model, _ = self._resolve(cfg.get("model"), cfg.get("model_env"), "model")
         if not model:
             raise RuntimeError(
@@ -54,7 +57,7 @@ class OpenAICompatibleProvider(LLMProvider):
             )
         self.model = model
 
-        # Resolve API key
+        # Resolve API key from env
         api_key_env = cfg.get("api_key_env")
         if api_key_env:
             self.api_key = (os.environ.get(api_key_env) or "").strip()
@@ -66,27 +69,49 @@ class OpenAICompatibleProvider(LLMProvider):
                 f"'{api_key_env}'."
             )
 
+        # Auth scheme
+        self.auth_type = cfg.get("auth_type", "bearer")
+        self.api_key_header = cfg.get("api_key_header", "api-key")
+
+        # Token param name (max_tokens vs max_completion_tokens)
+        self.max_tokens_param = cfg.get("max_tokens_param", "max_tokens")
+
         self.temperature = float(cfg.get("temperature", 0.2))
         self.max_tokens = int(cfg.get("max_tokens", 4000))
 
+        # Extra body fields from profile (merged into payload)
+        self.extra_body = cfg.get("extra_body") or {}
+
     @staticmethod
     def _resolve(static_val, env_key, field_name):
-        """Prefer static config value; fall back to env var."""
-        static = (str(static_val) if static_val is not None else "").strip()
-        if static:
-            return static, "config"
+        """Prefer env var; fall back to static config value."""
         if env_key:
             env_val = (os.environ.get(env_key) or "").strip()
             if env_val:
                 return env_val, "env"
+        static = (str(static_val) if static_val is not None else "").strip()
+        if static:
+            return static, "config"
         return "", None
 
+    def _build_headers(self):
+        if self.auth_type == "bearer":
+            return {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+                "User-Agent": "chalk-news-video/0.8",
+            }
+        else:  # api-key
+            return {
+                self.api_key_header: self.api_key,
+                "Content-Type": "application/json",
+                "User-Agent": "chalk-news-video/0.8",
+            }
+
     def generate_text(self, system_prompt, user_prompt):
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-            "User-Agent": "chalk-news-video/0.7",
-        }
+        headers = self._build_headers()
+
+        # Build payload with standard fields
         payload = {
             "model": self.model,
             "messages": [
@@ -94,8 +119,14 @@ class OpenAICompatibleProvider(LLMProvider):
                 {"role": "user", "content": user_prompt},
             ],
             "temperature": self.temperature,
-            "max_tokens": self.max_tokens,
+            self.max_tokens_param: self.max_tokens,
         }
+
+        # Merge extra_body (standard fields take precedence)
+        for k, v in self.extra_body.items():
+            if k not in payload:
+                payload[k] = v
+
         try:
             resp = requests.post(
                 self.endpoint,
@@ -105,13 +136,15 @@ class OpenAICompatibleProvider(LLMProvider):
             )
         except requests.exceptions.RequestException as e:
             raise RuntimeError(
+                f"[{self.cfg.get('provider','openai_compat')}] "
                 f"HTTP request to {self.endpoint} failed: {e}"
             ) from e
 
         if resp.status_code != 200:
             raise RuntimeError(
-                f"openai_compatible provider returned HTTP {resp.status_code}: "
-                f"{resp.text[:500]}"
+                f"[{self.cfg.get('provider','openai_compat')}] "
+                f"model={self.model} endpoint={self.endpoint} "
+                f"HTTP {resp.status_code}: {resp.text[:500]}"
             )
 
         try:

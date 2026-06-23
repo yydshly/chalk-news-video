@@ -33,6 +33,16 @@
 - [x] 新增 `examples/invalid.semantic.disconnected_chain.json`
 - [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
 
+## Checkpoint 3.2 — 官方 LLM Provider 配置校准
+
+- [x] config/llm.yaml：新增 5 个 official profiles（minimax_m3_openai / minimax_m27_highspeed_openai / minimax_m3_anthropic / mimo_v25_pro_openai / mimo_token_plan_v25_pro_openai）
+- [x] openai_compatible_provider.py：支持 auth_type / api_key_header / max_tokens_param / extra_body 配置化
+- [x] anthropic_messages_provider.py：支持 endpoint_path / api_key_header / extra_body；anthropic_version 非空才发送 header
+- [x] .env.example：更新为官方 base_url / model 示例值
+- [x] README.md / PROJECT_SPEC.md 更新：auth_type / max_tokens_param / extra_body / 官方 base_url 说明
+- [x] 环境变量优先级：env > yaml 静态值
+- [x] 未提交真实 API Key / .env / outputs/latest
+
 ## Checkpoint 4 — 完整 pipeline 编排
 
 ## Checkpoint 4 — 完整 pipeline 编排

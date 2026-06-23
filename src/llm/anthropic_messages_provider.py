@@ -1,11 +1,11 @@
 """Anthropic Messages-style provider.
 
-Used for MiniMax (and any provider exposing an Anthropic-compatible /messages
-endpoint). The actual base_url is read from config / env — never hardcoded.
+Used for MiniMax and any provider exposing an Anthropic-compatible /messages
+endpoint. The base_url is read from config / env — never hardcoded.
 
 Headers:
-  x-api-key: {api_key}
-  anthropic-version: 2023-06-01
+  {api_key_header}: {api_key}       (default: x-api-key)
+  anthropic-version: {version}      (only sent if version is non-empty)
   Content-Type: application/json
 
 Body:
@@ -14,8 +14,11 @@ Body:
     "max_tokens": 4000,
     "temperature": 0.2,
     "system": "...",
-    "messages": [{"role": "user", "content": "..."}]
+    "messages": [{"role": "user", "content": "..."}],
+    ...extra_body fields...
   }
+
+Environment variables always override llm.yaml static values for base_url and model.
 """
 
 
@@ -31,6 +34,7 @@ class AnthropicMessagesProvider(LLMProvider):
         self.cfg = cfg or {}
         self.timeout = int(cfg.get("timeout_seconds", 60))
 
+        # Resolve base_url: env > yaml static value
         base_url, _ = self._resolve(cfg.get("base_url"), cfg.get("base_url_env"))
         if not base_url:
             raise RuntimeError(
@@ -39,11 +43,14 @@ class AnthropicMessagesProvider(LLMProvider):
             )
         self.base_url = base_url.rstrip("/")
 
-        if self.base_url.endswith("/messages"):
+        # Endpoint: use endpoint_path if provided, otherwise /messages
+        endpoint_path = cfg.get("endpoint_path", "/messages")
+        if self.base_url.endswith(endpoint_path):
             self.endpoint = self.base_url
         else:
-            self.endpoint = self.base_url + "/messages"
+            self.endpoint = self.base_url.rstrip("/") + endpoint_path
 
+        # Resolve model: env > yaml static value
         model, _ = self._resolve(cfg.get("model"), cfg.get("model_env"))
         if not model:
             raise RuntimeError(
@@ -52,6 +59,7 @@ class AnthropicMessagesProvider(LLMProvider):
             )
         self.model = model
 
+        # Resolve API key from env
         api_key_env = cfg.get("api_key_env")
         if api_key_env:
             self.api_key = (os.environ.get(api_key_env) or "").strip()
@@ -63,28 +71,44 @@ class AnthropicMessagesProvider(LLMProvider):
                 f"'{api_key_env}'."
             )
 
-        self.anthropic_version = cfg.get("anthropic_version", "2023-06-01")
+        # Auth header name (default x-api-key for Anthropic-compatible)
+        self.api_key_header = cfg.get("api_key_header", "x-api-key")
+
+        # Anthropic version (only send header if non-empty)
+        self.anthropic_version = cfg.get("anthropic_version") or ""
+
         self.temperature = float(cfg.get("temperature", 0.2))
         self.max_tokens = int(cfg.get("max_tokens", 4000))
 
+        # Extra body fields from profile
+        self.extra_body = cfg.get("extra_body") or {}
+
     @staticmethod
     def _resolve(static_val, env_key):
-        static = (str(static_val) if static_val is not None else "").strip()
-        if static:
-            return static, "config"
+        """Prefer env var; fall back to static config value."""
         if env_key:
             env_val = (os.environ.get(env_key) or "").strip()
             if env_val:
                 return env_val, "env"
+        static = (str(static_val) if static_val is not None else "").strip()
+        if static:
+            return static, "config"
         return "", None
 
-    def generate_text(self, system_prompt, user_prompt):
+    def _build_headers(self):
         headers = {
-            "x-api-key": self.api_key,
-            "anthropic-version": self.anthropic_version,
+            self.api_key_header: self.api_key,
             "Content-Type": "application/json",
-            "User-Agent": "chalk-news-video/0.7",
+            "User-Agent": "chalk-news-video/0.8",
         }
+        if self.anthropic_version:
+            headers["anthropic-version"] = self.anthropic_version
+        return headers
+
+    def generate_text(self, system_prompt, user_prompt):
+        headers = self._build_headers()
+
+        # Build payload with standard fields
         payload = {
             "model": self.model,
             "max_tokens": self.max_tokens,
@@ -94,6 +118,12 @@ class AnthropicMessagesProvider(LLMProvider):
                 {"role": "user", "content": user_prompt},
             ],
         }
+
+        # Merge extra_body (standard fields take precedence)
+        for k, v in self.extra_body.items():
+            if k not in payload:
+                payload[k] = v
+
         try:
             resp = requests.post(
                 self.endpoint,
@@ -103,13 +133,15 @@ class AnthropicMessagesProvider(LLMProvider):
             )
         except requests.exceptions.RequestException as e:
             raise RuntimeError(
+                f"[{self.cfg.get('provider','anthropic')}] "
                 f"HTTP request to {self.endpoint} failed: {e}"
             ) from e
 
         if resp.status_code != 200:
             raise RuntimeError(
-                f"anthropic_messages provider returned HTTP {resp.status_code}: "
-                f"{resp.text[:500]}"
+                f"[{self.cfg.get('provider','anthropic')}] "
+                f"model={self.model} endpoint={self.endpoint} "
+                f"HTTP {resp.status_code}: {resp.text[:500]}"
             )
 
         try:
@@ -118,7 +150,7 @@ class AnthropicMessagesProvider(LLMProvider):
             for block in data.get("content", []) or []:
                 if isinstance(block, dict) and block.get("type") == "text":
                     return block.get("text", "")
-            # Fallback: some MiniMax deployments may use a simpler shape
+            # Fallback: some deployments may use a simpler shape
             if "text" in data:
                 return data["text"]
             raise KeyError("no text block in response.content")
