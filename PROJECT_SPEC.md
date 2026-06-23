@@ -336,7 +336,7 @@ generate_ir → validate_ir → tts → layout → apply_narration_timing
 
 ### CP7.1 契约层级（新增）
 
-CP7.1 确立三层对话契约：
+CP7.1 确立三层对话契约（CP7.2 继续加固）：
 
 1. **semantic_ir**：结构语义契约（beat_id、reveal、narration）
 2. **dialogue_script**：对话表达契约（turns with host/expert alternating）
@@ -370,6 +370,24 @@ CP7.1 确立三层对话契约：
   ]
 }
 ```
+
+### dialogue_script 校验规则（CP7.2 新增）
+
+**A. jsonschema（Draft7）**
+- `source_semantic_ir`：必含 `title` 和 `schema_version`
+- `style`：必含 `format`、`tone`、`language`、`speakers`
+- `style.speakers`：必含 2 项，id 不可重复（uniqueItems: true）
+- `turns`：`additionalProperties: false`，不允许 audio_path/start/end/duration
+
+**B. 自定义业务规则**
+| 类别 | 规则 |
+|---|---|
+| turns | 非空；数量推荐 8–18；turn id 唯一 |
+| speaker | 必须是 'host' 或 'expert'；必须在 style.speakers 中定义 |
+| beat 覆盖 | 每个 semantic_ir beat 至少被一个 turn 覆盖 |
+| reveal 对齐 | turn.reveal 必须与 semantic_ir.beats[beat_id].reveal 一致 |
+| 角色存在 | 至少有一个 host turn 和一个 expert turn |
+| style.speakers | 不可为空；id 不可重复 |
 
 ### dialogue_manifest.json 契约（CP7.1 新结构）
 
@@ -410,7 +428,7 @@ CP7.1 确立三层对话契约：
 | host | mock_host | 440Hz A4 note |
 | expert | mock_expert | 330Hz E4 note |
 
-### Pipeline 顺序（CP7.1 dialogue mode）
+### Pipeline 顺序（CP7.2 dialogue mode）
 
 ```
 generate_ir → validate_ir

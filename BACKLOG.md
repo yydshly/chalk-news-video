@@ -129,19 +129,40 @@
 - [x] `pipeline.py` dialogue 模式自动生成 dialogue_script.json
 - [x] `pipeline.py` 新增 `--dialogue-legacy` 保留 CP7 兼容路径
 - [x] README / PROJECT_SPEC / BACKLOG 更新
-- [ ] 验收通过：generate_dialogue --mock --validate 生成 dialogue_script.json
-- [ ] 验收通过：validate_dialogue 对无效输入报错
-- [ ] 验收通过：dialogue_manifest.turns 生成并同步 render_ir.timeline
+- [x] 验收通过：generate_dialogue --mock --validate 生成 dialogue_script.json
+- [x] 验收通过：validate_dialogue 对无效输入报错
+- [x] 验收通过：dialogue_manifest.turns 生成并同步 render_ir.timeline
+
+## Checkpoint 7.2 — Dialogue Script 校验加固
+
+- [x] `schema/dialogue_script.schema.json` 加固：`source_semantic_ir` 必含 title/schema_version，`style` 必含 format/tone/language/speakers，`speakers` uniqueItems: true
+- [x] `src/validate_dialogue.py` 新增校验规则：
+  - REVEAL_MISMATCH：turn.reveal 与 semantic_ir beat reveal 对齐
+  - MISSING_HOST_TURN：至少一个 host turn
+  - MISSING_EXPERT_TURN：至少一个 expert turn
+  - UNKNOWN_STYLE_SPEAKER：turn.speaker 在 style.speakers 中定义
+  - DUPLICATE_STYLE_SPEAKER：style.speakers id 不重复
+  - MISSING_STYLE_SPEAKERS：style.speakers 不为空
+- [x] `examples/invalid.dialogue.reveal_mismatch.json`（新增）
+- [x] `examples/invalid.dialogue.missing_expert.json`（新增）
+- [x] `examples/invalid.dialogue.missing_style_speakers.json`（新增）
+- [x] README / PROJECT_SPEC / BACKLOG 更新
+- [x] 验收通过：validate_dialogue 对 REVEAL_MISMATCH / MISSING_EXPERT_TURN 等报错
+- [x] auto dialogue pipeline 回归测试通过
+- [x] 单人口播回归测试通过
+- [x] 无声回归测试通过
 
 ## Checkpoint 8+ — Remotion / UI / 主题扩展
 
+- CP8：多角色 TTS provider 完善 + 真实 dialogue_script LLM 验证
 - Remotion 数字人
 - 前端 UI（网页端配置和播放）
 - `structure_type` 扩展：timeline / comparison / list
-- theme 系统：黑板 / 米黄 / 深蓝
+- theme 系统：黑板 / 米黄 / 深蓝（仍待实现，不在本轮）
 
 ## 不做（Out of Scope）
 
+- Theme System（黑板/米黄/深蓝）（CP8+）
 - Remotion（CP9+）
 - 数字人（CP9+）
 - 自动选题 / 多新闻合并

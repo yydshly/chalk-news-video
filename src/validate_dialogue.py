@@ -275,6 +275,98 @@ def validate_dialogue_script(
                     message=f"function must be one of {sorted(VALID_FUNCTIONS)}, got '{fn}'",
                 ))
 
+    # B13. MISSING_STYLE_SPEAKERS - style.speakers must exist and be non-empty
+    style = dialogue.get("style")
+    style_speakers = []
+    if isinstance(style, dict):
+        sp = style.get("speakers")
+        if not isinstance(sp, list) or len(sp) == 0:
+            issues.append(ValidationIssue(
+                code="MISSING_STYLE_SPEAKERS",
+                path="style.speakers",
+                message="style.speakers is missing or empty; at least host and expert must be defined",
+            ))
+        else:
+            style_speakers = [s.get("id") for s in sp if isinstance(s, dict)]
+    else:
+        issues.append(ValidationIssue(
+            code="MISSING_STYLE_SPEAKERS",
+            path="style",
+            message="style.speakers is missing or empty; at least host and expert must be defined",
+        ))
+
+    # B14. DUPLICATE_STYLE_SPEAKER - style.speakers ids must be unique
+    if isinstance(style_speakers, list) and len(style_speakers) > 0:
+        seen_speaker_ids = set()
+        for sid in style_speakers:
+            if sid in seen_speaker_ids:
+                issues.append(ValidationIssue(
+                    code="DUPLICATE_STYLE_SPEAKER",
+                    path="style.speakers",
+                    message=f"Duplicate speaker id '{sid}' in style.speakers",
+                ))
+            seen_speaker_ids.add(sid)
+
+    # B15. UNKNOWN_STYLE_SPEAKER - turn.speaker must be defined in style.speakers
+    if isinstance(turns, list) and isinstance(style_speakers, list) and len(style_speakers) > 0:
+        valid_speaker_ids = set(style_speakers)
+        for i, turn in enumerate(turns):
+            if not isinstance(turn, dict):
+                continue
+            sp = turn.get("speaker")
+            if sp and sp not in valid_speaker_ids:
+                issues.append(ValidationIssue(
+                    code="UNKNOWN_STYLE_SPEAKER",
+                    path=f"turns[{i}].speaker",
+                    message=f"speaker '{sp}' is not defined in style.speakers; defined speakers: {sorted(valid_speaker_ids)}",
+                ))
+
+    # B16. MISSING_HOST_TURN - at least one turn must have speaker == host
+    if isinstance(turns, list) and len(turns) > 0:
+        host_turns = [t for t in turns if isinstance(t, dict) and t.get("speaker") == "host"]
+        if len(host_turns) == 0:
+            issues.append(ValidationIssue(
+                code="MISSING_HOST_TURN",
+                path="turns",
+                message="No dialogue turn with speaker='host' found; at least one host turn is required",
+            ))
+
+    # B17. MISSING_EXPERT_TURN - at least one turn must have speaker == expert
+    if isinstance(turns, list) and len(turns) > 0:
+        expert_turns = [t for t in turns if isinstance(t, dict) and t.get("speaker") == "expert"]
+        if len(expert_turns) == 0:
+            issues.append(ValidationIssue(
+                code="MISSING_EXPERT_TURN",
+                path="turns",
+                message="No dialogue turn with speaker='expert' found; at least one expert turn is required",
+            ))
+
+    # B18. REVEAL_MISMATCH - turn.reveal must match semantic_ir beat's reveal
+    if isinstance(semantic_ir, dict) and isinstance(turns, list):
+        # Build beat_id -> reveal mapping from semantic_ir
+        beat_reveal_map = {}
+        for beat in semantic_ir.get("beats", []):
+            if isinstance(beat, dict):
+                bid = beat.get("id")
+                rev = beat.get("reveal")
+                if bid and rev:
+                    beat_reveal_map[bid] = rev
+
+        valid_beat_ids = set(beat_reveal_map.keys())
+        for i, turn in enumerate(turns):
+            if not isinstance(turn, dict):
+                continue
+            bid = turn.get("beat_id", "")
+            turn_reveal = turn.get("reveal", "")
+            if bid and bid in valid_beat_ids:
+                expected_reveal = beat_reveal_map[bid]
+                if turn_reveal != expected_reveal:
+                    issues.append(ValidationIssue(
+                        code="REVEAL_MISMATCH",
+                        path=f"turns[{i}].reveal",
+                        message=f"reveal mismatch for beat_id '{bid}': expected '{expected_reveal}', got '{turn_reveal}'",
+                    ))
+
     return issues
 
 

@@ -19,6 +19,7 @@
     "source_semantic_ir": {
       "type": "object",
       "description": "Reference to source semantic_ir.",
+      "required": ["title", "schema_version"],
       "additionalProperties": false,
       "properties": {
         "title": {"type": "string"},
@@ -28,6 +29,7 @@
     "style": {
       "type": "object",
       "description": "Dialogue style configuration.",
+      "required": ["format", "tone", "language", "speakers"],
       "additionalProperties": false,
       "properties": {
         "format": {
@@ -48,6 +50,7 @@
           "type": "array",
           "minItems": 2,
           "maxItems": 2,
+          "uniqueItems": true,
           "description": "Speaker list (host + expert).",
           "items": {
             "type": "object",

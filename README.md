@@ -4,13 +4,18 @@
 
 ## 当前 Checkpoint
 
-**Checkpoint 7.1 — Dialogue Script 契约层（当前）**
+**Checkpoint 7.2 — Dialogue Script 校验加固（当前）**
 
-CP7.1 补齐对话脚本契约层，实现：
-`semantic_ir` → `dialogue_script.json` → `dialogue_manifest.json` → `render_ir.timeline`
+CP7.2 在 CP7.1 基础上加固 dialogue_script 校验，补齐关键校验缺口：
+- REVEAL_MISMATCH：turn.reveal 必须与 semantic_ir beat 的 reveal 对齐
+- MISSING_HOST_TURN：turns 中必须有至少一个 host turn
+- MISSING_EXPERT_TURN：turns 中必须有至少一个 expert turn
+- UNKNOWN_STYLE_SPEAKER：turn.speaker 必须在 style.speakers 中定义
+- DUPLICATE_STYLE_SPEAKER：style.speakers 中 id 不可重复
+- MISSING_STYLE_SPEAKERS：style.speakers 不可为空
 
 ```bash
-# 双人对话模式（CP7.1 主路径）
+# 双人对话模式（CP7.2 主路径）
 python -m src.pipeline --auto --mock --tts --dialogue --host-profile mock_host --expert-profile mock_expert
 
 # 单人模式（CP6.1，不变）
@@ -18,9 +23,12 @@ python -m src.pipeline --auto --mock --tts --tts-profile mock
 
 # 单独生成 dialogue_script
 python -m src.generate_dialogue --semantic-ir outputs/latest/semantic_ir.json --mock --validate
+
+# 校验 dialogue_script
+python -m src.validate_dialogue outputs/latest/dialogue_script.json --semantic-ir outputs/latest/semantic_ir.json
 ```
 
-**CP7.1 契约层级**：
+**CP7.2 契约层级**：
 1. `semantic_ir` = 结构语义（beat_id、reveal、narration）
 2. `dialogue_script.json` = 对话表达（turns with host/expert alternating）
 3. `dialogue_manifest.json` = 对话音频时间（turns with real start/duration）
@@ -29,14 +37,17 @@ python -m src.generate_dialogue --semantic-ir outputs/latest/semantic_ir.json --
 **CP7 旧路径（兼容性预览）**：
 `semantic_ir.beats[].speaker` → `dialogue_manifest.json`（仍可用，但标注为 legacy）
 
-**CP7.1 关键约束**：
+**CP7.2 关键约束**：
 - dialogue_script 由 LLM 生成，turns 数量 8–18
 - 每个 semantic_ir beat 至少被一个 dialogue turn 覆盖
+- turn.reveal 必须与 semantic_ir.beats[beat_id].reveal 一致
 - 不允许 audio_path/start/end/duration 出现在 dialogue_script 中
 - dialogue_manifest.turns 按 beat_id 聚合后同步到 render_ir.timeline
+- style.speakers 是必填字段，定义对话角色
 
 不包含（后续 Checkpoint）：
 - 多角色 TTS（CP8）
+- Theme System（黑板/米黄/深蓝）
 - Remotion / 数字人（CP9）
 
 ## 项目定位
@@ -383,9 +394,9 @@ outputs/latest/audio/narration.wav  # 拼接后完整音频（含 tail_silence�
 outputs/latest/narration_manifest.json  # 音画时间轴 manifest
 ```
 
-## 双人对话（Checkpoint 7.1）
+## 双人对话（Checkpoint 7.2）
 
-CP7.1 主路径：semantic_ir → dialogue_script → dialogue_manifest → video。
+CP7.2 主路径：semantic_ir → dialogue_script → dialogue_manifest → video。
 
 ### Mock 对话验收
 
@@ -426,7 +437,21 @@ python -m src.pipeline --auto --mock --tts --dialogue \
 python -m src.pipeline --auto --mock --tts --dialogue-legacy \
     --host-profile mock_host --expert-profile mock_expert
 ```
-```
+
+### dialogue_script 校验错误码（CP7.2 新增）
+
+| code | 含义 |
+|------|------|
+| `REVEAL_MISMATCH` | turn.reveal 与 semantic_ir beat 的 reveal 不一致 |
+| `MISSING_HOST_TURN` | turns 中没有 speaker='host' 的 turn |
+| `MISSING_EXPERT_TURN` | turns 中没有 speaker='expert' 的 turn |
+| `UNKNOWN_STYLE_SPEAKER` | turn.speaker 不是 style.speakers 中定义的 id |
+| `DUPLICATE_STYLE_SPEAKER` | style.speakers 中有重复的 speaker id |
+| `MISSING_STYLE_SPEAKERS` | style.speakers 为空或缺失 |
+| `INVALID_SPEAKER` | turn.speaker 不是 'host' 或 'expert' |
+| `UNKNOWN_BEAT_ID` | turn.beat_id 在 semantic_ir 中不存在 |
+| `BEAT_NOT_COVERED` | 有 semantic_ir beat 没有被任何 turn 覆盖 |
+| `JSONSCHEMA_ERROR` | JSON Schema 校验失败 |
 
 ### narration_manifest.json 字段说明
 

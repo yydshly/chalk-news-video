@@ -1,0 +1,32 @@
+{
+  "schema_version": "0.1",
+  "source_semantic_ir": {
+    "title": "示例：AI 模型的'幻觉'问题",
+    "schema_version": "0.1"
+  },
+  "style": {
+    "format": "two_speaker_explainer",
+    "tone": "clear_curious",
+    "language": "zh"
+  },
+  "turns": [
+    {
+      "id": "d1",
+      "speaker": "host",
+      "beat_id": "b1",
+      "reveal": "title",
+      "text": "今天我们来聊一个有趣的话题。",
+      "function": "hook",
+      "duration_hint": 2.0
+    },
+    {
+      "id": "d2",
+      "speaker": "expert",
+      "beat_id": "b1",
+      "reveal": "title",
+      "text": "这条新闻讨论的是 AI 模型的'幻觉'问题。",
+      "function": "explain",
+      "duration_hint": 3.5
+    }
+  ]
+}
