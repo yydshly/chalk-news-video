@@ -1,8 +1,9 @@
 """Main pipeline: orchestrate the rendering process.
 
 Usage:
-    # Checkpoint 4 (V0.9) — Auto pipeline
+    # Checkpoint 6 (V0.10) — Auto pipeline + TTS
     python -m src.pipeline --auto --mock
+    python -m src.pipeline --auto --mock --tts --tts-profile mock
     python -m src.pipeline --auto --news path/to/news.json --mock
     python -m src.pipeline --auto --source openai_news --profile minimax_m3_openai --repair
     python -m src.pipeline --auto --mock --no-export
@@ -19,6 +20,7 @@ import sys
 from pathlib import Path
 
 from . import export_video, fetch_news, layout, render_html, validate_ir
+from .narration import generate_narration
 from .utils import PROJECT_ROOT, load_json, save_json
 
 
@@ -26,6 +28,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SAMPLE_SEMANTIC_PATH = PROJECT_ROOT / "examples" / "sample.semantic.json"
 SAMPLE_NEWS_PATH = PROJECT_ROOT / "examples" / "sample_news.json"
 OUTPUT_DIR = PROJECT_ROOT / "outputs" / "latest"
+AUDIO_DIR = OUTPUT_DIR / "audio"
 DEFAULT_SCHEMA_PATH = PROJECT_ROOT / "schema" / "semantic_ir.schema.json"
 
 
@@ -55,20 +58,24 @@ def run_auto_pipeline(args):
         OUTPUT_DIR / "debug_validation_issues.json",
         OUTPUT_DIR / "debug_repair_prompt.txt",
         OUTPUT_DIR / "debug_repair_response.txt",
+        OUTPUT_DIR / "narration_manifest.json",
     ]:
         if artifact.exists():
             artifact.unlink()
 
+    # Clean audio directory if TTS is enabled
+    if args.tts and AUDIO_DIR.exists():
+        import shutil
+        shutil.rmtree(AUDIO_DIR)
+
     # ---- Stage 1: determine news path ----
     if args.mock or args.news:
-        # Use provided news file or default sample
         news_path = Path(args.news) if args.news else SAMPLE_NEWS_PATH
         if not news_path.exists():
             print(f"[auto:setup] news file not found: {news_path}", file=sys.stderr)
             sys.exit(1)
         print(f"[auto:news] using {news_path}")
     else:
-        # Real mode: fetch news from RSS
         print(f"[auto:fetch_news] source={args.source}")
         news_dict = _run_step(
             "fetch_news",
@@ -124,6 +131,29 @@ def run_auto_pipeline(args):
         sys.exit(1)
     print(f"[auto:validate_ir] PASSED")
 
+    # ---- Stage 3a: narration TTS (optional) ----
+    audio_path = None
+    if args.tts:
+        print(f"[auto:tts] generating narration with profile={args.tts_profile}")
+        narration_cmd = [
+            sys.executable, "-m", "src.narration",
+            "--semantic-ir", str(semantic_ir_path),
+            "--profile", args.tts_profile,
+        ]
+        narration_result = subprocess.run(narration_cmd, capture_output=False)
+        if narration_result.returncode != 0:
+            print(f"[auto:tts] exited with code {narration_result.returncode}", file=sys.stderr)
+            sys.exit(narration_result.returncode)
+        manifest_path = OUTPUT_DIR / "narration_manifest.json"
+        if manifest_path.exists():
+            manifest = load_json(manifest_path)
+            audio_path = manifest.get("combined_audio_path")
+            print(f"[auto:tts] audio ready: {audio_path}")
+        else:
+            print(f"[auto:tts] WARNING: manifest not found, continuing without audio", file=sys.stderr)
+    else:
+        print(f"[auto:tts] SKIPPED (no --tts flag)")
+
     # ---- Stage 4: layout ----
     print(f"[auto:layout] building render_ir")
     render_ir = _run_step("layout", layout.build_render_ir, semantic_ir)
@@ -145,15 +175,21 @@ def run_auto_pipeline(args):
         print(f"[auto:export] SKIPPED (--no-export)")
     else:
         print(f"[auto:export] exporting video")
+        export_kwargs = dict(
+            fps=fps,
+            width=width,
+            height=height,
+            headless=True,
+        )
+        if audio_path:
+            export_kwargs["audio_path"] = audio_path
+            print(f"[auto:export] muxing audio: {audio_path}")
         video_path = _run_step(
             "export",
             export_video.export_video,
             html_path,
             video_path,
-            fps=fps,
-            width=width,
-            height=height,
-            headless=True,
+            **export_kwargs,
         )
         print(f"[auto:export] wrote {video_path}")
 
@@ -164,11 +200,14 @@ def run_auto_pipeline(args):
     print(f"  semantic_ir_path: {semantic_ir_path}")
     print(f"  render_ir_path:   {render_ir_path}")
     print(f"  animation_html:   {html_path}")
+    if audio_path:
+        print(f"  audio_path:       {audio_path}")
     if not args.no_export:
         print(f"  output_mp4:      {video_path}")
     print(f"  total_duration:  {total_duration}s")
     print(f"  fps:             {fps}")
     print(f"  canvas:          {width}x{height}")
+    print(f"  tts_enabled:     {args.tts}")
     print("=" * 30)
     print("Done.")
 
@@ -214,11 +253,11 @@ def run_pipeline(semantic_ir_path, headless=True):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="chalk-news-video pipeline (V0.9 / Checkpoint 4)",
+        description="chalk-news-video pipeline (V0.10 / Checkpoint 6)",
     )
 
     # Auto pipeline group
-    auto_group = parser.add_argument_group("auto pipeline (Checkpoint 4)")
+    auto_group = parser.add_argument_group("auto pipeline (Checkpoint 4+)")
     auto_group.add_argument(
         "--auto", action="store_true",
         help="Enable full auto pipeline: news → semantic_ir → validate → render → export.",
@@ -251,6 +290,17 @@ def main(argv=None):
     auto_group.add_argument(
         "--no-export", action="store_true",
         help="Skip video export (output.mp4). Useful for fast iteration.",
+    )
+
+    # TTS group
+    tts_group = parser.add_argument_group("TTS / narration (Checkpoint 6)")
+    tts_group.add_argument(
+        "--tts", action="store_true",
+        help="Enable TTS narration generation (requires --tts-profile).",
+    )
+    tts_group.add_argument(
+        "--tts-profile", type=str, default="mock",
+        help="TTS profile name (from config/tts.yaml). Default: mock.",
     )
 
     # Legacy modes

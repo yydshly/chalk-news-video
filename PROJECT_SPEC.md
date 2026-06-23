@@ -232,14 +232,77 @@ TTS 和数字人需要额外的外部服务集成，且视频质量依赖模型�
 
 配置真实 RSS URL + 真实 MiniMax/MiMo key，完整链路跑通验证。
 
-## Checkpoint 6+ — TTS / Dialogue / Remotion / UI
+## Checkpoint 6 — Narration Layer（TTS 单人口播）
 
-- TTS（Text-to-Speech）语音旁白
-- Dialogue / 多角色对话
+### Narration Layer
+
+职责边界：
+- **做**：TTS narration 生成、音频拼接、narration_manifest.json 契约
+- **不做**：多角色对话、双人 TTS、Remotion
+
+### 阶段
+
+| 阶段 | 输入 | 输出 |
+|---|---|---|
+| narration | semantic_ir.json | audio/beat_*.wav + audio/narration.wav + narration_manifest.json |
+
+### narration_manifest.json 契约
+
+```json
+{
+  "schema_version": "0.1",
+  "provider": "mock",
+  "audio_format": "wav",
+  "sample_rate": 24000,
+  "total_duration": 25.3,
+  "beats": [
+    {
+      "beat_id": "b1",
+      "reveal": "title",
+      "text": "今天我们聊...",
+      "audio_path": "outputs/latest/audio/beat_001.wav",
+      "start": 0.0,
+      "duration": 3.2,
+      "end": 3.2
+    }
+  ],
+  "combined_audio_path": "outputs/latest/audio/narration.wav"
+}
+```
+
+### TTS Provider 抽象
+
+| Provider | 配置 | 备注 |
+|---|---|---|
+| mock | local_wav | 默认，用于 CP6 验收 |
+| minimax | http_tts | 需要用户提供 endpoint/key/voice_id |
+
+### 为什么 CP6 先做单人口播
+
+双人对话需要脚本分析和角色分配，复杂度更高。单人口播验证 TTS 链路后，CP7 再扩展对话。
+
+## Checkpoint 7 — 双人对话脚本
+
+- 多角色对话分析
+- 两个 TTS voice_id
+
+## Checkpoint 8+ — Remotion / UI
+
 - Remotion 数字人
 - 前端 UI（网页端配置和播放）
 
-## 文件清单（V0.10 新增 / 修改）
+## 文件清单（V0.11 新增 / 修改）
+
+新增：
+- `src/tts/`（TTS provider 基础设施）
+- `src/narration.py`
+- `config/tts.yaml`
+- `docs/CP5_REAL_E2E_VALIDATION.md`
+
+修改：
+- `src/pipeline.py`（新增 `--tts` / `--tts-profile`）
+- `src/export_video.py`（音频 mux 支持）
+- `README.md` / `PROJECT_SPEC.md` / `BACKLOG.md`
 
 新增：
 - `src/validate_ir.py`

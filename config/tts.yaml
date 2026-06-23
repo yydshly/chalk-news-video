@@ -1,0 +1,42 @@
+# TTS provider configuration for chalk-news-video.
+#
+# Each profile under `profiles:` describes one TTS provider.
+# `default_profile` is used when --tts-profile is not passed.
+#
+# Real API keys MUST NEVER be committed. Put them in a local `.env` file.
+#
+# CP6 default is `mock` — no real API key required for testing.
+
+default_profile: mock
+
+profiles:
+
+  # ---- Mock TTS (default for CP6 testing) -------------------------
+  mock:
+    provider: mock
+    protocol: local_wav
+    voice: default
+    sample_rate: 24000
+    format: wav
+    speed: 1.0
+
+  # ---- MiniMax TTS (requires real credentials) --------------------
+  # NOTE: Do NOT hardcode endpoint here. Set via env vars or leave empty.
+  # Fill in: MINIMAX_API_KEY, MINIMAX_TTS_BASE_URL, MINIMAX_TTS_ENDPOINT_PATH,
+  #         MINIMAX_TTS_MODEL, MINIMAX_TTS_VOICE_ID
+  minimax_speech:
+    provider: minimax
+    protocol: http_tts
+    api_key_env: MINIMAX_API_KEY
+    base_url: ""
+    base_url_env: MINIMAX_TTS_BASE_URL
+    endpoint_path: ""
+    endpoint_path_env: MINIMAX_TTS_ENDPOINT_PATH
+    model: "speech-2.8-hd"
+    model_env: MINIMAX_TTS_MODEL
+    voice_id: ""
+    voice_id_env: MINIMAX_TTS_VOICE_ID
+    format: wav
+    sample_rate: 24000
+    speed: 1.0
+    timeout_seconds: 60

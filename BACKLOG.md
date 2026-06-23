@@ -73,10 +73,30 @@
 - [x] semantic_ir.invalid.json 明确为调试产物，pipeline 不使用
 - [x] README / PROJECT_SPEC / BACKLOG / docs/CP5_REAL_E2E_VALIDATION.md 更新
 
-## Checkpoint 6+ — TTS / Dialogue / Remotion / UI
+## Checkpoint 6 — Narration Layer（TTS 单人口播）
 
-- TTS（Text-to-Speech）语音旁白
-- Dialogue / 多角色对话
+- [x] `src/tts/`（base.py / mock_tts_provider.py / minimax_tts_provider.py / client.py / __init__.py）
+- [x] `src/narration.py`（generate_narration / beat WAV 拼接 / narration_manifest.json）
+- [x] `config/tts.yaml`（mock / minimax_speech profiles）
+- [x] `src/export_video.py`（新增 audio_path 参数，ffmpeg mux 音频）
+- [x] `src/pipeline.py`（新增 `--tts` / `--tts-profile` / `--audio-only`）
+- [x] `.gitignore` 更新（忽略 audio/ / narration_manifest.json）
+- [x] `.env.example` 更新（MINIMAX_TTS_* env vars）
+- [x] README / PROJECT_SPEC / BACKLOG 更新
+- [x] mock TTS 验收通过：`--tts --tts-profile mock` 生成带音频 output.mp4
+- [x] 无 TTS 模式（`--auto --mock`）仍生成无声视频，不破坏旧流程
+
+不做（显式排除）：
+- 双人对话 / 多角色 TTS（CP7+）
+- Remotion / 数字人（CP9+）
+
+## Checkpoint 7 — 双人对话脚本
+
+- 多角色对话分析
+- 两个 voice_id 路由
+
+## Checkpoint 8+ — Remotion / UI / 主题扩展
+
 - Remotion 数字人
 - 前端 UI（网页端配置和播放）
 - `structure_type` 扩展：timeline / comparison / list
@@ -84,6 +104,6 @@
 
 ## 不做（Out of Scope）
 
-- Remotion（CP6+）
-- 数字人（CP6+）
+- Remotion（CP9+）
+- 数字人（CP9+）
 - 自动选题 / 多新闻合并

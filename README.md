@@ -4,24 +4,28 @@
 
 ## 当前 Checkpoint
 
-**Checkpoint 3 — Validation Layer + Repair Loop（当前）**
+**Checkpoint 6 — TTS 单人口播 + 音画同步（当前）**
 
-`python -m src.generate_ir --news outputs/latest/latest_news.json` 把一条新闻通过 LLM 转换为 `outputs/latest/semantic_ir.json`，并保留 `debug_llm_prompt.txt` / `debug_llm_response.txt` 用于调试。生成后自动校验语义 IR。
+一条命令跑通 news → semantic_ir → TTS narration → video（含音频）：
 
-支持三种运行模式：
-1. **`--dry-run`**：拼装 prompt 并保存，不调用任何 LLM。
-2. **`--mock`**：使用内置 mock provider，无 key 也能生成合法 semantic_ir（不代表真实 LLM 效果）。
-3. **真实 provider**：使用 `config/llm.yaml` 中的 profile（`minimax_m3_openai` / `minimax_m27_highspeed_openai` / `mimo_v25_pro_openai`）。
+```bash
+# 无音频（CP4/CP5 模式，不变）
+python -m src.pipeline --auto --mock
+
+# 带音频（CP6 新增）
+python -m src.pipeline --auto --mock --tts --tts-profile mock
+```
+
+TTS 使用 `config/tts.yaml` 配置，支持 mock（默认）和真实 MiniMax TTS。
 
 不包含（后续 Checkpoint）：
-- TTS / 完整 pipeline 编排（Checkpoint 4）
-- Remotion / 数字人
-
-`generate_ir` **未接入** `python -m src.pipeline` 默认流程。pipeline 仍可用 `--use-sample` 或 `--semantic-ir` 显式指定。
+- 双人对话（CP7）
+- 多角色 TTS（CP8）
+- Remotion / 数字人（CP9）
 
 ## 项目定位
 
-V0.8: News → LLM → semantic_ir；视频仍由 `src.pipeline` 显式触发。
+V0.10: News → LLM → semantic_ir → TTS narration → video（含音频）。
 
 ## 架构
 
@@ -300,23 +304,68 @@ python -m src.pipeline --auto --news outputs/latest/latest_news.json --profile m
 | `--repair` | 校验失败时自动 LLM 修复 |
 | `--no-export` | 跳过 output.mp4 导出 |
 | `--repair-attempts N` | 最大修复尝试次数（默认 2） |
+| `--tts` | 启用 TTS narration 生成 |
+| `--tts-profile <name>` | TTS profile（如 mock / minimax_speech） |
 
 **auto pipeline 链路**：
 1. `fetch_news`（除非 `--news` 或 `--mock`）
 2. `generate_ir --validate`（subprocess）
 3. `validate_ir` 再次校验
-4. `layout.build_render_ir`
-5. `render_html.render_html`
-6. `export_video.export_video`（除非 `--no-export`）
+4. `narration` TTS（仅当 `--tts`，生成 narration.wav + narration_manifest.json）
+5. `layout.build_render_ir`
+6. `render_html.render_html`
+7. `export_video.export_video`（除非 `--no-export`，音频 mux 在此阶段）
 
 **常见失败**：
 - `sources.yaml` 仍是占位 URL → `[auto:fetch_news]` 失败
 - LLM fake key 401/403 → `[auto:generate_ir]` 失败
 - `generate_ir` exit 5 = validation/repair failed → `[auto:generate_ir]` 失败；查看 `outputs/latest/debug_validation_issues.json` 和 `debug_repair_response.txt`
 - `semantic_ir` validate failed → `[auto:validate_ir]` 失败
+- TTS endpoint 未配置 / voice_id 缺失 → `[auto:tts]` 失败
 - FFmpeg / Playwright 缺失 → `[auto:export]` 失败
+- FFmpeg audio mux 失败 → `[auto:export]` 失败
 
 **注意**：`semantic_ir.invalid.json` 是调试产物，不进入 pipeline 后续渲染阶段。
+
+## TTS 单人口播（Checkpoint 6）
+
+### Mock TTS 验收（无需真实 API key）
+
+```bash
+# 单独生成 narration
+python -m src.narration --semantic-ir outputs/latest/semantic_ir.json --profile mock
+
+# 带音频的完整 pipeline
+python -m src.pipeline --auto --mock --tts --tts-profile mock
+```
+
+TTS 配置在 `config/tts.yaml`，默认 profile 为 `mock`。
+
+### 真实 MiniMax TTS
+
+1. 填入 `.env`：
+   ```
+   MINIMAX_API_KEY=<your key>
+   MINIMAX_TTS_BASE_URL=<your TTS endpoint>
+   MINIMAX_TTS_ENDPOINT_PATH=<e.g. v1/t2a_v2>
+   MINIMAX_TTS_MODEL=speech-2.8-hd
+   MINIMAX_TTS_VOICE_ID=<your voice id>
+   ```
+
+2. 运行：
+   ```bash
+   python -m src.pipeline --auto --mock --tts --tts-profile minimax_speech
+   ```
+
+> 注意：本仓库不硬猜 MiniMax TTS endpoint，需要用户提供已跑通的 Voice Lab 配置。
+
+### TTS 产物
+
+```
+outputs/latest/audio/beat_001.wav   # 单句音频
+outputs/latest/audio/narration.wav  # 拼接后完整音频
+outputs/latest/narration_manifest.json  # 音画时间轴 manifest
+```
 
 ## 把生成的 semantic_ir 接到 pipeline
 
