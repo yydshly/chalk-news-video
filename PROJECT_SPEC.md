@@ -222,6 +222,7 @@ class ValidationIssue:
 - 每一步失败打印 `[auto:<stage>] FAILED: <message>` 并 exit 1
 - subprocess 错误透传 returncode，不吞错误
 - 不继续使用旧文件生成视频
+- `semantic_ir.invalid.json` 是调试产物，auto pipeline 不使用它进入 layout/render/export 阶段；generate_ir 返回非 0 时 pipeline 直接退出
 
 ### 为什么 CP4 仍不做 TTS/Remotion
 

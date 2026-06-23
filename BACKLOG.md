@@ -66,6 +66,13 @@
 - 配置真实 RSS URL + 真实 MiniMax/MiMo key
 - 完整链路跑通，检查输出视频质量
 
+## Checkpoint 5.1 — Auto Pipeline 语义收紧
+
+- [x] 清理上一轮遗留的 semantic_ir.json / .invalid.json / debug_*.txt
+- [x] generate_ir 返回非 0 时直接退出，不使用 .invalid.json 继续
+- [x] semantic_ir.invalid.json 明确为调试产物，pipeline 不使用
+- [x] README / PROJECT_SPEC / BACKLOG / docs/CP5_REAL_E2E_VALIDATION.md 更新
+
 ## Checkpoint 6+ — TTS / Dialogue / Remotion / UI
 
 - TTS（Text-to-Speech）语音旁白

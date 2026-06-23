@@ -48,6 +48,17 @@ def run_auto_pipeline(args):
     """Run the full auto pipeline: news → semantic_ir → validate → render → export."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
+    # Clean up artifacts from previous runs to avoid stale file reuse
+    for artifact in [
+        OUTPUT_DIR / "semantic_ir.json",
+        OUTPUT_DIR / "semantic_ir.invalid.json",
+        OUTPUT_DIR / "debug_validation_issues.json",
+        OUTPUT_DIR / "debug_repair_prompt.txt",
+        OUTPUT_DIR / "debug_repair_response.txt",
+    ]:
+        if artifact.exists():
+            artifact.unlink()
+
     # ---- Stage 1: determine news path ----
     if args.mock or args.news:
         # Use provided news file or default sample
@@ -87,25 +98,16 @@ def run_auto_pipeline(args):
     print(f"[auto:generate_ir] running: {' '.join(generate_cmd)}")
     result = subprocess.run(generate_cmd, capture_output=False)
 
-    semantic_ir_path = OUTPUT_DIR / "semantic_ir.json"
-    if result.returncode == 0:
-        pass  # normal case, use semantic_ir.json
-    elif result.returncode == 5 and args.repair:
-        # With --repair --save-invalid, generate_ir saves .invalid.json and returns 5
-        # Check if we have a usable output
-        if semantic_ir_path.exists():
-            print(f"[auto:generate_ir] repair ended with warnings, using semantic_ir.json")
+    if result.returncode != 0:
+        if result.returncode == 5:
+            print(f"[auto:generate_ir] validation/repair failed", file=sys.stderr)
+            print(f"[auto:generate_ir] see outputs/latest/debug_validation_issues.json", file=sys.stderr)
+            print(f"[auto:generate_ir] invalid output is only for debugging, not used by pipeline", file=sys.stderr)
         else:
-            invalid_path = OUTPUT_DIR / "semantic_ir.invalid.json"
-            if invalid_path.exists():
-                semantic_ir_path = invalid_path
-                print(f"[auto:generate_ir] repair ended with warnings, using semantic_ir.invalid.json")
-            else:
-                print(f"[auto:generate_ir] exited with code 5 but no output found", file=sys.stderr)
-                sys.exit(5)
-    else:
-        print(f"[auto:generate_ir] exited with code {result.returncode}", file=sys.stderr)
+            print(f"[auto:generate_ir] exited with code {result.returncode}", file=sys.stderr)
         sys.exit(result.returncode)
+
+    semantic_ir_path = OUTPUT_DIR / "semantic_ir.json"
     if not semantic_ir_path.exists():
         print(f"[auto:generate_ir] output not found: {semantic_ir_path}", file=sys.stderr)
         sys.exit(1)

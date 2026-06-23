@@ -312,8 +312,11 @@ python -m src.pipeline --auto --news outputs/latest/latest_news.json --profile m
 **常见失败**：
 - `sources.yaml` 仍是占位 URL → `[auto:fetch_news]` 失败
 - LLM fake key 401/403 → `[auto:generate_ir]` 失败
+- `generate_ir` exit 5 = validation/repair failed → `[auto:generate_ir]` 失败；查看 `outputs/latest/debug_validation_issues.json` 和 `debug_repair_response.txt`
 - `semantic_ir` validate failed → `[auto:validate_ir]` 失败
 - FFmpeg / Playwright 缺失 → `[auto:export]` 失败
+
+**注意**：`semantic_ir.invalid.json` 是调试产物，不进入 pipeline 后续渲染阶段。
 
 ## 把生成的 semantic_ir 接到 pipeline
 

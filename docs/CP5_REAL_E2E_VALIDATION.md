@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-24
 **Branch:** `test/cp-5-real-e2e-validation`
-**Commit:** b873ee9d89a6028ab74bfdc378c32cbce7cecdc0
+**Commit:** 963b88e30f13a56f4d3ff0cd0cd05b178593d07d
 
 ## Test Environment
 
@@ -161,17 +161,20 @@ RSS feed 'https://openai.com/news/rss.xml' returned no entries
 
 During testing, a bug was found in `src/pipeline.py`:
 
-**Bug:** When `generate_ir --repair --save-invalid` is used, it returns exit code 5 even when a usable `.invalid.json` was saved. The pipeline was treating exit 5 as a fatal error, stopping the pipeline.
+**Bug:** When `generate_ir --repair --save-invalid` is used, it returns exit code 5 even when a usable `.invalid.json` was saved. The initial CP5 fix incorrectly tried to use `.invalid.json` as a fallback input.
 
-**Fix:** Added logic to detect exit code 5 with `--repair` and use the saved `.invalid.json` as the semantic_ir input, only failing if neither `semantic_ir.json` nor `semantic_ir.invalid.json` exists.
+**CP5.1 Correction:** `semantic_ir.invalid.json` is a **debug artifact only**, not a pipeline artifact. The auto pipeline will NOT proceed with an invalid file. If `generate_ir` returns non-zero:
+- Pipeline exits immediately at `[auto:generate_ir]`
+- No layout/render/export is attempted
+- `.invalid.json` is left on disk for debugging only
 
 ---
 
 ## Known Limitations
 
-1. **Content extraction non-determinism:** `fetch_news` with `summary_then_extract` may return full HTML content or RSS summary depending on extraction success. This is expected.
+1. **Content extraction non-determinism:** `fetch_news` with `summary_then_extract` may return full HTML content or RSS summary depending on extraction success. This is expected behavior.
 2. **RSS availability:** OpenAI RSS may be temporarily unavailable. Use `--news` flag with a pre-fetched news file as workaround.
-3. **Repair may produce warnings:** Even after successful repair, some warnings may remain (e.g., `NONCONFORMING_BEAT_ID` as warning). These are handled gracefully.
+3. **Auto pipeline validation strictness:** An invalid `semantic_ir` (even after repair) will cause the pipeline to stop. There is no fallback to an invalid file for rendering. This is intentional — debugging artifacts should not become pipeline outputs.
 
 ---
 
