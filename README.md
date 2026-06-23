@@ -263,8 +263,57 @@ outputs/latest/*.txt    # debug_*.txt
 
 ## 当前 Checkpoint
 
+**Checkpoint 4 — 完整 pipeline 编排（当前）**
+
 详见 [PROJECT_SPEC.md](PROJECT_SPEC.md) 和 [BACKLOG.md](BACKLOG.md)。
 
+## 自动 pipeline（Checkpoint 4）
+
+一条命令跑通 news → semantic_ir → validate → video：
+
+```bash
+# Mock 模式（无需 API key）
+python -m src.pipeline --auto --mock
+
+# 指定已有 news 文件 + mock LLM
+python -m src.pipeline --auto --news outputs/latest/latest_news.json --mock
+
+# 跳过视频导出（快速调试 HTML 渲染）
+python -m src.pipeline --auto --mock --no-export
+
+# 真实新闻 + 真实 LLM（需配置 .env）
+python -m src.pipeline --auto --source openai_news --profile minimax_m3_openai --repair
+
+# 真实 LLM 但使用已有 news 文件
+python -m src.pipeline --auto --news outputs/latest/latest_news.json --profile minimax_m3_openai
+```
+
+参数说明：
+
+| 参数 | 作用 |
+|---|---|
+| `--auto` | 启用完整 auto pipeline |
+| `--mock` | 使用 mock LLM，不调用真实 API |
+| `--news <path>` | 指定 news JSON，跳过 fetch_news |
+| `--source <id>` | 从 sources.yaml 选择新闻源 |
+| `--profile <name>` | LLM profile（如 minimax_m3_openai） |
+| `--repair` | 校验失败时自动 LLM 修复 |
+| `--no-export` | 跳过 output.mp4 导出 |
+| `--repair-attempts N` | 最大修复尝试次数（默认 2） |
+
+**auto pipeline 链路**：
+1. `fetch_news`（除非 `--news` 或 `--mock`）
+2. `generate_ir --validate`（subprocess）
+3. `validate_ir` 再次校验
+4. `layout.build_render_ir`
+5. `render_html.render_html`
+6. `export_video.export_video`（除非 `--no-export`）
+
+**常见失败**：
+- `sources.yaml` 仍是占位 URL → `[auto:fetch_news]` 失败
+- LLM fake key 401/403 → `[auto:generate_ir]` 失败
+- `semantic_ir` validate failed → `[auto:validate_ir]` 失败
+- FFmpeg / Playwright 缺失 → `[auto:export]` 失败
 
 ## 把生成的 semantic_ir 接到 pipeline
 
@@ -281,7 +330,3 @@ python -m src.pipeline --semantic-ir outputs/latest/semantic_ir.json
 ```bash
 python -m src.pipeline --use-sample
 ```
-
-## 当前 Checkpoint
-
-详见 [PROJECT_SPEC.md](PROJECT_SPEC.md) 和 [BACKLOG.md](BACKLOG.md)。

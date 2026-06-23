@@ -43,44 +43,40 @@
 - [x] 环境变量优先级：env > yaml 静态值
 - [x] 未提交真实 API Key / .env / outputs/latest
 
-## Checkpoint 4 — 完整 pipeline 编排
+## Checkpoint 4 — Auto Pipeline Orchestrator
 
-## Checkpoint 4 — 完整 pipeline 编排
+- [x] `src/pipeline.py` 新增 `--auto / --mock / --news / --source / --profile / --repair / --no-export`
+- [x] auto 链路：`fetch_news → generate_ir --validate → validate_ir → layout → render_html → export`
+- [x] `generate_ir` 通过 subprocess 调用，避免循环 import
+- [x] 阶段化错误标签：`[auto:fetch_news]` / `[auto:generate_ir]` / `[auto:validate_ir]` / `[auto:layout]` / `[auto:render_html]` / `[auto:export]`
+- [x] `--mock` 使用 examples/sample_news.json + mock LLM，无需 API key
+- [x] `--no-export` 跳过 video export
+- [x] 原有 `--use-sample` / `--semantic-ir` 行为不变
+- [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
+- [x] 未实现 TTS / Remotion / 前端 UI
 
-- `python -m src.pipeline --auto` 串：`fetch_news → generate_ir --validate --repair → layout → render → export`
-- TTS（如已就位）
-- 错误处理：fetch 失败 / LLM 失败 / 校验失败 / 视频编码失败的明确提示
+不做（显式排除）：
+- 未实现 TTS（CP6+）
+- 未实现 Remotion / 数字人（CP6+）
+- 未实现前端 UI（CP6+）
+- 未实现多新闻选择 / 聚类
 
-## Checkpoint 5 — 真实 RSS + 真实 LLM 端到端验证
+## Checkpoint 5 — 真实 RSS + 真实 MiniMax/MiMo 端到端验证
 
-- 配置真实 RSS URL
-- 配置 MiniMax / Mimo 真实 key
+- 配置真实 RSS URL + 真实 MiniMax/MiMo key
 - 完整链路跑通，检查输出视频质量
 
-## Checkpoint 6+ — 多布局 / 多主题 / 多新闻
+## Checkpoint 6+ — TTS / Dialogue / Remotion / UI
 
+- TTS（Text-to-Speech）语音旁白
+- Dialogue / 多角色对话
+- Remotion 数字人
+- 前端 UI（网页端配置和播放）
 - `structure_type` 扩展：timeline / comparison / list
 - theme 系统：黑板 / 米黄 / 深蓝
 
 ## 不做（Out of Scope）
 
-- Remotion
-- 数字人
-- 自动选题 / 多新闻合并
-
-## Checkpoint 4 — 完整 pipeline 编排
-
-- 把 `fetch_news → generate_ir → validate_ir → layout → render → export` 串成一条 `python -m src.pipeline --auto`
-- TTS（如已就位）
-- 错误处理：fetch 失败 / LLM 失败 / 校验失败 / 视频编码失败的明确提示
-
-## Checkpoint 5+ — 多布局 / 多主题 / 多新闻
-
-- `structure_type` 扩展：timeline / comparison / list
-- theme 系统：黑板 / 米黄 / 深蓝
-
-## 不做（Out of Scope）
-
-- Remotion
-- 数字人
+- Remotion（CP6+）
+- 数字人（CP6+）
 - 自动选题 / 多新闻合并

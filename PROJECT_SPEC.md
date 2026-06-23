@@ -200,7 +200,45 @@ class ValidationIssue:
 - `callout.on` 找不到节点 → `ValueError`（不再 `continue`）
 - 错误信息包含具体的 edge/callout id 和缺失的引用值
 
-## 文件清单（V0.9 新增 / 修改）
+## Checkpoint 4 — Auto Pipeline Orchestrator
+
+职责边界：
+- **做**：完整链路编排 `news → generate_ir → validate_ir → layout → render_html → export_video`；阶段化错误报告；subprocess 隔离 generate_ir
+- **不做**：TTS / Remotion / 数字人 / 前端 UI / 多新闻选择
+
+### Auto Pipeline 阶段
+
+| 阶段 | 输入 | 输出 | 失败标签 |
+|---|---|---|---|
+| fetch_news | sources.yaml | latest_news.json | `[auto:fetch_news]` |
+| generate_ir | latest_news.json | semantic_ir.json | `[auto:generate_ir]` |
+| validate_ir | semantic_ir.json | issues list | `[auto:validate_ir]` |
+| layout | semantic_ir.json | render_ir.json | `[auto:layout]` |
+| render_html | render_ir.json | animation.html | `[auto:render_html]` |
+| export_video | animation.html | output.mp4 | `[auto:export]` |
+
+### 错误处理规范
+
+- 每一步失败打印 `[auto:<stage>] FAILED: <message>` 并 exit 1
+- subprocess 错误透传 returncode，不吞错误
+- 不继续使用旧文件生成视频
+
+### 为什么 CP4 仍不做 TTS/Remotion
+
+TTS 和数字人需要额外的外部服务集成，且视频质量依赖模型选择。CP4 专注于端到端链路通顺，TTS/Remotion 留到 CP6+。
+
+## Checkpoint 5 — 真实 RSS + 真实 LLM 端到端验证
+
+配置真实 RSS URL + 真实 MiniMax/MiMo key，完整链路跑通验证。
+
+## Checkpoint 6+ — TTS / Dialogue / Remotion / UI
+
+- TTS（Text-to-Speech）语音旁白
+- Dialogue / 多角色对话
+- Remotion 数字人
+- 前端 UI（网页端配置和播放）
+
+## 文件清单（V0.10 新增 / 修改）
 
 新增：
 - `src/validate_ir.py`
@@ -215,13 +253,14 @@ class ValidationIssue:
 - `src/layout.py`（`continue` → `ValueError`）
 - `src/llm/openai_compatible_provider.py`（支持 auth_type / api_key_header / max_tokens_param / extra_body）
 - `src/llm/anthropic_messages_provider.py`（支持 endpoint_path / api_key_header / extra_body）
+- `src/pipeline.py`（新增 `--auto` / `--mock` / `--news` / `--source` / `--profile` / `--repair` / `--no-export`）
 - `config/llm.yaml`（5 个 official profiles）
 - `.env.example`（官方 base_url / model 示例）
 - `requirements.txt`（+jsonschema）
 - `README.md` / `PROJECT_SPEC.md` / `BACKLOG.md`
 
 未修改：
-- `src/pipeline.py` / `pace.py` / `render_html.py` / `export_video.py`
+- `src/pace.py` / `src/render_html.py` / `src/export_video.py`
 - `src/fetch_news.py` / `src/config_loader.py` / `src/utils.py`
 - `schema/semantic_ir.schema.json`
 - `renderer/template.html`
