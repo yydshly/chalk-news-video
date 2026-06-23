@@ -516,6 +516,75 @@ CP11：Remotion / 视觉升级
 - Remotion 数字人
 - 前端 UI（网页端配置和播放）
 
+## Checkpoint 9 — Dialogue Visual Layer
+
+### 职责边界
+
+- **做**：speaker 卡片高亮、turn 字幕、dialogue overlay 层
+- **不做**：完整 Theme System、Remotion、数字人、lip-sync
+
+### render_ir.dialogue 契约
+
+```json
+{
+  "dialogue": {
+    "enabled": true,
+    "style": "podcast_overlay_v1",
+    "speakers": {
+      "host": { "name": "主持人", "role": "questioner", "side": "left" },
+      "expert": { "name": "讲解员", "role": "explainer", "side": "right" }
+    },
+    "turns": [
+      {
+        "turn_id": "d1",
+        "speaker": "host",
+        "beat_id": "b1",
+        "reveal": "title",
+        "text": "...",
+        "start": 0.0,
+        "duration": 2.4,
+        "end": 2.4
+      }
+    ]
+  }
+}
+```
+
+### 字段约束
+
+| 约束 | 说明 |
+|------|------|
+| `dialogue.turns` 不含 `audio_path` | 清洗掉敏感路径 |
+| `dialogue.turns` 不含 `voice`/`voice_id` | 只保留 speaker 角色 |
+| `dialogue.enabled=true` 仅在 `--dialogue` 且 manifest 有 turns | 单人口播/无声模式不出现 |
+| `speakers` 名称优先从 `dialogue_script.style.speakers` 读取 | 无则用默认值 |
+
+### apply_dialogue_visual_cues
+
+`src/dialogue_visual.apply_dialogue_visual_cues(render_ir, dialogue_manifest, dialogue_script)`：
+- dialogue_manifest 无 turns → ValueError
+- 从 dialogue_script.style.speakers 读取 speaker 名称，无则用默认值
+- 清洗 audio_path、voice、voice_id 后写入 render_ir.dialogue
+- 不修改 semantic_ir 或 dialogue_manifest
+
+### Pipeline 顺序（CP9）
+
+```
+generate_ir → validate_ir
+→ (auto-generate dialogue_script.json if missing)
+→ narration (dialogue_audio) → layout → apply_narration_timing
+→ apply_dialogue_visual_cues (CP9 新增)
+→ save render_ir.json → render_html → export_video(audio_path=dialogue.wav)
+```
+
+### template.html 视觉元素
+
+- 左侧 host 卡片（半透明，深绿底，青色边框）
+- 右侧 expert 卡片（半透明，深绿底，金色边框）
+- 底部字幕框（原有 subtitle-group）
+- 当前 speaker 高亮：active class + pulse 动画指示点
+- 非 dialogue 模式：speaker panels 透明（opacity=0）
+
 ## 文件清单（V0.11 新增 / 修改）
 
 新增：

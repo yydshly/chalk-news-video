@@ -14,6 +14,33 @@
     display: block;
     background: #143b2e;
   }
+
+  /* CP9: Dialogue speaker cards */
+  .speaker-card {
+    opacity: 0.55;
+    transition: opacity 0.3s ease;
+  }
+  .speaker-card.active {
+    opacity: 1;
+  }
+  .speaker-card-label {
+    font-family: Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    font-size: 14px;
+    fill: #f8f8f2;
+  }
+  .speaker-card-name {
+    font-family: Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    font-size: 18px;
+    font-weight: bold;
+    fill: #ffffff;
+  }
+  .active-pulse {
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
 </style>
 </head>
 <body>
@@ -71,6 +98,33 @@
           font-family="Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif"
           font-size="22"></text>
   </g>
+
+  <!-- CP9: Dialogue speaker panels (hidden unless RENDER_IR.dialogue is set) -->
+  <g id="speaker-panels" opacity="0">
+    <!-- Host card (left side) -->
+    <g id="speaker-host" class="speaker-card" transform="translate(60, 160)">
+      <rect x="0" y="0" width="180" height="90" rx="12" ry="12"
+            fill="rgba(20,59,46,0.85)" stroke="#4db6ac" stroke-width="2"/>
+      <!-- Active indicator dot -->
+      <circle id="host-indicator" cx="20" cy="20" r="6" fill="#4db6ac" class="active-pulse" opacity="0"/>
+      <text x="36" y="26" class="speaker-card-label">主持人</text>
+      <text id="host-speaker-name" x="90" y="60" text-anchor="middle" class="speaker-card-name"
+            font-family="Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif"
+            font-size="18" font-weight="bold" fill="#ffffff">主持人</text>
+    </g>
+
+    <!-- Expert card (right side) -->
+    <g id="speaker-expert" class="speaker-card" transform="translate(1040, 160)">
+      <rect x="0" y="0" width="180" height="90" rx="12" ry="12"
+            fill="rgba(20,59,46,0.85)" stroke="#f0d77b" stroke-width="2"/>
+      <!-- Active indicator dot -->
+      <circle id="expert-indicator" cx="20" cy="20" r="6" fill="#f0d77b" class="active-pulse" opacity="0"/>
+      <text x="36" y="26" class="speaker-card-label">讲解员</text>
+      <text id="expert-speaker-name" x="90" y="60" text-anchor="middle" class="speaker-card-name"
+            font-family="Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif"
+            font-size="18" font-weight="bold" fill="#ffffff">讲解员</text>
+    </g>
+  </g>
 </svg>
 
 <script>
@@ -86,6 +140,36 @@
   const calloutsGroup = document.getElementById("callouts-group");
   const titleGroup = document.getElementById("title-group");
   const subtitleText = document.getElementById("subtitle-text");
+
+  // CP9: Dialogue visual elements
+  const speakerPanels = document.getElementById("speaker-panels");
+  const speakerHostCard = document.getElementById("speaker-host");
+  const speakerExpertCard = document.getElementById("speaker-expert");
+  const hostIndicator = document.getElementById("host-indicator");
+  const expertIndicator = document.getElementById("expert-indicator");
+  const hostSpeakerName = document.getElementById("host-speaker-name");
+  const expertSpeakerName = document.getElementById("expert-speaker-name");
+
+  // CP9: Dialogue state
+  const DIALOGUE = RENDER_IR.dialogue || null;
+  const DIALOGUE_TURNS = DIALOGUE ? DIALOGUE.turns : null;
+
+  // CP9: Update speaker panel names from dialogue config
+  if (DIALOGUE && DIALOGUE.speakers) {
+    if (DIALOGUE.speakers.host) {
+      const hostNameEl = hostSpeakerName;
+      if (hostNameEl) hostNameEl.textContent = DIALOGUE.speakers.host.name || "主持人";
+    }
+    if (DIALOGUE.speakers.expert) {
+      const expertNameEl = expertSpeakerName;
+      if (expertNameEl) expertNameEl.textContent = DIALOGUE.speakers.expert.name || "讲解员";
+    }
+  }
+
+  // CP9: Show speaker panels only when dialogue is enabled
+  if (DIALOGUE && DIALOGUE.enabled) {
+    speakerPanels.setAttribute("opacity", "1");
+  }
 
   // ---------- helpers ----------
 
@@ -360,8 +444,48 @@
       g.setAttribute("opacity", opFor(revealedCallouts, callout.id, true).toFixed(3));
     });
 
-    // Subtitle = current beat's narration
-    subtitleText.textContent = currentBeat ? currentBeat.narration : "";
+    // Subtitle = current beat's narration (or dialogue turn text if dialogue enabled)
+    // CP9: Handle dialogue turn subtitle and speaker highlighting
+    if (DIALOGUE_TURNS && DIALOGUE_TURNS.length > 0) {
+      let activeTurn = null;
+      for (let i = 0; i < DIALOGUE_TURNS.length; i++) {
+        const turn = DIALOGUE_TURNS[i];
+        if (t >= turn.start && t < turn.end) {
+          activeTurn = turn;
+          break;
+        }
+      }
+
+      if (activeTurn) {
+        subtitleText.textContent = activeTurn.text || "";
+        // Highlight active speaker
+        if (activeTurn.speaker === "host") {
+          speakerHostCard.classList.add("active");
+          speakerExpertCard.classList.remove("active");
+          hostIndicator.setAttribute("opacity", "1");
+          expertIndicator.setAttribute("opacity", "0");
+        } else if (activeTurn.speaker === "expert") {
+          speakerExpertCard.classList.add("active");
+          speakerHostCard.classList.remove("active");
+          expertIndicator.setAttribute("opacity", "1");
+          hostIndicator.setAttribute("opacity", "0");
+        } else {
+          speakerHostCard.classList.remove("active");
+          speakerExpertCard.classList.remove("active");
+          hostIndicator.setAttribute("opacity", "0");
+          expertIndicator.setAttribute("opacity", "0");
+        }
+      } else {
+        // No active turn — dim both speakers
+        subtitleText.textContent = "";
+        speakerHostCard.classList.remove("active");
+        speakerExpertCard.classList.remove("active");
+        hostIndicator.setAttribute("opacity", "0");
+        expertIndicator.setAttribute("opacity", "0");
+      }
+    } else {
+      subtitleText.textContent = currentBeat ? currentBeat.narration : "";
+    }
   }
 
   // Expose controls for the exporter

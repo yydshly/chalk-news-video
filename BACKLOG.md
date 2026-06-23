@@ -181,19 +181,36 @@
 - [x] 真实 LLM dialogue 生成成功（MiniMax-M3, 14 turns, host/expert 各半）
 - [x] docs/CP8_REAL_DIALOGUE_VALIDATION.md 更新
 
-## Checkpoint 9+ — Remotion / UI / 主题扩展
+## Checkpoint 9 — Dialogue Visual Layer
 
-- CP9：对话式视觉表现 / 当前 speaker 高亮
-- CP10：Theme System（黑板 / 米黄 / 深蓝）
-- CP11：Remotion / 视觉升级
+- [x] `src/dialogue_visual.py`（新增 `apply_dialogue_visual_cues` 函数）
+- [x] `src/pipeline.py`（CP9：dialogue visual cues 调用）
+- [x] `renderer/template.html`（CP9：speaker panels + dialogue overlay + turn subtitle）
+- [x] `render_ir.dialogue` 字段：enabled/style/speakers/turns
+- [x] `render_ir.dialogue.turns` 不含 audio_path、voice、voice_id
+- [x] speakers 名称从 dialogue_script.style.speakers 读取，无则用默认值
+- [x] 单人口播回归：无 dialogue.enabled=true
+- [x] 无声模式回归：无 dialogue.enabled=true
+- [x] auto mock + dialogue --dialogue-profile 完整导出通过
+- [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
+
+## Checkpoint 10 — Theme System
+
+- 黑板（当前默认）
+- podcast（CP9 speaker overlay）
+- research_desk
+- notebook
+
+## Checkpoint 11 — Remotion / 视觉升级
+
 - Remotion 数字人
 - 前端 UI（网页端配置和播放）
 - `structure_type` 扩展：timeline / comparison / list
-- theme 系统：黑板 / 米黄 / 深蓝（仍待实现，不在本轮）
 
 ## 不做（Out of Scope）
 
-- Theme System（黑板/米黄/深蓝）（CP8+）
-- Remotion（CP9+）
-- 数字人（CP9+）
+- Theme System（CP10+）
+- Remotion（CP11+）
+- 数字人（CP11+）
+- lip-sync（CP9+）
 - 自动选题 / 多新闻合并

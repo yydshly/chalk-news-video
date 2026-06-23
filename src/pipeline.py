@@ -27,6 +27,7 @@ import sys
 from pathlib import Path
 
 from . import export_video, fetch_news, layout, render_html, validate_ir
+from .dialogue_visual import apply_dialogue_visual_cues
 from .narration import generate_narration
 from .narration_timing import apply_narration_timing
 from .utils import PROJECT_ROOT, load_json, save_json
@@ -258,6 +259,16 @@ def run_auto_pipeline(args):
     if manifest is not None:
         print(f"[auto:layout] syncing render_ir.timeline to narration_manifest timing")
         render_ir = apply_narration_timing(render_ir, manifest)
+
+    # ---- Stage 4c: apply dialogue visual cues (CP9) ----
+    if args.dialogue and manifest is not None:
+        dialogue_manifest_path = OUTPUT_DIR / "dialogue_manifest.json"
+        if dialogue_manifest_path.exists():
+            dialogue_manifest = load_json(dialogue_manifest_path)
+            dialogue_script_path = OUTPUT_DIR / "dialogue_script.json"
+            dialogue_script = load_json(dialogue_script_path) if dialogue_script_path.exists() else None
+            print(f"[auto:layout] applying dialogue visual cues (CP9)")
+            render_ir = apply_dialogue_visual_cues(render_ir, dialogue_manifest, dialogue_script)
 
     # Save render_ir BEFORE render_html so timing is committed
     render_ir_path = save_json(render_ir, OUTPUT_DIR / "render_ir.json")

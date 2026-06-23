@@ -4,59 +4,50 @@
 
 ## 当前 Checkpoint
 
-**Checkpoint 8 — 真实 LLM dialogue 验证 + 多角色 TTS mapping（当前）**
+**Checkpoint 9 — 对话式视觉表现 / 当前 speaker 高亮（当前）**
 
-CP8 在 CP7.1/CP7.2 基础上：
-- 实现真实 LLM dialogue_script 生成 + repair 流程
-- 新增 `--dialogue-profile` 参数，映射 speaker → TTS profile
-- dialogue_manifest 增加 `dialogue_profile` 和 `speaker_profiles` 字段
+CP9 在 CP8.1 基础上：
+- 新增 `render_ir.dialogue` 字段，驱动 speaker 卡片高亮和 turn 字幕
+- 左侧 host 卡片 / 右侧 expert 卡片，底部字幕框
+- 当前 turn 时间段内高亮对应 speaker，字幕显示 turn.text
+- 不影响单人口播 / 无声模式
 
 ```bash
-# 双人对话模式（CP8 主路径）
+# CP9 双人对话模式（dialogue visual）
 python -m src.pipeline --auto --mock --tts --dialogue --dialogue-profile mock_dialogue
 
-# 真实 LLM dialogue（需配置 .env）
-python -m src.pipeline --auto --news outputs/latest/latest_news.json \
-    --profile minimax_m3_openai --tts --dialogue \
-    --dialogue-profile mock_dialogue
-
-# 单人模式（CP6.1，不变）
-python -m src.pipeline --auto --mock --tts --tts-profile mock
-
-# 单独生成 dialogue_script
-python -m src.generate_dialogue --semantic-ir outputs/latest/semantic_ir.json --mock --validate
-
-# 真实 LLM dialogue + repair
-python -m src.generate_dialogue --semantic-ir outputs/latest/semantic_ir.json \
-    --profile minimax_m3_openai --validate --repair
-
-# 校验 dialogue_script
-python -m src.validate_dialogue outputs/latest/dialogue_script.json --semantic-ir outputs/latest/semantic_ir.json
+# CP9 快速验收（不导出视频）
+python -m src.pipeline --auto --mock --tts --dialogue --dialogue-profile mock_dialogue --no-export
 ```
 
-**CP8 新增 CLI 参数**：
-- `--dialogue-profile`：从 config/tts.yaml 的 dialogue_profiles 映射 speaker → TTS profile
-- `--repair`：validation 失败时自动 LLM 修复
-- `--save-invalid` / `--no-save-invalid`：是否保存无效 dialogue_script
-- `--dry-run`：只生成 prompt，不调用 LLM
+**CP9 render_ir.dialogue 字段**：
 
-**CP8 dialogue_profile 映射（CP8.1 voice 真正传入 TTS provider）**：
-| Profile | Host → | Expert → |
-|---------|--------|----------|
-| mock_dialogue | mock_host + voice=host | mock_expert + voice=expert |
-| minimax_dialogue | minimax_speech + voice_env=MINIMAX_TTS_HOST_VOICE_ID | minimax_speech + voice_env=MINIMAX_TTS_EXPERT_VOICE_ID |
+```json
+{
+  "dialogue": {
+    "enabled": true,
+    "style": "podcast_overlay_v1",
+    "speakers": {
+      "host": { "name": "主持人", "role": "questioner", "side": "left" },
+      "expert": { "name": "讲解员", "role": "explainer", "side": "right" }
+    },
+    "turns": [
+      {
+        "turn_id": "d1", "speaker": "host", "beat_id": "b1",
+        "reveal": "title", "text": "...",
+        "start": 0.0, "duration": 2.4, "end": 2.4
+      }
+    ]
+  }
+}
+```
 
-> **CP8.1**: `voice` / `voice_env` 从 dialogue_profiles 解析后真正传入 `provider.synthesize(voice=...)`。
-> mock_dialogue 的 voice 值安全可记录；minimax_dialogue 的真实 voice_id 不写入 manifest。
-
-**CP8 dialogue_manifest 新增字段**：
-- `dialogue_profile`：使用的 dialogue profile 名称
-- `speaker_profiles`：host/expert → {profile, voice/voice_env}
-- `turns[].voice`：该 turn 使用的 voice（env-based 时只记录 voice_env，不记录真实值）
-
-不包含（后续 Checkpoint）：
-- Theme System（黑板/米黄/深蓝）（CP9）
-- Remotion / 数字人（CP10）
+**CP9 限制（明确不做）**：
+- 不是完整 Theme System（CP10）
+- 不是 Remotion（CP11）
+- 不是数字人（CP11+）
+- 不做 lip-sync
+- 不破坏 CP8.1 voice mapping
 
 ## 项目定位
 
@@ -346,10 +337,12 @@ python -m src.pipeline --auto --news outputs/latest/latest_news.json --profile m
 1. `fetch_news`（除非 `--news` 或 `--mock`）
 2. `generate_ir --validate`（subprocess）
 3. `validate_ir` 再次校验
-4. `narration` TTS（仅当 `--tts`，生成 narration.wav + narration_manifest.json）
+4. `narration` TTS（仅当 `--tts`，生成 narration.wav + narration_manifest.json 或 dialogue_manifest.json）
 5. `layout.build_render_ir`
-6. `render_html.render_html`
-7. `export_video.export_video`（除非 `--no-export`，音频 mux 在此阶段）
+6. `apply_narration_timing`（仅当 TTS）
+7. `apply_dialogue_visual_cues`（仅当 `--dialogue`，CP9 新增）
+8. `render_html.render_html`
+9. `export_video.export_video`（除非 `--no-export`，音频 mux 在此阶段）
 
 **常见失败**：
 - `sources.yaml` 仍是占位 URL → `[auto:fetch_news]` 失败
@@ -402,7 +395,7 @@ outputs/latest/audio/narration.wav  # 拼接后完整音频（含 tail_silence�
 outputs/latest/narration_manifest.json  # 音画时间轴 manifest
 ```
 
-## 双人对话（Checkpoint 8）
+## 双人对话（Checkpoint 8）+ CP9 视觉表现
 
 CP8 主路径：semantic_ir → dialogue_script → dialogue_manifest → video。
 
@@ -442,6 +435,9 @@ python -m src.pipeline --auto --mock --tts --dialogue \
 | `combined_audio_path` | outputs/latest/audio/dialogue.wav |
 | `dialogue_profile` | 使用的 dialogue profile 名称（CP8 新增） |
 | `speaker_profiles` | host/expert → {profile, voice}（CP8 新增） |
+
+> **CP9**：render_ir.dialogue.turns 不包含 audio_path 或真实 voice_id。
+> dialogue_visual.py 从 dialogue_manifest.turns 清洗敏感字段后写入 render_ir.dialogue。
 
 ### 旧路径（CP7 compatibility）
 
