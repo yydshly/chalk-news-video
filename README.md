@@ -40,15 +40,19 @@ python -m src.validate_dialogue outputs/latest/dialogue_script.json --semantic-i
 - `--save-invalid` / `--no-save-invalid`：是否保存无效 dialogue_script
 - `--dry-run`：只生成 prompt，不调用 LLM
 
-**CP8 dialogue_profile 映射**：
+**CP8 dialogue_profile 映射（CP8.1 voice 真正传入 TTS provider）**：
 | Profile | Host → | Expert → |
 |---------|--------|----------|
-| mock_dialogue | mock_host | mock_expert |
-| minimax_dialogue | minimax_speech (MINIMAX_TTS_HOST_VOICE_ID) | minimax_speech (MINIMAX_TTS_EXPERT_VOICE_ID) |
+| mock_dialogue | mock_host + voice=host | mock_expert + voice=expert |
+| minimax_dialogue | minimax_speech + voice_env=MINIMAX_TTS_HOST_VOICE_ID | minimax_speech + voice_env=MINIMAX_TTS_EXPERT_VOICE_ID |
+
+> **CP8.1**: `voice` / `voice_env` 从 dialogue_profiles 解析后真正传入 `provider.synthesize(voice=...)`。
+> mock_dialogue 的 voice 值安全可记录；minimax_dialogue 的真实 voice_id 不写入 manifest。
 
 **CP8 dialogue_manifest 新增字段**：
 - `dialogue_profile`：使用的 dialogue profile 名称
 - `speaker_profiles`：host/expert → {profile, voice/voice_env}
+- `turns[].voice`：该 turn 使用的 voice（env-based 时只记录 voice_env，不记录真实值）
 
 不包含（后续 Checkpoint）：
 - Theme System（黑板/米黄/深蓝）（CP9）

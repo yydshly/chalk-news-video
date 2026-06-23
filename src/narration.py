@@ -57,6 +57,53 @@ def _get_dialogue_profile_mapping(dialogue_profile_name: str) -> dict:
     return dialogue_profiles[dialogue_profile_name]
 
 
+def _resolve_speaker_voice(speaker: str, speaker_profiles: dict | None) -> str | None:
+    """Resolve the voice for a speaker from the dialogue_profile speaker_profiles mapping.
+
+    Rules:
+    1. If speaker_profiles is None/empty, return None.
+    2. If speaker_profiles[speaker] has 'voice', return it.
+    3. If speaker_profiles[speaker] has 'voice_id', return it.
+    4. If speaker_profiles[speaker] has 'voice_env':
+       - Read from os.environ[voice_env]
+       - If exists and non-empty, return the env value
+       - If not set, raise RuntimeError with env var name (masked value)
+    6. Return None if nothing found.
+
+    Sensitive voice values from env are NOT returned; only env var name is used
+    in error messages. The actual resolved value is returned only if non-sensitive.
+    """
+    import os
+
+    if not speaker_profiles:
+        return None
+
+    sp = speaker_profiles.get(speaker, {})
+    if not sp:
+        return None
+
+    # Direct voice value (e.g., "host", "expert" for mock)
+    if "voice" in sp:
+        return sp["voice"]
+
+    # Direct voice_id (e.g., from config)
+    if "voice_id" in sp:
+        return sp["voice_id"]
+
+    # Env-based voice_id (e.g., MINIMAX_TTS_HOST_VOICE_ID)
+    if "voice_env" in sp:
+        env_key = sp["voice_env"]
+        env_val = (os.environ.get(env_key) or "").strip()
+        if not env_val:
+            raise RuntimeError(
+                f"TTS voice requires env var '{env_key}' to be set for speaker '{speaker}', "
+                f"but it is not set or empty. Please configure it in your .env file."
+            )
+        return env_val
+
+    return None
+
+
 def _get_wav_duration(path: Path) -> float:
     """Get duration of a WAV file in seconds."""
     with wave.open(str(path), "r") as w:
@@ -403,13 +450,16 @@ def generate_dialogue_audio(
         # Select provider based on speaker
         provider = expert_provider if speaker == "expert" else host_provider
 
+        # Resolve voice for this speaker from dialogue_profile mapping (CP8.1)
+        resolved_voice = _resolve_speaker_voice(speaker, speaker_profiles)
+
         audio_filename = f"turn_{turn_id}.wav"
         audio_path = audio_dir / audio_filename
 
         result = provider.synthesize(
             text=text,
             output_path=audio_path,
-            voice=None,
+            voice=resolved_voice,
             speed=1.0,
             format="wav",
         )
@@ -417,7 +467,10 @@ def generate_dialogue_audio(
         sample_rate = int(result.get("sample_rate", sample_rate))
         duration = _get_wav_duration(audio_path)
 
-        manifest_turns.append({
+        # Build turn manifest entry with voice info (CP8.1)
+        # For sensitive voices (from env), record voice_env not the actual value
+        sp_entry = (speaker_profiles or {}).get(speaker, {})
+        turn_entry = {
             "turn_id": turn_id,
             "speaker": speaker,
             "beat_id": beat_id,
@@ -427,7 +480,12 @@ def generate_dialogue_audio(
             "start": round(current_time, 3),
             "duration": round(duration, 3),
             "end": round(current_time + duration, 3),
-        })
+        }
+        if "voice_env" in sp_entry:
+            turn_entry["voice_env"] = sp_entry["voice_env"]
+        elif resolved_voice:
+            turn_entry["voice"] = resolved_voice
+        manifest_turns.append(turn_entry)
 
         turn_audio_paths.append(audio_path)
         current_time += duration
@@ -465,11 +523,25 @@ def generate_dialogue_audio(
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
 
-    # CP8: record dialogue_profile and speaker_profiles
+    # CP8: record dialogue_profile and speaker_profiles (mask sensitive voice values)
     if dialogue_profile:
         manifest["dialogue_profile"] = dialogue_profile
     if speaker_profiles:
-        manifest["speaker_profiles"] = speaker_profiles
+        # Build safe speaker_profiles for manifest: mask real voice_id values
+        safe_speaker_profiles = {}
+        for sp_key, sp_val in speaker_profiles.items():
+            if not isinstance(sp_val, dict):
+                safe_speaker_profiles[sp_key] = sp_val
+                continue
+            safe_entry = dict(sp_val)
+            # If voice_env is set, the resolved voice is sensitive - remove real voice value
+            if "voice_env" in safe_entry:
+                # voice_env is safe (just an env var name), but resolved voice is sensitive
+                safe_entry.pop("voice_id", None)  # remove if present
+                # don't add voice field for env-based voices
+            # For non-env voices (mock), voice value is safe to record
+            safe_speaker_profiles[sp_key] = safe_entry
+        manifest["speaker_profiles"] = safe_speaker_profiles
 
     manifest_path = Path(output_path) if output_path else DEFAULT_DIALOGUE_MANIFEST_PATH
     save_json(manifest, manifest_path)

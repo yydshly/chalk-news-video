@@ -463,6 +463,13 @@ dialogue_profiles:
 1. `--host-profile` + `--expert-profile`（兼容旧方式）
 2. `--dialogue-profile`（CP8 新方式，按 dialogue_profiles 映射）
 
+**voice 执行语义（CP8.1）**：
+- `voice` / `voice_env` 从 dialogue_profiles 解析后真正传入 `provider.synthesize(voice=...)`
+- `_resolve_speaker_voice()` 解析顺序：voice > voice_id > voice_env（从 os.environ 读取）
+- mock_dialogue 的 voice 值安全，可记录到 manifest
+- minimax_dialogue 的真实 voice_id 不写入 manifest，只记录 voice_env 名
+- env-based voice 缺失时 RuntimeError 清晰报错，不静默使用默认值
+
 ### generate_dialogue repair 流程（CP8 新增）
 
 **触发条件**：`--repair` 且 validation 失败。

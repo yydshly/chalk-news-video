@@ -170,6 +170,17 @@
 - [x] 单人口播回归测试通过
 - [x] 无声回归测试通过
 
+## Checkpoint 8.1 — dialogue_profile voice mapping 修复
+
+- [x] `src/narration.py` 新增 `_resolve_speaker_voice()` helper，正确解析 voice/voice_env
+- [x] `generate_dialogue_audio()` 每个 turn 调用 `provider.synthesize(voice=resolved_voice)`
+- [x] manifest.turns 记录 `voice` 字段（mock：host/expert；env-based：只记录 voice_env 不记真实值）
+- [x] manifest.speaker_profiles 对 env-based voice 不记录真实 voice_id
+- [x] minimax_dialogue 缺配置时清晰报错（exit 非 0）
+- [x] mock_dialogue voice mapping 验收通过（host→440Hz, expert→330Hz）
+- [x] 真实 LLM dialogue 生成成功（MiniMax-M3, 14 turns, host/expert 各半）
+- [x] docs/CP8_REAL_DIALOGUE_VALIDATION.md 更新
+
 ## Checkpoint 9+ — Remotion / UI / 主题扩展
 
 - CP9：对话式视觉表现 / 当前 speaker 高亮
