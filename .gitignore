@@ -12,6 +12,7 @@ venv/
 outputs/latest/*.json
 outputs/latest/*.html
 outputs/latest/*.mp4
+outputs/latest/*.txt
 
 # OS / editor noise
 .DS_Store

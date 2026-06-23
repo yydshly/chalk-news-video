@@ -1,26 +1,53 @@
-# LLM provider placeholders for chalk-news-video.
+# LLM provider configuration for chalk-news-video.
 #
-# IMPORTANT: This file is a CONFIG PLACEHOLDER only. NO LLM CALLS are made in
-# Checkpoint 1. The actual provider clients will be implemented in Checkpoint 2.
+# Each profile under `profiles:` describes one provider setup.
+# `default_profile` is used when --profile is not passed.
 #
 # Real API keys MUST NEVER be committed. Put them in a local `.env` file
-# (see .env.example) and reference them via api_key_env.
+# (see .env.example) and reference them via api_key_env / base_url_env /
+# model_env.
+#
+# Real base_urls for MiniMax / Mimo are NOT committed (we don't want to
+# guess them and have them break). Leave `base_url` empty in this file and
+# set the corresponding env var in your local `.env`.
 
-default_provider: minimax
+default_profile: minimax_m27_highspeed_anthropic
 
-providers:
-  minimax:
-    type: minimax
+profiles:
+
+  # ---- MiniMax (Anthropic Messages style) -------------------------------
+  minimax_m27_highspeed_anthropic:
+    provider: minimax
+    protocol: anthropic_messages
     api_key_env: MINIMAX_API_KEY
-    base_url: ""
-    model: ""
+    base_url: ""                    # fill in via env MINIMAX_BASE_URL
+    base_url_env: MINIMAX_BASE_URL
+    model: "MiniMax-M2.7-highspeed"
+    model_env: MINIMAX_MODEL
+    anthropic_version: "2023-06-01"
     temperature: 0.2
     max_tokens: 4000
+    timeout_seconds: 60
 
-  mimo:
-    type: openai_compatible
+  # ---- Mimo (OpenAI-compatible /chat/completions) -----------------------
+  mimo_openai_compatible:
+    provider: mimo
+    protocol: openai_compatible
     api_key_env: MIMO_API_KEY
-    base_url: ""
-    model: ""
+    base_url: ""                    # fill in via env MIMO_BASE_URL
+    base_url_env: MIMO_BASE_URL
+    model: ""                       # fill in via env MIMO_MODEL
+    model_env: MIMO_MODEL
     temperature: 0.2
     max_tokens: 4000
+    timeout_seconds: 60
+
+  # ---- Mock (offline / CI / no key) -------------------------------------
+  # NOT a substitute for a real LLM. README warns about that.
+  mock:
+    provider: mock
+    protocol: mock
+    model: "mock"
+    temperature: 0.0
+    max_tokens: 4000
+    timeout_seconds: 1
