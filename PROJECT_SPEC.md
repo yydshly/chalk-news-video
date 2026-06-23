@@ -329,8 +329,67 @@ generate_ir → validate_ir → tts → layout → apply_narration_timing
 
 ## Checkpoint 7 — 双人对话脚本
 
-- 多角色对话分析
-- 两个 TTS voice_id
+### 职责边界
+
+- **做**：双角色对话、host/expert 多 voice TTS、dialogue_manifest.json
+- **不做**：多角色 TTS（CP8）、Remotion / 数字人（CP9）
+
+### dialogue_script → dialogue_manifest 流程
+
+1. `generate_ir` 在每条 beat 中增加 `speaker` 字段（`"host"` 或 `"expert"`）
+2. `generate_dialogue` 用 host voice 生成 host beats，expert voice 生成 expert beats
+3. 所有 beat 音频按顺序拼接成 `dialogue.wav`
+4. `dialogue_manifest.json` 记录每条 beat 的 speaker、start、duration、end
+
+### dialogue_manifest.json 契约
+
+```json
+{
+  "schema_version": "0.1",
+  "provider": "mock_host+mock_expert",
+  "audio_format": "wav",
+  "sample_rate": 24000,
+  "tail_silence": 0.5,
+  "speech_duration": 20.5,
+  "total_duration": 21.0,
+  "host_profile": "mock_host",
+  "expert_profile": "mock_expert",
+  "speakers": ["host", "expert"],
+  "beats": [
+    {
+      "beat_id": "b1",
+      "reveal": "title",
+      "speaker": "host",
+      "text": "今天我们聊...",
+      "audio_path": "outputs/latest/audio/beat_b1.wav",
+      "start": 0.0,
+      "duration": 3.2,
+      "end": 3.2
+    }
+  ],
+  "combined_audio_path": "outputs/latest/audio/dialogue.wav"
+}
+```
+
+### TTS voice 配置（CP7）
+
+| Speaker | Mock Profile | 说明 |
+|---------|-------------|------|
+| host | mock_host | 440Hz A4 note |
+| expert | mock_expert | 330Hz E4 note |
+
+### Pipeline 顺序（CP7 dialogue mode）
+
+```
+generate_ir → validate_ir → tts (dialogue) → layout → apply_narration_timing
+→ save render_ir.json → render_html → export_video(audio_path=dialogue.wav)
+```
+
+### 错误处理（CP7）
+
+- `--dialogue` 但 speaker 字段缺失 → 使用默认 "host"
+- `dialogue_manifest.json` 不存在 → 直接失败
+- `dialogue.wav` 不存在 → 直接失败
 
 ## Checkpoint 8+ — Remotion / UI
 
@@ -341,36 +400,20 @@ generate_ir → validate_ir → tts → layout → apply_narration_timing
 
 新增：
 - `src/tts/`（TTS provider 基础设施）
-- `src/narration.py`
-- `config/tts.yaml`
+- `src/narration.py`（新增 `generate_dialogue` 函数）
+- `src/narration_timing.py`（CP6.1 新增）
+- `config/tts.yaml`（新增 mock_host / mock_expert profiles）
 - `docs/CP5_REAL_E2E_VALIDATION.md`
 
 修改：
-- `src/pipeline.py`（新增 `--tts` / `--tts-profile`）
-- `src/export_video.py`（音频 mux 支持）
-- `README.md` / `PROJECT_SPEC.md` / `BACKLOG.md`
-
-新增：
-- `src/validate_ir.py`
-- `prompts/repair_semantic_ir.md`
-- `examples/invalid.semantic.bad_reveal.json`
-- `examples/invalid.semantic.coord_field.json`
-- `examples/invalid.semantic.duplicate_id.json`
-- `examples/invalid.semantic.disconnected_chain.json`
-
-修改：
-- `src/generate_ir.py`（加 `--validate` / `--repair` / `--repair-attempts` / `--save-invalid`）
-- `src/layout.py`（`continue` → `ValueError`）
-- `src/llm/openai_compatible_provider.py`（支持 auth_type / api_key_header / max_tokens_param / extra_body）
-- `src/llm/anthropic_messages_provider.py`（支持 endpoint_path / api_key_header / extra_body）
-- `src/pipeline.py`（新增 `--auto` / `--mock` / `--news` / `--source` / `--profile` / `--repair` / `--no-export`）
-- `config/llm.yaml`（5 个 official profiles）
-- `.env.example`（官方 base_url / model 示例）
-- `requirements.txt`（+jsonschema）
+- `src/pipeline.py`（新增 `--dialogue` / `--host-profile` / `--expert-profile`）
+- `src/export_video.py`（添加 mux 日志和 ffprobe 时长检查）
+- `src/tts/mock_tts_provider.py`（返回 sample_rate，不同 voice 不同频率）
+- `prompts/news_to_semantic_ir.md`（新增 speaker 字段说明）
 - `README.md` / `PROJECT_SPEC.md` / `BACKLOG.md`
 
 未修改：
-- `src/pace.py` / `src/render_html.py` / `src/export_video.py`
+- `src/pace.py` / `src/render_html.py`
 - `src/fetch_news.py` / `src/config_loader.py` / `src/utils.py`
 - `schema/semantic_ir.schema.json`
 - `renderer/template.html`

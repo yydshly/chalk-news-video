@@ -4,38 +4,38 @@
 
 ## 当前 Checkpoint
 
-**Checkpoint 6.1 — 音画同步（当前）**
+**Checkpoint 7 — 双人对话脚本（当前）**
 
-CP6.1 在 CP6 基础上实现音画同步：`narration_manifest` 是音频时间源，
-`render_ir.timeline` 被回填为音频的实际时长。
+CP7 在 CP6.1 基础上实现双人口播对话：host 和 expert 两个角色交替发言。
 
 ```bash
-# 无音频（CP4/CP5 模式，不变）
-python -m src.pipeline --auto --mock
+# 双人对话模式（CP7）
+python -m src.pipeline --auto --mock --tts --dialogue --host-profile mock_host --expert-profile mock_expert
 
-# 带音频 + 音画同步（CP6.1）
+# 单人模式（CP6.1，不变）
 python -m src.pipeline --auto --mock --tts --tts-profile mock
 ```
 
-音画同步流程：
-1. TTS 生成 `narration_manifest.json`（含真实音频时长）
-2. `src/narration_timing.apply_narration_timing` 把 manifest 时间写入 `render_ir.timeline`
-3. `render_ir.total_duration` = `narration_manifest.total_duration`
-4. 动画按音频时长播放，不截断、不空放
+双人对话流程：
+1. `semantic_ir` 每条 beat 含 `speaker` 字段（`"host"` 或 `"expert"`）
+2. TTS 分别用 host voice 和 expert voice 生成各段音频
+3. `dialogue_manifest.json` 记录各 beat 的 speaker 和真实时长
+4. `render_ir.timeline` 以 `dialogue_manifest` 为时间源
+5. 两个角色交替发言的动画视频
 
-**CP6.1 关键约束**：
-- `--tts` 开启时，`narration_manifest.json` 或音频文件缺失会直接失败，不生成假装有音频的视频
-- `render_ir.timeline` 以 `narration_manifest` 的 start/duration 为准
-- 视频总时长 ≈ 音频总时长（误差 ±0.5s）
+**CP7 关键约束**：
+- 每条 beat 必须指定 `speaker: "host"` 或 `speaker: "expert"`
+- LLM 在 generate_ir 时自动分配角色
+- host 适合：引导语、过渡语、总结
+- expert 适合：分析、解读、观点
 
 不包含（后续 Checkpoint）：
-- 双人对话（CP7）
 - 多角色 TTS（CP8）
 - Remotion / 数字人（CP9）
 
 ## 项目定位
 
-V0.10: News → LLM → semantic_ir → TTS narration → video（含音频）。
+V0.11: News → LLM → semantic_ir → dual-host dialogue → video（含双角色音频）。
 
 ## 架构
 
@@ -375,6 +375,32 @@ TTS 配置在 `config/tts.yaml`，默认 profile 为 `mock`。
 outputs/latest/audio/beat_001.wav   # 单句音频
 outputs/latest/audio/narration.wav  # 拼接后完整音频（含 tail_silence）
 outputs/latest/narration_manifest.json  # 音画时间轴 manifest
+```
+
+## 双人对话（Checkpoint 7）
+
+CP7 支持 host/expert 双角色交替对话。
+
+### Mock 对话验收
+
+```bash
+# 单独生成 dialogue
+python -m src.narration --semantic-ir outputs/latest/semantic_ir.json \
+    --dialogue --host-profile mock_host --expert-profile mock_expert
+
+# 双人对话完整 pipeline
+python -m src.pipeline --auto --mock --tts --dialogue \
+    --host-profile mock_host --expert-profile mock_expert
+```
+
+### dialogue_manifest.json 字段
+
+| 字段 | 含义 |
+|------|------|
+| `host_profile` / `expert_profile` | 使用的 TTS profile |
+| `speakers` | 出现的角色列表 |
+| `beats[].speaker` | 该 beat 的发言人（`"host"` 或 `""expert"`） |
+| `beats[].start/duration/end` | 该 beat 的真实音频时间 |
 ```
 
 ### narration_manifest.json 字段说明

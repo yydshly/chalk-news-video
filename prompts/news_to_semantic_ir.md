@@ -49,7 +49,7 @@ fetched_at         拉取时间（ISO 8601）
     {"id": "c1", "on": "n1", "text": "<中文注解>", "tone": "info|alert|positive"}
   ],
   "beats": [
-    {"id": "b1", "reveal": "title", "narration": "<中文口播>"}
+    {"id": "b1", "reveal": "title", "speaker": "host", "narration": "<中文口播>"}
   ]
 }
 ```
@@ -101,6 +101,10 @@ fetched_at         拉取时间（ISO 8601）
   - 已存在的 edge id（如 `"e1"`）
   - 已存在的 callout id（如 `"c1"`）
 - `narration`：**中文口播风格**（适合朗读），每条**不超过 60 个中文字符**。
+- `speaker`：**发言人角色**，必须是 `"host"` 或 `"expert"` 二者之一。
+  - `"host"`：主持人/主播，适合引导语、过渡语、总结
+  - `"expert"`：专家/评论员，适合分析、解读、观点
+  - 建议：标题句、过渡句用 host；分析句、解读句用 expert
 - 节奏建议：先标题 → 主要节点 → 主要 callout → 边连接 → 中间节点 → 收尾节点。
 - `nodes` / `edges` / `callouts` 不再含 `narration` 字段。
 

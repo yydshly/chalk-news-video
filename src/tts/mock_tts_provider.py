@@ -12,6 +12,14 @@ from pathlib import Path
 from .base import TTSProvider
 
 
+# Voice → (frequency_Hz, amplitude) pairs to make different voices distinguishable
+_VOICE_PARAMS = {
+    "default": (440.0, 16000),   # A4 note, moderate volume
+    "host": (440.0, 16000),      # A4 note, same as default
+    "expert": (330.0, 14000),    # E4 note, slightly lower volume
+}
+
+
 class MockTTSProvider(TTSProvider):
     def __init__(self, cfg: dict | None = None):
         self.cfg = cfg or {}
@@ -37,14 +45,15 @@ class MockTTSProvider(TTSProvider):
         duration = max(1.5, min(8.0, len(text) / 6.0))
         num_samples = int(self.sample_rate * duration)
 
-        # Write WAV file with a gentle 440Hz sine wave at low amplitude
+        # Resolve voice: passed voice > configured voice > "default"
+        resolved_voice = voice or self.voice or "default"
+        frequency, amplitude = _VOICE_PARAMS.get(resolved_voice, _VOICE_PARAMS["default"])
+
+        # Write WAV file with a gentle sine wave at voice-specific frequency
         with wave.open(str(output_path), "w") as wav_file:
             wav_file.setnchannels(1)  # mono
             wav_file.setsampwidth(2)  # 2 bytes = 16-bit
             wav_file.setframerate(self.sample_rate)
-
-            amplitude = 16000  # moderate volume
-            frequency = 440.0  # A4 note
 
             for i in range(num_samples):
                 t = i / self.sample_rate
@@ -66,6 +75,6 @@ class MockTTSProvider(TTSProvider):
             "duration": duration,
             "sample_rate": self.sample_rate,
             "provider": "mock",
-            "voice": voice or self.voice,
+            "voice": resolved_voice,
             "format": format,
         }

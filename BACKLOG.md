@@ -87,7 +87,7 @@
 - [x] 无 TTS 模式（`--auto --mock`）仍生成无声视频，不破坏旧流程
 
 不做（显式排除）：
-- 双人对话 / 多角色 TTS（CP7+）
+- 多角色 TTS（CP8+）
 - Remotion / 数字人（CP9+）
 
 ## Checkpoint 6.1 — 音画同步
@@ -106,8 +106,17 @@
 
 ## Checkpoint 7 — 双人对话脚本
 
-- 多角色对话分析
-- 两个 voice_id 路由
+- [x] `prompts/news_to_semantic_ir.md` 新增 `speaker` 字段（host/expert）
+- [x] `config/tts.yaml` 新增 `mock_host` 和 `mock_expert` profiles
+- [x] `mock_tts_provider` 支持动态 voice 参数，不同 voice 用不同频率（host 440Hz，expert 330Hz）
+- [x] `narration.py` 新增 `generate_dialogue()` 函数，生成 `dialogue_manifest.json`
+- [x] `dialogue_manifest.json` 含 `host_profile`、`expert_profile`、`speakers`、`beats[].speaker`
+- [x] `pipeline.py` 新增 `--dialogue`、`--host-profile`、`--expert-profile` 参数
+- [x] `pipeline.py` 对话模式使用 `generate_dialogue` 而非 `generate_narration`
+- [x] README / PROJECT_SPEC / BACKLOG 更新
+- [ ] 验收通过：`--dialogue` 模式生成 dialogue.wav + dialogue_manifest.json
+- [ ] 验收通过：render_ir.timeline 与 dialogue_manifest 时间一致
+- [ ] 验收通过：最终 MP4 音频时长 ≈ dialogue_manifest.total_duration
 
 ## Checkpoint 8+ — Remotion / UI / 主题扩展
 

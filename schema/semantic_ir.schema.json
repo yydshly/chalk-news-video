@@ -104,7 +104,12 @@
             "type": "string",
             "description": "What this beat reveals: 'title', a node id, an edge id, or a callout id."
           },
-          "narration": {"type": "string"}
+          "narration": {"type": "string"},
+          "speaker": {
+            "type": "string",
+            "enum": ["host", "expert"],
+            "description": "CP7+: speaker role for dialogue mode. host=presenter, expert=commentator."
+          }
         }
       }
     }

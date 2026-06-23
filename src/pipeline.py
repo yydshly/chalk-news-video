@@ -8,6 +8,9 @@ Usage:
     python -m src.pipeline --auto --source openai_news --profile minimax_m3_openai --repair
     python -m src.pipeline --auto --mock --no-export
 
+    # Checkpoint 7 (V0.11) — Dual-host dialogue
+    python -m src.pipeline --auto --mock --tts --dialogue --host-profile mock_host --expert-profile mock_expert
+
     # Legacy modes
     python -m src.pipeline --use-sample
     python -m src.pipeline --semantic-ir path/to/semantic_ir.json
@@ -20,7 +23,7 @@ import sys
 from pathlib import Path
 
 from . import export_video, fetch_news, layout, render_html, validate_ir
-from .narration import generate_narration
+from .narration import generate_narration, generate_dialogue
 from .narration_timing import apply_narration_timing
 from .utils import PROJECT_ROOT, load_json, save_json
 
@@ -68,6 +71,7 @@ def run_auto_pipeline(args):
         OUTPUT_DIR / "debug_repair_prompt.txt",
         OUTPUT_DIR / "debug_repair_response.txt",
         OUTPUT_DIR / "narration_manifest.json",
+        OUTPUT_DIR / "dialogue_manifest.json",
     ]:
         if artifact.exists():
             artifact.unlink()
@@ -140,24 +144,38 @@ def run_auto_pipeline(args):
         sys.exit(1)
     print(f"[auto:validate_ir] PASSED")
 
-    # ---- Stage 3a: narration TTS (optional) ----
+    # ---- Stage 3a: narration TTS (optional, CP6/CP7) ----
     audio_path = None
     manifest = None
     if args.tts:
-        print(f"[auto:tts] generating narration with profile={args.tts_profile}")
-        narration_cmd = [
-            sys.executable, "-m", "src.narration",
-            "--semantic-ir", str(semantic_ir_path),
-            "--profile", args.tts_profile,
-        ]
+        if args.dialogue:
+            # CP7 dual-host dialogue mode
+            print(f"[auto:tts] generating dialogue: host={args.host_profile}, expert={args.expert_profile}")
+            narration_cmd = [
+                sys.executable, "-m", "src.narration",
+                "--semantic-ir", str(semantic_ir_path),
+                "--dialogue",
+                "--host-profile", args.host_profile,
+                "--expert-profile", args.expert_profile,
+            ]
+            manifest_path = OUTPUT_DIR / "dialogue_manifest.json"
+        else:
+            # CP6 single-voice narration mode
+            print(f"[auto:tts] generating narration with profile={args.tts_profile}")
+            narration_cmd = [
+                sys.executable, "-m", "src.narration",
+                "--semantic-ir", str(semantic_ir_path),
+                "--profile", args.tts_profile,
+            ]
+            manifest_path = OUTPUT_DIR / "narration_manifest.json"
+
         narration_result = subprocess.run(narration_cmd, capture_output=False)
         if narration_result.returncode != 0:
             print(f"[auto:tts] exited with code {narration_result.returncode}", file=sys.stderr)
             sys.exit(narration_result.returncode)
 
-        manifest_path = OUTPUT_DIR / "narration_manifest.json"
         if not manifest_path.exists():
-            print(f"[auto:tts] narration_manifest.json not found", file=sys.stderr)
+            print(f"[auto:tts] manifest not found: {manifest_path.name}", file=sys.stderr)
             sys.exit(1)
 
         manifest = load_json(manifest_path)
@@ -234,6 +252,8 @@ def run_auto_pipeline(args):
     print(f"  fps:             {fps}")
     print(f"  canvas:          {width}x{height}")
     print(f"  tts_enabled:     {args.tts}")
+    if args.dialogue:
+        print(f"  dialogue_mode:   True (host={args.host_profile}, expert={args.expert_profile})")
     print("=" * 30)
     print("Done.")
 
@@ -279,7 +299,7 @@ def run_pipeline(semantic_ir_path, headless=True):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="chalk-news-video pipeline (V0.10 / Checkpoint 6.1)",
+        description="chalk-news-video pipeline (V0.11 / Checkpoint 7)",
     )
 
     # Auto pipeline group
@@ -319,14 +339,26 @@ def main(argv=None):
     )
 
     # TTS group
-    tts_group = parser.add_argument_group("TTS / narration (Checkpoint 6)")
+    tts_group = parser.add_argument_group("TTS / narration (Checkpoint 6/7)")
     tts_group.add_argument(
         "--tts", action="store_true",
-        help="Enable TTS narration generation (requires --tts-profile).",
+        help="Enable TTS narration generation.",
     )
     tts_group.add_argument(
         "--tts-profile", type=str, default="mock",
-        help="TTS profile name (from config/tts.yaml). Default: mock.",
+        help="TTS profile name (from config/tts.yaml) for single-voice mode. Default: mock.",
+    )
+    tts_group.add_argument(
+        "--dialogue", action="store_true",
+        help="Enable dual-host dialogue mode (CP7). Requires --host-profile and --expert-profile.",
+    )
+    tts_group.add_argument(
+        "--host-profile", type=str, default="mock_host",
+        help="TTS profile for host speaker in dialogue mode. Default: mock_host.",
+    )
+    tts_group.add_argument(
+        "--expert-profile", type=str, default="mock_expert",
+        help="TTS profile for expert speaker in dialogue mode. Default: mock_expert.",
     )
 
     # Legacy modes

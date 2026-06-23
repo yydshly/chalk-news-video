@@ -137,13 +137,13 @@ def _generate_mock_semantic_ir(news):
             {"id": "c1", "on": "n1", "text": "重点", "tone": "info"},
         ],
         "beats": [
-            {"id": "b1", "reveal": "title", "narration": f"今天我们聊：{title[:20]}。"},
-            {"id": "b2", "reveal": "n1",    "narration": "首先，来看事件的起因与背景。"},
-            {"id": "b3", "reveal": "c1",    "narration": "这部分尤其值得关注。"},
-            {"id": "b4", "reveal": "e1",    "narration": "这些因素推动了后续的演变。"},
-            {"id": "b5", "reveal": "n2",    "narration": "在过程中，关键转折点出现了。"},
-            {"id": "b6", "reveal": "e2",    "narration": "由此引发了最终的结果。"},
-            {"id": "b7", "reveal": "n3",    "narration": "最终，我们看到了它的深远影响。"},
+            {"id": "b1", "reveal": "title", "speaker": "host", "narration": f"今天我们聊：{title[:20]}。"},
+            {"id": "b2", "reveal": "n1",    "speaker": "expert", "narration": "首先，来看事件的起因与背景。"},
+            {"id": "b3", "reveal": "c1",    "speaker": "host", "narration": "这部分尤其值得关注。"},
+            {"id": "b4", "reveal": "e1",    "speaker": "expert", "narration": "这些因素推动了后续的演变。"},
+            {"id": "b5", "reveal": "n2",    "speaker": "expert", "narration": "在过程中，关键转折点出现了。"},
+            {"id": "b6", "reveal": "e2",    "speaker": "host", "narration": "由此引发了最终的结果。"},
+            {"id": "b7", "reveal": "n3",    "speaker": "expert", "narration": "最终，我们看到了它的深远影响。"},
         ],
     }
 

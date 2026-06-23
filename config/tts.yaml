@@ -20,6 +20,24 @@ profiles:
     format: wav
     speed: 1.0
 
+  # ---- Mock TTS - Host voice (CP7 dual-host) -----------------------
+  mock_host:
+    provider: mock
+    protocol: local_wav
+    voice: host
+    sample_rate: 24000
+    format: wav
+    speed: 1.0
+
+  # ---- Mock TTS - Expert voice (CP7 dual-host) ---------------------
+  mock_expert:
+    provider: mock
+    protocol: local_wav
+    voice: expert
+    sample_rate: 24000
+    format: wav
+    speed: 1.0
+
   # ---- MiniMax TTS (requires real credentials) --------------------
   # NOTE: Do NOT hardcode endpoint here. Set via env vars or leave empty.
   # Fill in: MINIMAX_API_KEY, MINIMAX_TTS_BASE_URL, MINIMAX_TTS_ENDPOINT_PATH,
