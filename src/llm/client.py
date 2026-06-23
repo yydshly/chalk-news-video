@@ -6,6 +6,11 @@ LLMClient wrapper with a single generate_text(system, user) -> str method.
 
 This module does NOT compose business prompts — that's the caller's job
 (e.g. src.generate_ir).
+
+By default `create_llm_client()` ALSO loads the project-root `.env` file
+(without overriding existing os.environ values). This lets users put
+MINIMAX_API_KEY / MIMO_API_KEY / *_BASE_URL / *_MODEL in `.env` without
+having to source it manually. System env vars always win over `.env`.
 """
 
 
@@ -15,13 +20,13 @@ from .base import LLMProvider
 from .openai_compatible_provider import OpenAICompatibleProvider
 
 
-# Path to the bundled config; resolve relative to project root.
 def _project_root():
     from pathlib import Path
     return Path(__file__).resolve().parent.parent.parent
 
 
 DEFAULT_LLM_CONFIG = _project_root() / "config" / "llm.yaml"
+DEFAULT_DOTENV = _project_root() / ".env"
 
 
 class LLMClient:
@@ -41,7 +46,8 @@ class MockProvider(LLMProvider):
 
     Reads a `payload` field from the profile (a JSON string), and returns it
     verbatim as the assistant message. If no payload is set, returns an empty
-    string.
+    string. (The recommended way to run mock is `python -m src.generate_ir
+    --mock`, which bypasses this class entirely.)
     """
 
     def __init__(self, cfg):
@@ -83,9 +89,13 @@ def create_llm_client(profile_name=None, config_path=None, env_path=None):
 
     Args:
         profile_name: which profile to use. Defaults to llm.yaml default_profile.
-        config_path: path to llm.yaml. Defaults to config/llm.yaml.
-        env_path: optional .env file to load BEFORE constructing the provider
-                  (so api_key_env / base_url_env / model_env resolve correctly).
+        config_path:  path to llm.yaml. Defaults to config/llm.yaml.
+        env_path:     path to a .env file to populate os.environ before the
+                      provider is built. Defaults to the project-root `.env`.
+                      If the file is missing, no error is raised; os.environ
+                      keeps whatever the user / shell already set.
+                      Pass a path that does not exist to silence the default
+                      (e.g. ".env" absent in CI).
 
     Returns:
         LLMClient
@@ -93,9 +103,10 @@ def create_llm_client(profile_name=None, config_path=None, env_path=None):
     cfg_path = config_path or DEFAULT_LLM_CONFIG
     config = load_yaml(cfg_path)
 
-    # Load .env first so env-var resolution in providers sees the values.
-    if env_path is not None:
-        load_env_file(env_path)
+    # Resolve env_path: explicit value wins; otherwise try project-root .env.
+    # Missing file is not an error — it just contributes nothing.
+    effective_env_path = env_path if env_path is not None else DEFAULT_DOTENV
+    load_env_file(effective_env_path)
 
     profile = _resolve_profile(config, profile_name)
 

@@ -45,11 +45,27 @@ def load_app_config(config_dir=None):
     return load_yaml(config_dir / "app.yaml")
 
 
-def load_env_file(env_path=None):
+def load_env_file(env_path=None, override=False):
     """Tiny .env loader.
 
     Lines: KEY=value, blank lines ignored, lines starting with '#' ignored.
     Surrounding quotes on the value are stripped.
+
+    Side effect: also populates `os.environ` so downstream code that reads
+    `os.environ.get(...)` sees the values.
+
+    Priority:
+        - System environment wins by default (`override=False`, uses setdefault).
+        - Pass `override=True` to let .env values overwrite system env.
+
+    Missing file is not an error: returns {} and leaves os.environ untouched.
+
+    Args:
+        env_path: path to .env file. Defaults to PROJECT_ROOT/.env.
+        override: if True, overwrite existing os.environ values with .env values.
+
+    Returns:
+        dict of {key: value} parsed from the file.
     """
     p = Path(env_path) if env_path else DEFAULT_DOTENV
     if not p.exists():
@@ -63,7 +79,14 @@ def load_env_file(env_path=None):
             if "=" not in line:
                 continue
             k, v = line.split("=", 1)
-            out[k.strip()] = v.strip().strip('"').strip("'")
+            k = k.strip()
+            v = v.strip().strip('"').strip("'")
+            out[k] = v
+            if override:
+                os.environ[k] = v
+            else:
+                # System env wins; .env only fills gaps.
+                os.environ.setdefault(k, v)
     return out
 
 
@@ -72,8 +95,10 @@ def get_api_key(provider_cfg, env_path=None):
     env_key = provider_cfg.get("api_key_env") if provider_cfg else None
     if not env_key:
         return None
+    # Try system env first.
     val = os.environ.get(env_key)
     if val:
         return val
+    # Fall back to .env file (does not override os.environ unless override=True).
     env = load_env_file(env_path)
     return env.get(env_key)

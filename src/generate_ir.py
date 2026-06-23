@@ -191,6 +191,9 @@ def main(argv=None):
                         help="Compose and save the prompt, do NOT call any LLM.")
     parser.add_argument("--mock", action="store_true",
                         help="Use the in-process mock provider (no API key).")
+    parser.add_argument("--env", type=str, default=None,
+                        help="Path to .env file. Defaults to <project root>/.env. "
+                             "Missing file is fine; os.environ keeps current values.")
     args = parser.parse_args(argv)
 
     news_path = Path(args.news)
@@ -234,8 +237,11 @@ def main(argv=None):
         debug_meta = "# mock provider (no HTTP call)\n"
     else:
         try:
-            llm = llm_client.create_llm_client(profile_name=args.profile,
-                                               config_path=args.config)
+            llm = llm_client.create_llm_client(
+                profile_name=args.profile,
+                config_path=args.config,
+                env_path=args.env,
+            )
         except (FileNotFoundError, ValueError, RuntimeError) as e:
             print(f"Error: failed to build LLM client: {e}", file=sys.stderr)
             return 2

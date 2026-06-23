@@ -10,6 +10,12 @@
 # Real base_urls for MiniMax / Mimo are NOT committed (we don't want to
 # guess them and have them break). Leave `base_url` empty in this file and
 # set the corresponding env var in your local `.env`.
+#
+# Note: there is intentionally NO `mock` profile here. The supported way to
+# run offline is `python -m src.generate_ir --mock`, which bypasses this
+# config file entirely. Do NOT add a `mock` profile unless you know what
+# you're doing — an empty mock profile silently returns "" and looks like
+# a working LLM call.
 
 default_profile: minimax_m27_highspeed_anthropic
 
@@ -41,13 +47,3 @@ profiles:
     temperature: 0.2
     max_tokens: 4000
     timeout_seconds: 60
-
-  # ---- Mock (offline / CI / no key) -------------------------------------
-  # NOT a substitute for a real LLM. README warns about that.
-  mock:
-    provider: mock
-    protocol: mock
-    model: "mock"
-    temperature: 0.0
-    max_tokens: 4000
-    timeout_seconds: 1

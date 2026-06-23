@@ -101,20 +101,36 @@ profiles:
     temperature: 0.2
     max_tokens: 4000
     timeout_seconds: 60
-
-  mock:                         # 仅供本地 / CI 测试，不代表真实 LLM 效果
-    provider: mock
-    protocol: mock
-    model: "mock"
-    temperature: 0.0
-    max_tokens: 4000
-    timeout_seconds: 1
 ```
 
 支持协议：
 - `openai_compatible` → POST `{base_url}/chat/completions`
 - `anthropic_messages` → POST `{base_url}/messages`
-- `mock` → 本地确定性生成
+
+> 本仓库**不再提供 `mock` profile**。Mock 入口唯一在 CLI：`python -m src.generate_ir --mock`。
+> 这避免了在 llm.yaml 里写 `mock` 然后意外把它当 default_profile，导致 LLM 调用静默返回空。
+
+## .env：默认自动加载
+
+`create_llm_client()` 默认会从项目根目录读取 `.env`，把缺失的 key 填进 `os.environ`（用 `setdefault`，**不会覆盖你已经设好的系统环境变量**）。
+
+```bash
+cp .env.example .env
+# 编辑 .env，填入：
+#   MINIMAX_API_KEY=<your key>
+#   MINIMAX_BASE_URL=<your endpoint>
+#   MINIMAX_MODEL=MiniMax-M2.7-highspeed
+#   MIMO_API_KEY=<your key>
+#   MIMO_BASE_URL=<your endpoint>
+#   MIMO_MODEL=<your model>
+```
+
+如果 `.env` 不存在，**不报错**，继续从系统环境变量读取（CI / shell export 都 OK）。
+
+如要换路径：`python -m src.generate_ir --env /path/to/.env`。
+如要显式跳过：把 `--env` 指向一个不存在的文件即可。
+
+**优先级**：真实系统环境变量 > `.env` > `llm.yaml` 中的静态值。
 
 ## .env 示例
 
@@ -142,10 +158,10 @@ MIMO_MODEL=<your Mimo model>
 # 1) Dry-run：只拼 prompt，不调用 LLM
 python -m src.generate_ir --news examples/sample_news.json --dry-run
 
-# 2) Mock：无 key 本地测试
+# 2) Mock：无 key 本地测试（推荐方式，绕过 llm.yaml 的 profile 选择）
 python -m src.generate_ir --news examples/sample_news.json --mock
 
-# 3) 真实 MiniMax
+# 3) 真实 MiniMax（读 .env / 系统环境变量）
 python -m src.generate_ir --news outputs/latest/latest_news.json \
     --profile minimax_m27_highspeed_anthropic
 
@@ -158,6 +174,7 @@ python -m src.generate_ir --news outputs/latest/latest_news.json \
 - `--config config/llm.yaml`
 - `--prompt prompts/news_to_semantic_ir.md`
 - `--output outputs/latest/semantic_ir.json`
+- `--env /path/to/.env`（默认：`<project root>/.env`，缺失不报错）
 
 ## 产物
 
