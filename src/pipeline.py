@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 
 from . import export_video, fetch_news, layout, render_html, validate_ir
-from .narration import generate_narration, generate_dialogue
+from .narration import generate_narration
 from .narration_timing import apply_narration_timing
 from .utils import PROJECT_ROOT, load_json, save_json
 
@@ -54,8 +54,10 @@ def _run_step(stage, fn, *args, **kwargs):
 def run_auto_pipeline(args):
     """Run the full auto pipeline: news → semantic_ir → validate → render → export.
 
-    CP6.1 order with TTS:
-        generate_ir → validate_ir → tts → layout → apply_narration_timing
+    CP7.1 order with --tts --dialogue:
+        generate_ir → validate_ir
+        → (auto-generate dialogue_script.json if missing)
+        → narration (dialogue_audio) → layout → apply_narration_timing
         → save render_ir → render_html → export_video(audio_path)
 
     Without TTS:
@@ -72,6 +74,9 @@ def run_auto_pipeline(args):
         OUTPUT_DIR / "debug_repair_response.txt",
         OUTPUT_DIR / "narration_manifest.json",
         OUTPUT_DIR / "dialogue_manifest.json",
+        OUTPUT_DIR / "dialogue_script.json",
+        OUTPUT_DIR / "debug_dialogue_prompt.txt",
+        OUTPUT_DIR / "debug_dialogue_response.txt",
     ]:
         if artifact.exists():
             artifact.unlink()
@@ -149,12 +154,45 @@ def run_auto_pipeline(args):
     manifest = None
     if args.tts:
         if args.dialogue:
-            # CP7 dual-host dialogue mode
+            # CP7.1 main path: dialogue_script → dialogue_manifest
+            dialogue_script_path = OUTPUT_DIR / "dialogue_script.json"
+            if not dialogue_script_path.exists():
+                # Auto-generate dialogue_script using mock LLM
+                print(f"[auto:dialogue] dialogue_script.json not found, generating...")
+                gen_dialogue_cmd = [
+                    sys.executable, "-m", "src.generate_dialogue",
+                    "--semantic-ir", str(semantic_ir_path),
+                    "--mock",
+                    "--validate",
+                ]
+                dialogue_gen_result = subprocess.run(gen_dialogue_cmd, capture_output=False)
+                if dialogue_gen_result.returncode != 0:
+                    print(f"[auto:dialogue] generate_dialogue failed with code {dialogue_gen_result.returncode}", file=sys.stderr)
+                    sys.exit(dialogue_gen_result.returncode)
+                if not dialogue_script_path.exists():
+                    print(f"[auto:dialogue] dialogue_script.json still not found after generation", file=sys.stderr)
+                    sys.exit(1)
+                print(f"[auto:dialogue] generated dialogue_script.json")
+            else:
+                print(f"[auto:dialogue] using existing dialogue_script.json")
+
+            print(f"[auto:tts] generating dialogue audio: host={args.host_profile}, expert={args.expert_profile}")
+            narration_cmd = [
+                sys.executable, "-m", "src.narration",
+                "--dialogue-script", str(dialogue_script_path),
+                "--dialogue",
+                "--host-profile", args.host_profile,
+                "--expert-profile", args.expert_profile,
+            ]
+            manifest_path = OUTPUT_DIR / "dialogue_manifest.json"
+        elif args.dialogue_legacy:
+            # CP7 legacy path: semantic_ir.beats[].speaker → dialogue_manifest
+            print(f"[auto:dialogue] using legacy semantic_ir speaker mode (compatibility preview)")
             print(f"[auto:tts] generating dialogue: host={args.host_profile}, expert={args.expert_profile}")
             narration_cmd = [
                 sys.executable, "-m", "src.narration",
                 "--semantic-ir", str(semantic_ir_path),
-                "--dialogue",
+                "--dialogue-legacy",
                 "--host-profile", args.host_profile,
                 "--expert-profile", args.expert_profile,
             ]
@@ -350,7 +388,11 @@ def main(argv=None):
     )
     tts_group.add_argument(
         "--dialogue", action="store_true",
-        help="Enable dual-host dialogue mode (CP7). Requires --host-profile and --expert-profile.",
+        help="Enable dual-host dialogue mode (CP7.1). Auto-generates dialogue_script.json if missing.",
+    )
+    tts_group.add_argument(
+        "--dialogue-legacy", action="store_true",
+        help="Use legacy semantic_ir.beats[].speaker path for dialogue (CP7 compatibility preview).",
     )
     tts_group.add_argument(
         "--host-profile", type=str, default="mock_host",

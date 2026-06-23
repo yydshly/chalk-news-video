@@ -319,15 +319,144 @@ def generate_dialogue(
     return manifest
 
 
+def generate_dialogue_audio(
+    dialogue_script_path: str | Path,
+    host_profile: str = "mock_host",
+    expert_profile: str = "mock_expert",
+    output_path: Path | str | None = None,
+    tail_silence_sec: float = DEFAULT_TAIL_SILENCE_SEC,
+) -> dict:
+    """Generate dual-host dialogue audio from dialogue_script.json and produce a dialogue_manifest.
+
+    This is the CP7.1 main path: dialogue_script.turns → audio → dialogue_manifest.
+
+    Args:
+        dialogue_script_path: Path to dialogue_script.json
+        host_profile: TTS profile for "host" speaker
+        expert_profile: TTS profile for "expert" speaker
+        output_path: Optional override for dialogue_manifest.json output path
+        tail_silence_sec: Silence duration appended after the last turn (default 0.5s)
+
+    Returns:
+        dialogue_manifest dict
+    """
+    dialogue_script_path = Path(dialogue_script_path)
+    dialogue_script = load_json(dialogue_script_path)
+
+    turns = dialogue_script.get("turns", [])
+    if not turns:
+        raise ValueError("dialogue_script has no turns")
+
+    audio_dir = AUDIO_DIR
+    audio_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create providers for each speaker
+    host_provider = create_tts_client(profile_name=host_profile)
+    expert_provider = create_tts_client(profile_name=expert_profile)
+
+    turn_audio_paths = []
+    manifest_turns = []
+    current_time = 0.0
+    sample_rate = 24000  # will be updated from first provider result
+    speakers_used = set()
+
+    for turn in turns:
+        turn_id = turn.get("id", "")
+        speaker = turn.get("speaker", "host")
+        text = turn.get("text", "").strip()
+        beat_id = turn.get("beat_id", "")
+        reveal = turn.get("reveal", "")
+        speakers_used.add(speaker)
+
+        if not text:
+            continue  # skip empty turns
+
+        # Select provider based on speaker
+        provider = expert_provider if speaker == "expert" else host_provider
+
+        audio_filename = f"turn_{turn_id}.wav"
+        audio_path = audio_dir / audio_filename
+
+        result = provider.synthesize(
+            text=text,
+            output_path=audio_path,
+            voice=None,
+            speed=1.0,
+            format="wav",
+        )
+
+        sample_rate = int(result.get("sample_rate", sample_rate))
+        duration = _get_wav_duration(audio_path)
+
+        manifest_turns.append({
+            "turn_id": turn_id,
+            "speaker": speaker,
+            "beat_id": beat_id,
+            "reveal": reveal,
+            "text": text,
+            "audio_path": str(audio_path),
+            "start": round(current_time, 3),
+            "duration": round(duration, 3),
+            "end": round(current_time + duration, 3),
+        })
+
+        turn_audio_paths.append(audio_path)
+        current_time += duration
+
+    speech_duration = round(current_time, 3)
+
+    # Concatenate all turn audio files
+    combined_audio_path = audio_dir / "dialogue.wav"
+    if turn_audio_paths:
+        temp_combined = audio_dir / "dialogue_turns.wav"
+        _concat_wavs(turn_audio_paths, temp_combined)
+        if tail_silence_sec > 0:
+            silence_path = audio_dir / "tail_silence.wav"
+            _write_silence_wav(silence_path, tail_silence_sec, sample_rate)
+            _concat_wavs([temp_combined, silence_path], combined_audio_path)
+            silence_path.unlink(missing_ok=True)
+        else:
+            temp_combined.rename(combined_audio_path)
+        temp_combined.unlink(missing_ok=True)
+        total_duration = _get_wav_duration(combined_audio_path)
+    else:
+        combined_audio_path = None
+        total_duration = 0.0
+
+    manifest = {
+        "schema_version": "0.1",
+        "provider": f"{host_profile}+{expert_profile}",
+        "source_dialogue_script": {
+            "schema_version": dialogue_script.get("schema_version", "0.1"),
+        },
+        "total_duration": round(total_duration, 3),
+        "turns": manifest_turns,
+        "combined_audio_path": str(combined_audio_path) if combined_audio_path else None,
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
+
+    manifest_path = Path(output_path) if output_path else DEFAULT_DIALOGUE_MANIFEST_PATH
+    save_json(manifest, manifest_path)
+    print(f"[dialogue_audio] wrote {manifest_path}")
+
+    return manifest
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="Generate narration audio from semantic_ir beats.",
+        description="Generate narration audio from semantic_ir or dialogue_script.",
     )
     parser.add_argument(
         "--semantic-ir",
         type=str,
         default=str(OUTPUT_DIR / "semantic_ir.json"),
         help="Path to semantic_ir.json",
+    )
+    parser.add_argument(
+        "--dialogue-script",
+        type=str,
+        default=str(OUTPUT_DIR / "dialogue_script.json"),
+        help="Path to dialogue_script.json (CP7.1 main path)",
     )
     parser.add_argument(
         "--profile",
@@ -338,40 +467,57 @@ def main(argv=None):
     parser.add_argument(
         "--dialogue",
         action="store_true",
-        help="Enable dual-host dialogue mode (requires --host-profile and --expert-profile)",
+        help="Enable dual-host dialogue mode using dialogue_script (CP7.1).",
+    )
+    parser.add_argument(
+        "--dialogue-legacy",
+        action="store_true",
+        help="Enable dual-host dialogue using semantic_ir.beats[].speaker (CP7 compatibility).",
     )
     parser.add_argument(
         "--host-profile",
         type=str,
         default="mock_host",
-        help="TTS profile for host speaker (dialogue mode only)",
+        help="TTS profile for host speaker",
     )
     parser.add_argument(
         "--expert-profile",
         type=str,
         default="mock_expert",
-        help="TTS profile for expert speaker (dialogue mode only)",
+        help="TTS profile for expert speaker",
     )
     parser.add_argument(
         "--output",
         type=str,
         default=None,
-        help="Output path for manifest.json (narration_manifest.json or dialogue_manifest.json)",
+        help="Output path for manifest.json",
     )
     args = parser.parse_args(argv)
 
     try:
         if args.dialogue:
+            # CP7.1 main path: dialogue_script.turns → dialogue_manifest
+            manifest = generate_dialogue_audio(
+                args.dialogue_script,
+                host_profile=args.host_profile,
+                expert_profile=args.expert_profile,
+                output_path=args.output,
+            )
+            print(f"[dialogue_audio] generated {len(manifest['turns'])} turn audio(s)")
+            print(f"[dialogue_audio] combined audio: {manifest['combined_audio_path']}")
+            print(f"[dialogue_audio] total_duration: {manifest['total_duration']}s")
+        elif args.dialogue_legacy:
+            # CP7 compatibility path: semantic_ir.beats[].speaker → dialogue_manifest
             manifest = generate_dialogue(
                 args.semantic_ir,
                 host_profile=args.host_profile,
                 expert_profile=args.expert_profile,
                 output_path=args.output,
             )
-            print(f"[dialogue] generated {len(manifest['beats'])} beat audio(s)")
-            print(f"[dialogue] speakers: {manifest['speakers']}")
-            print(f"[dialogue] combined audio: {manifest['combined_audio_path']}")
-            print(f"[dialogue] total_duration: {manifest['total_duration']}s")
+            print(f"[dialogue_legacy] generated {len(manifest['beats'])} beat audio(s)")
+            print(f"[dialogue_legacy] speakers: {manifest['speakers']}")
+            print(f"[dialogue_legacy] combined audio: {manifest['combined_audio_path']}")
+            print(f"[dialogue_legacy] total_duration: {manifest['total_duration']}s")
         else:
             manifest = generate_narration(
                 args.semantic_ir,

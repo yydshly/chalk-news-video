@@ -1,0 +1,111 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "dialogue_script",
+  "description": "Dialogue script contract for chalk-news-video CP7.1+. LLM generates host/expert dialogue from semantic_ir.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "source_semantic_ir",
+    "style",
+    "turns"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^0\\.[0-9]+$",
+      "description": "Contract version. Current: 0.1."
+    },
+    "source_semantic_ir": {
+      "type": "object",
+      "description": "Reference to source semantic_ir.",
+      "additionalProperties": false,
+      "properties": {
+        "title": {"type": "string"},
+        "schema_version": {"type": "string"}
+      }
+    },
+    "style": {
+      "type": "object",
+      "description": "Dialogue style configuration.",
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "type": "string",
+          "enum": ["two_speaker_explainer"],
+          "description": "Dialogue format type."
+        },
+        "tone": {
+          "type": "string",
+          "enum": ["clear_curious", "neutral", "analytical"],
+          "description": "Overall dialogue tone."
+        },
+        "language": {
+          "type": "string",
+          "description": "BCP-47 language tag."
+        },
+        "speakers": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "Speaker list (host + expert).",
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "role"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "enum": ["host", "expert"],
+                "description": "Speaker identifier."
+              },
+              "name": {"type": "string"},
+              "role": {
+                "type": "string",
+                "enum": ["questioner", "explainer"],
+                "description": "Speaker role in dialogue."
+              }
+            }
+          }
+        }
+      }
+    },
+    "turns": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Ordered dialogue turns.",
+      "items": {
+        "type": "object",
+        "required": ["id", "speaker", "beat_id", "reveal", "text"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string"},
+          "speaker": {
+            "type": "string",
+            "enum": ["host", "expert"],
+            "description": "Which speaker says this turn."
+          },
+          "beat_id": {
+            "type": "string",
+            "description": "Links this turn to a semantic_ir beat."
+          },
+          "reveal": {
+            "type": "string",
+            "description": "What this turn reveals (title/node/edge/callout id)."
+          },
+          "text": {"type": "string"},
+          "function": {
+            "type": "string",
+            "enum": ["hook", "question", "explain", "clarify", "transition", "summary"],
+            "description": "Function of this dialogue turn."
+          },
+          "duration_hint": {
+            "type": "number",
+            "minimum": 0.1,
+            "description": "Estimated duration in seconds (not actual audio time)."
+          }
+        }
+      }
+    }
+  }
+}

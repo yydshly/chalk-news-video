@@ -109,14 +109,29 @@
 - [x] `prompts/news_to_semantic_ir.md` 新增 `speaker` 字段（host/expert）
 - [x] `config/tts.yaml` 新增 `mock_host` 和 `mock_expert` profiles
 - [x] `mock_tts_provider` 支持动态 voice 参数，不同 voice 用不同频率（host 440Hz，expert 330Hz）
-- [x] `narration.py` 新增 `generate_dialogue()` 函数，生成 `dialogue_manifest.json`
+- [x] `narration.py` 新增 `generate_dialogue()` 函数（legacy 路径）
 - [x] `dialogue_manifest.json` 含 `host_profile`、`expert_profile`、`speakers`、`beats[].speaker`
-- [x] `pipeline.py` 新增 `--dialogue`、`--host-profile`、`--expert-profile` 参数
-- [x] `pipeline.py` 对话模式使用 `generate_dialogue` 而非 `generate_narration`
+- [x] `pipeline.py` 新增 `--dialogue`/`--host-profile`/`--expert-profile` 参数
 - [x] README / PROJECT_SPEC / BACKLOG 更新
-- [ ] 验收通过：`--dialogue` 模式生成 dialogue.wav + dialogue_manifest.json
-- [ ] 验收通过：render_ir.timeline 与 dialogue_manifest 时间一致
-- [ ] 验收通过：最终 MP4 音频时长 ≈ dialogue_manifest.total_duration
+
+## Checkpoint 7.1 — Dialogue Script 契约层
+
+- [x] `schema/dialogue_script.schema.json`（新增）
+- [x] `prompts/semantic_ir_to_dialogue.md`（新增）
+- [x] `src/validate_dialogue.py` + `validate_dialogue_script()`（新增）
+- [x] `src/generate_dialogue.py`（新增）
+- [x] `examples/sample.dialogue.json`（新增）
+- [x] `examples/invalid.dialogue.bad_speaker.json`（新增）
+- [x] `examples/invalid.dialogue.unknown_beat.json`（新增）
+- [x] `narration.py` 新增 `generate_dialogue_audio()`，基于 dialogue_script.turns 生成音频
+- [x] `narration.py` CLI 新增 `--dialogue-script` 参数
+- [x] `narration_timing.py` 支持 turns 聚合（按 beat_id 分组）
+- [x] `pipeline.py` dialogue 模式自动生成 dialogue_script.json
+- [x] `pipeline.py` 新增 `--dialogue-legacy` 保留 CP7 兼容路径
+- [x] README / PROJECT_SPEC / BACKLOG 更新
+- [ ] 验收通过：generate_dialogue --mock --validate 生成 dialogue_script.json
+- [ ] 验收通过：validate_dialogue 对无效输入报错
+- [ ] 验收通过：dialogue_manifest.turns 生成并同步 render_ir.timeline
 
 ## Checkpoint 8+ — Remotion / UI / 主题扩展
 

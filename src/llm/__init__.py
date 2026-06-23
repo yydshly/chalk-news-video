@@ -9,3 +9,8 @@ Provider protocols supported (config-driven):
 - anthropic_messages : Anthropic /messages style (also used by some MiniMax deployments)
 - mock : local deterministic generator for offline testing
 """
+
+from .client import create_llm_client
+from .json_utils import extract_json_object
+
+__all__ = ["create_llm_client", "extract_json_object"]

@@ -334,42 +334,74 @@ generate_ir → validate_ir → tts → layout → apply_narration_timing
 - **做**：双角色对话、host/expert 多 voice TTS、dialogue_manifest.json
 - **不做**：多角色 TTS（CP8）、Remotion / 数字人（CP9）
 
-### dialogue_script → dialogue_manifest 流程
+### CP7.1 契约层级（新增）
 
-1. `generate_ir` 在每条 beat 中增加 `speaker` 字段（`"host"` 或 `"expert"`）
-2. `generate_dialogue` 用 host voice 生成 host beats，expert voice 生成 expert beats
-3. 所有 beat 音频按顺序拼接成 `dialogue.wav`
-4. `dialogue_manifest.json` 记录每条 beat 的 speaker、start、duration、end
+CP7.1 确立三层对话契约：
 
-### dialogue_manifest.json 契约
+1. **semantic_ir**：结构语义契约（beat_id、reveal、narration）
+2. **dialogue_script**：对话表达契约（turns with host/expert alternating）
+3. **dialogue_manifest**：对话音频时间契约（turns with real start/duration/end）
+
+### dialogue_script.json 契约
+
+```json
+{
+  "schema_version": "0.1",
+  "source_semantic_ir": { "title": "...", "schema_version": "0.1" },
+  "style": {
+    "format": "two_speaker_explainer",
+    "tone": "clear_curious",
+    "language": "zh",
+    "speakers": [
+      {"id": "host", "name": "主持人", "role": "questioner"},
+      {"id": "expert", "name": "讲解员", "role": "explainer"}
+    ]
+  },
+  "turns": [
+    {
+      "id": "d1",
+      "speaker": "host",
+      "beat_id": "b1",
+      "reveal": "title",
+      "text": "这条新闻在讲什么？",
+      "function": "hook",
+      "duration_hint": 2.5
+    }
+  ]
+}
+```
+
+### dialogue_manifest.json 契约（CP7.1 新结构）
 
 ```json
 {
   "schema_version": "0.1",
   "provider": "mock_host+mock_expert",
-  "audio_format": "wav",
-  "sample_rate": 24000,
-  "tail_silence": 0.5,
-  "speech_duration": 20.5,
+  "source_dialogue_script": { "schema_version": "0.1" },
   "total_duration": 21.0,
-  "host_profile": "mock_host",
-  "expert_profile": "mock_expert",
-  "speakers": ["host", "expert"],
-  "beats": [
+  "turns": [
     {
+      "turn_id": "d1",
+      "speaker": "host",
       "beat_id": "b1",
       "reveal": "title",
-      "speaker": "host",
-      "text": "今天我们聊...",
-      "audio_path": "outputs/latest/audio/beat_b1.wav",
+      "text": "...",
+      "audio_path": "outputs/latest/audio/turn_d1.wav",
       "start": 0.0,
-      "duration": 3.2,
-      "end": 3.2
+      "duration": 2.4,
+      "end": 2.4
     }
   ],
   "combined_audio_path": "outputs/latest/audio/dialogue.wav"
 }
 ```
+
+### narration_timing 聚合规则（CP7.1 新增）
+
+`dialogue_manifest.turns` → `render_ir.timeline`：
+- 同一 beat_id 的多个 turn 聚合为一个 timeline item
+- `timeline_item.at` = 该 beat 第一条 turn 的 start
+- `timeline_item.duration` = 最后一条 turn 的 end - 第一条 turn 的 start
 
 ### TTS voice 配置（CP7）
 
@@ -378,18 +410,21 @@ generate_ir → validate_ir → tts → layout → apply_narration_timing
 | host | mock_host | 440Hz A4 note |
 | expert | mock_expert | 330Hz E4 note |
 
-### Pipeline 顺序（CP7 dialogue mode）
+### Pipeline 顺序（CP7.1 dialogue mode）
 
 ```
-generate_ir → validate_ir → tts (dialogue) → layout → apply_narration_timing
+generate_ir → validate_ir
+→ (auto-generate dialogue_script.json if missing)
+→ narration (dialogue_audio) → layout → apply_narration_timing
 → save render_ir.json → render_html → export_video(audio_path=dialogue.wav)
 ```
 
-### 错误处理（CP7）
+### 错误处理（CP7.1）
 
-- `--dialogue` 但 speaker 字段缺失 → 使用默认 "host"
+- `dialogue_script.json` 不存在 → 自动用 mock 生成
 - `dialogue_manifest.json` 不存在 → 直接失败
 - `dialogue.wav` 不存在 → 直接失败
+- timeline beat_id 在 manifest turns 中找不到 → ValueError
 
 ## Checkpoint 8+ — Remotion / UI
 

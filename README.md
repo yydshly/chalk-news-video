@@ -4,30 +4,36 @@
 
 ## 当前 Checkpoint
 
-**Checkpoint 7 — 双人对话脚本（当前）**
+**Checkpoint 7.1 — Dialogue Script 契约层（当前）**
 
-CP7 在 CP6.1 基础上实现双人口播对话：host 和 expert 两个角色交替发言。
+CP7.1 补齐对话脚本契约层，实现：
+`semantic_ir` → `dialogue_script.json` → `dialogue_manifest.json` → `render_ir.timeline`
 
 ```bash
-# 双人对话模式（CP7）
+# 双人对话模式（CP7.1 主路径）
 python -m src.pipeline --auto --mock --tts --dialogue --host-profile mock_host --expert-profile mock_expert
 
 # 单人模式（CP6.1，不变）
 python -m src.pipeline --auto --mock --tts --tts-profile mock
+
+# 单独生成 dialogue_script
+python -m src.generate_dialogue --semantic-ir outputs/latest/semantic_ir.json --mock --validate
 ```
 
-双人对话流程：
-1. `semantic_ir` 每条 beat 含 `speaker` 字段（`"host"` 或 `"expert"`）
-2. TTS 分别用 host voice 和 expert voice 生成各段音频
-3. `dialogue_manifest.json` 记录各 beat 的 speaker 和真实时长
-4. `render_ir.timeline` 以 `dialogue_manifest` 为时间源
-5. 两个角色交替发言的动画视频
+**CP7.1 契约层级**：
+1. `semantic_ir` = 结构语义（beat_id、reveal、narration）
+2. `dialogue_script.json` = 对话表达（turns with host/expert alternating）
+3. `dialogue_manifest.json` = 对话音频时间（turns with real start/duration）
+4. `render_ir.timeline` = 最终渲染时间（以 dialogue_manifest 为时间源）
 
-**CP7 关键约束**：
-- 每条 beat 必须指定 `speaker: "host"` 或 `speaker: "expert"`
-- LLM 在 generate_ir 时自动分配角色
-- host 适合：引导语、过渡语、总结
-- expert 适合：分析、解读、观点
+**CP7 旧路径（兼容性预览）**：
+`semantic_ir.beats[].speaker` → `dialogue_manifest.json`（仍可用，但标注为 legacy）
+
+**CP7.1 关键约束**：
+- dialogue_script 由 LLM 生成，turns 数量 8–18
+- 每个 semantic_ir beat 至少被一个 dialogue turn 覆盖
+- 不允许 audio_path/start/end/duration 出现在 dialogue_script 中
+- dialogue_manifest.turns 按 beat_id 聚合后同步到 render_ir.timeline
 
 不包含（后续 Checkpoint）：
 - 多角色 TTS（CP8）
@@ -377,30 +383,49 @@ outputs/latest/audio/narration.wav  # 拼接后完整音频（含 tail_silence�
 outputs/latest/narration_manifest.json  # 音画时间轴 manifest
 ```
 
-## 双人对话（Checkpoint 7）
+## 双人对话（Checkpoint 7.1）
 
-CP7 支持 host/expert 双角色交替对话。
+CP7.1 主路径：semantic_ir → dialogue_script → dialogue_manifest → video。
 
 ### Mock 对话验收
 
 ```bash
-# 单独生成 dialogue
-python -m src.narration --semantic-ir outputs/latest/semantic_ir.json \
+# 1. 生成 dialogue_script（CP7.1 新增）
+python -m src.generate_dialogue --semantic-ir outputs/latest/semantic_ir.json --mock --validate
+
+# 2. 生成 dialogue audio
+python -m src.narration --dialogue-script outputs/latest/dialogue_script.json \
     --dialogue --host-profile mock_host --expert-profile mock_expert
 
-# 双人对话完整 pipeline
+# 3. 完整 pipeline（自动生成 dialogue_script）
 python -m src.pipeline --auto --mock --tts --dialogue \
     --host-profile mock_host --expert-profile mock_expert
 ```
 
-### dialogue_manifest.json 字段
+### dialogue_script.json 字段
 
 | 字段 | 含义 |
 |------|------|
-| `host_profile` / `expert_profile` | 使用的 TTS profile |
-| `speakers` | 出现的角色列表 |
-| `beats[].speaker` | 该 beat 的发言人（`"host"` 或 `""expert"`） |
-| `beats[].start/duration/end` | 该 beat 的真实音频时间 |
+| `turns[].speaker` | 该 turn 的发言人（`"host"` 或 `"expert"`） |
+| `turns[].beat_id` | 关联的 semantic_ir beat |
+| `turns[].function` | hook/question/explain/clarify/transition/summary |
+| `turns[].duration_hint` | 估算时长（非真实音频时间） |
+
+### dialogue_manifest.json 字段（CP7.1 新结构）
+
+| 字段 | 含义 |
+|------|------|
+| `turns` | 音频 turn 列表（含 real start/duration/end） |
+| `source_dialogue_script.schema_version` | 来源 dialogue_script 版本 |
+| `combined_audio_path` | outputs/latest/audio/dialogue.wav |
+
+### 旧路径（CP7 compatibility）
+
+```bash
+# 使用 semantic_ir.beats[].speaker 的兼容路径
+python -m src.pipeline --auto --mock --tts --dialogue-legacy \
+    --host-profile mock_host --expert-profile mock_expert
+```
 ```
 
 ### narration_manifest.json 字段说明
