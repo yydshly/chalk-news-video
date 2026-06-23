@@ -1,8 +1,12 @@
 {
-  "title": "AI 模型的'幻觉'问题",
-  "summary": "为什么大型语言模型会编造事实？",
-  "source": "manual",
-  "url": null,
-  "published_at": "2026-06-23",
-  "raw_text": "大语言模型在训练时学习了海量网络文本..."
+  "id": "openai_news-abcd1234efgh",
+  "title": "示例：AI 模型的'幻觉'问题",
+  "url": "https://example.com/news/ai-hallucination",
+  "source_id": "openai_news",
+  "source_name": "OpenAI News",
+  "published_at": "Wed, 22 Jun 2026 10:00:00 +0000",
+  "summary": "本示例展示 outputs/latest/latest_news.json 的字段结构。请将其与 fetch_news 实际产出对比。",
+  "content": "本文件作为 latest_news.json 字段结构的参考。在实际运行 fetch_news 之前，请先编辑 config/sources.yaml，把 url 字段改为真实可用的 RSS feed 链接，否则 fetch_news 会给出清晰错误提示而不会崩溃。content 字段是后续 Checkpoint 2 LLM 输入。",
+  "content_source": "fallback_summary",
+  "fetched_at": "2026-06-23T12:00:00+00:00"
 }

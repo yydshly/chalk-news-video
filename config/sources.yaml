@@ -1,4 +1,28 @@
-# News sources for Checkpoint 1 (not implemented yet)
-# This file is reserved for future use.
+# News source configuration for chalk-news-video.
+#
+# Each entry under `sources:` describes one RSS feed.
+# Set `enabled: true` on the entries you actually want to fetch.
+#
+# NOTE: real RSS URLs are NOT bundled with the repo (we don't want to guess
+# them and have them break). Replace the placeholder URLs below with real ones
+# before running `python -m src.fetch_news`.
+# `fetch_news` will error clearly if a URL is empty or still a placeholder.
 
-sources: []
+sources:
+  - id: openai_news
+    name: OpenAI News
+    type: rss
+    url: "待填 RSS URL"           # TODO: replace with a real OpenAI RSS feed URL
+    enabled: true
+    language: en
+    category: ai_official
+    content_strategy: summary_then_extract
+
+  - id: anthropic_news
+    name: Anthropic News
+    type: rss
+    url: "待填 RSS URL"           # TODO: replace with a real Anthropic RSS feed URL
+    enabled: false
+    language: en
+    category: ai_official
+    content_strategy: summary_then_extract

@@ -1,0 +1,26 @@
+# LLM provider placeholders for chalk-news-video.
+#
+# IMPORTANT: This file is a CONFIG PLACEHOLDER only. NO LLM CALLS are made in
+# Checkpoint 1. The actual provider clients will be implemented in Checkpoint 2.
+#
+# Real API keys MUST NEVER be committed. Put them in a local `.env` file
+# (see .env.example) and reference them via api_key_env.
+
+default_provider: minimax
+
+providers:
+  minimax:
+    type: minimax
+    api_key_env: MINIMAX_API_KEY
+    base_url: ""
+    model: ""
+    temperature: 0.2
+    max_tokens: 4000
+
+  mimo:
+    type: openai_compatible
+    api_key_env: MIMO_API_KEY
+    base_url: ""
+    model: ""
+    temperature: 0.2
+    max_tokens: 4000

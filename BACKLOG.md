@@ -3,49 +3,44 @@
 按 Checkpoint 推进。每个 Checkpoint 完成后才能进入下一个。
 
 ## ✅ Checkpoint 0 — 项目骨架
+## ✅ Checkpoint 0.5 — IR 契约校准
+## ✅ Checkpoint 1 — News Ingestion（当前）
 
-- [x] 创建目录结构
-- [x] `examples/sample.semantic.json`（causal_chain × 3 nodes，演示版）
-- [x] `src/layout.py` 水平链布局
-- [x] `src/pace.py` narration 节奏估算
-- [x] `src/render_html.py` Jinja2 注入
-- [x] `src/export_video.py` Playwright + FFmpeg
-- [x] `src/pipeline.py --use-sample`
-- [x] `renderer/template.html` 单文件 SVG 黑板动画
+- [x] 新增 `config/sources.yaml`（带占位 URL，enabled 可控）
+- [x] 新增 `config/llm.yaml`（**占位**，本轮不调用任何 LLM）
+- [x] 新增 `.env.example`（只放空 key，不写 token）
+- [x] 新增 `src/config_loader.py`（YAML + .env 加载）
+- [x] 新增 `src/fetch_news.py`（`load_enabled_sources` + `fetch_latest_news` + CLI）
+- [x] 新增 `src/extract_content.py`（trafilatura → BeautifulSoup 兜底）
+- [x] `requirements.txt` 加 `feedparser requests beautifulsoup4 trafilatura`
+- [x] `examples/sample_news.json` 对齐 latest_news.json schema
+- [x] `README.md` / `PROJECT_SPEC.md` 同步更新
+- [x] 错误路径：sources.yaml 缺失 / 无 enabled / URL 占位 / RSS 失败 / 内容空 → 清晰报错
+- [x] id 用 sha1(source_id | url | title | published_at) 前 12 位；稳定
+- [x] 未修改 `pipeline.py / layout.py / pace.py / render_html.py / export_video.py`
+- [x] `python -m src.pipeline --use-sample` 仍可跑（演示视频链路）
 
-## ✅ Checkpoint 0.5 — IR 契约校准（当前）
+不做（本轮显式排除）：
+- 未实现 LLM 调用（属于 Checkpoint 2）
+- 未实现 `generate_ir`（属于 Checkpoint 2）
+- 未实现 `validate_ir`（属于 Checkpoint 3）
+- 未实现 TTS / Remotion / 视频导出改动
 
-把演示版 `semantic_ir` 升级为后续 fetch_news 和 LLM 可以稳定使用的正式契约。
-
-- [x] `schema/semantic_ir.schema.json`：新增 `schema_version` / `meta` / `structure_type` / `beats`
-- [x] `examples/sample.semantic.json`：改用 0.1 契约（3 nodes / 2 edges / 2 callouts / 8 beats）
-- [x] `src/pace.py`：`compute_timeline_from_beats` 取代 `compute_timeline(nodes)` 作为唯一时间源
-- [x] `src/layout.py`：按 `structure_type` 分发；edge 携带 `id`+`label`；callout 用 `on`；timeline 来自 beats
-- [x] `renderer/template.html`：按 `timeline.reveal` 控显隐；已显示元素保持弱可见；title 从首个 title beat 起常显
-- [x] `PROJECT_SPEC.md` / `README.md` 同步更新
-
-不做：
-- 仍未实现 fetch_news / LLM / validate_ir / TTS
-
-## Checkpoint 1 — 真实新闻抓取
-
-- `src/fetch_news.py`
-- `config/sources.yaml` 列出 RSS / 站点
-- 支持 mock 模式 / 真实 HTTP
-- 产出原始新闻 JSON（不含 semantic_ir）
+注：MiniMax / Mimo provider 在 `config/llm.yaml` 仅占位；Checkpoint 2 才真正实现客户端与调用。
 
 ## Checkpoint 2 — LLM 生成 semantic_ir
 
-- `src/llm.py` 抽象 OpenAI / Anthropic / mock
-- `prompt.py` 拼装 prompt
-- LLM 强制只输出 semantic_ir，禁止坐标
-- 解析失败时降级到 mock
+- `src/llm.py` 抽象 provider（minimax / openai_compatible / mock）
+- `src/prompt.py` 拼装 prompt
+- `src/generate_ir.py` 编排 `latest_news.json` → LLM → `semantic_ir.json`
+- 强制 LLM 只输出 semantic_ir；解析失败降级 mock
+- API key 走 `.env` / `api_key_env`，不写进 yaml 或 README
 
 ## Checkpoint 3 — semantic_ir 运行时校验
 
-- `src/validate_ir.py` 使用 jsonschema
+- `src/validate_ir.py`（jsonschema + 自定义边/callout 指向校验）
 - pipeline 入口前置校验
-- 校验失败给出可读错误（指出哪一个字段、哪一个 beat）
+- 失败时给出可读错误
 
 ## Checkpoint 4 — TTS
 
@@ -56,7 +51,7 @@
 ## Checkpoint 5 — 多布局
 
 - timeline / comparison / list 等
-- `structure_type` 扩展 enum
+- `structure_type` enum 扩展
 
 ## Checkpoint 6 — 多主题
 

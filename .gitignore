@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Local environment (NEVER commit real keys)
+.env
+
+# Outputs (only the latest/ marker is tracked, generated files are not)
+outputs/latest/*.json
+outputs/latest/*.html
+outputs/latest/*.mp4
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
