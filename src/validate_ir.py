@@ -322,6 +322,7 @@ def validate_semantic_ir(sem: dict, schema_path: str | Path | None = None) -> li
         has_incoming = set(adj.values())
         starts = [n for n in node_ids if n not in has_incoming]
         if starts:
+            found_complete = False
             # Walk from each potential start
             for start in starts:
                 path_so_far = [start]
@@ -336,7 +337,14 @@ def validate_semantic_ir(sem: dict, schema_path: str | Path | None = None) -> li
                     cur = nxt
                 # If we can reach all nodes, the chain is complete
                 if set(path_so_far) == node_ids:
+                    found_complete = True
                     break
+            if not found_complete:
+                issues.append(ValidationIssue(
+                    code="BROKEN_CAUSAL_CHAIN", path="edges",
+                    message="Could not find a linear path covering all nodes. "
+                            "causal_chain requires a single continuous chain.", severity="error",
+                ))
         else:
             issues.append(ValidationIssue(
                 code="NO_CHAIN_START", path="edges",

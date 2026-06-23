@@ -6,18 +6,18 @@
 ## ✅ Checkpoint 0.5 — IR 契约校准
 ## ✅ Checkpoint 1 — News Ingestion
 ## ✅ Checkpoint 2 — LLM Provider + semantic_ir 生成
-## ✅ Checkpoint 3 — Validation Layer + Repair Loop（当前）
+## ✅ Checkpoint 3 — Validation Layer + Repair Loop
 
 - [x] `src/validate_ir.py`：`ValidationIssue` dataclass + `validate_semantic_ir()` + `assert_valid_semantic_ir()`
 - [x] jsonschema A层：Draf7Validator，jsonschema 错误转换为 ValidationIssue
-- [x] 自定义 B层规则全集：禁止坐标/旧字段、node/edge/callout id 唯一性、引用完整性、beats 覆盖率、narration 长度、causal_chain 连通性
+- [x] 自定义 B层规则全集：禁止坐标/旧字段、node/edge/callout id 唯一性、引用完整性、beats 覆盖率、narration 长度、causal_chain 连通性（含断链检测 `BROKEN_CAUSAL_CHAIN`）
 - [x] `src/generate_ir.py` 新参数：`--validate` / `--repair` / `--repair-attempts` / `--save-invalid`
 - [x] `prompts/repair_semantic_ir.md`
-- [x] 3 个 invalid 样例：`bad_reveal` / `coord_field` / `duplicate_id`
+- [x] 4 个 invalid 样例：`bad_reveal` / `coord_field` / `duplicate_id` / `disconnected_chain`
 - [x] `src/layout.py`：`continue` → `ValueError`（edge/callout 引用缺失）
 - [x] `requirements.txt` +jsonschema
 - [x] `README.md` / `PROJECT_SPEC.md` / `BACKLOG.md` 同步更新
-- [x] `--mock --validate` 通过；3 个 invalid 样例全部 exit=1 并含对应错误 code
+- [x] `--mock --validate` 通过；4 个 invalid 样例全部 exit=1 并含对应错误 code
 - [x] mock semantic_ir 继续生成 output.mp4 链路通
 - [x] 未实现 TTS / Remotion / pipeline 自动编排
 - [x] 未提交 .env / outputs/latest 生成物
@@ -26,6 +26,14 @@
 - 未把 validate_ir 接入 pipeline 默认流程（CP4）
 - 未做 TTS（CP4）
 - 未做 Remotion
+
+## Checkpoint 3.1 — causal_chain 连通性校验修复
+
+- [x] 修复 `BROKEN_CAUSAL_CHAIN` 漏报：原来多条不相连路径不会报错，现在会正确检测并报错
+- [x] 新增 `examples/invalid.semantic.disconnected_chain.json`
+- [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
+
+## Checkpoint 4 — 完整 pipeline 编排
 
 ## Checkpoint 4 — 完整 pipeline 编排
 

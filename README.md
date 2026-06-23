@@ -241,6 +241,7 @@ python -m src.generate_ir --news outputs/latest/latest_news.json \
 | `UNREVEALED_NODE` | 某个 node 从未被 beats reveal |
 | `FIRST_BEAT_NOT_TITLE` | 第一个 beat 的 reveal 不是 "title" |
 | `MISSING_EDGE_FROM` | edge.from 指向不存在的 node |
+| `BROKEN_CAUSAL_CHAIN` | causal_chain 存在多条不相连的路径，无法覆盖所有 node |
 
 ## gitignore 说明
 

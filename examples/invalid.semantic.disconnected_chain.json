@@ -1,0 +1,33 @@
+{
+  "schema_version": "0.1",
+  "meta": {
+    "source_title": "测试新闻",
+    "source_url": "https://example.com/test",
+    "source_name": "test_source",
+    "published_at": null,
+    "lang": "zh"
+  },
+  "structure_type": "causal_chain",
+  "title": "测试标题",
+  "summary": "测试摘要",
+  "nodes": [
+    {"id": "n1", "label": "节点一", "sub": null, "role": "source"},
+    {"id": "n2", "label": "节点二", "sub": null, "role": "neutral"},
+    {"id": "n3", "label": "节点三", "sub": null, "role": "neutral"},
+    {"id": "n4", "label": "节点四", "sub": null, "role": "target"}
+  ],
+  "edges": [
+    {"id": "e1", "from": "n1", "to": "n2", "label": "导致"},
+    {"id": "e2", "from": "n3", "to": "n4", "label": "引发"}
+  ],
+  "callouts": [],
+  "beats": [
+    {"id": "b1", "reveal": "title", "narration": "今天我们聊一个有趣的话题。"},
+    {"id": "b2", "reveal": "n1", "narration": "首先看第一个原因。"},
+    {"id": "b3", "reveal": "e1", "narration": "接下来是连接关系。"},
+    {"id": "b4", "reveal": "n2", "narration": "然后是第二部分。"},
+    {"id": "b5", "reveal": "n3", "narration": "再看中间过程。"},
+    {"id": "b6", "reveal": "e2", "narration": "接下来是另一条连接。"},
+    {"id": "b7", "reveal": "n4", "narration": "最后是结论部分。"}
+  ]
+}

@@ -148,7 +148,7 @@ class ValidationIssue:
 |---|---|
 | 禁止字段 | 任意层级禁止 `x` `y` `w` `h` `cx` `cy`；顶层禁止 `layout`；node 禁止 `narration`；callout 禁止 `attach_to` |
 | nodes | 数量 2~5；id 唯一；推荐 `^n\d+$` |
-| edges | id 唯一；推荐 `^e\d+$`；from/to 必须引用存在的 node id；from ≠ to；数量 ≥ nodes-1；causal_chain 要求存在从 n1 出发的线性链 |
+| edges | id 唯一；推荐 `^e\d+$`；from/to 必须引用存在的 node id；from ≠ to；数量 ≥ nodes-1；causal_chain 要求存在一条线性路径覆盖所有 node，断链时报 `BROKEN_CAUSAL_CHAIN` |
 | callouts | id 唯一；推荐 `^c\d+$`；on 必须引用存在的 node id；数量 0~3 |
 | beats | 数量 6~10；id 唯一；推荐 `^b\d+$`；第一个 beat.reveal = "title"；reveal 必须是已知 id 或 "title"；narration 非空且 ≤ 120 字符；每个 node/edge/callout 至少被 reveal 一次 |
 | meta | lang = "zh"；source_title / source_url / source_name 必须存在 |
