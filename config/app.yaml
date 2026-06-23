@@ -1,0 +1,13 @@
+# Application config (placeholder for future)
+
+app:
+  canvas:
+    width: 1280
+    height: 720
+  fps: 30
+
+pace:
+  chinese_chars_per_sec: 4.0
+  english_words_per_sec: 3.0
+  min_duration: 1.5
+  padding: 0.5

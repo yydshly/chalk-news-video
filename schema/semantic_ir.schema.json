@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "semantic_ir",
+  "description": "News semantics for chalk-news-video. Must NOT contain x/y/w/h.",
+  "type": "object",
+  "required": ["title", "layout", "nodes"],
+  "additionalProperties": false,
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Headline of the news."
+    },
+    "summary": {
+      "type": "string",
+      "description": "One-line summary shown under the title."
+    },
+    "layout": {
+      "type": "string",
+      "enum": ["causal_chain"],
+      "description": "Layout type. V0.1 only supports causal_chain."
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "narration"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string"},
+          "label": {"type": "string"},
+          "narration": {"type": "string"}
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["from", "to"],
+        "additionalProperties": false,
+        "properties": {
+          "from": {"type": "string"},
+          "to": {"type": "string"}
+        }
+      }
+    },
+    "callouts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "text", "attach_to"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string"},
+          "text": {"type": "string"},
+          "attach_to": {"type": "string"}
+        }
+      }
+    }
+  }
+}
