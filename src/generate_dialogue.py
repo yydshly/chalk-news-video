@@ -1,10 +1,11 @@
 """Generate dialogue_script.json from semantic_ir via LLM.
 
 CP7.1: Dialogue script contract — separates dialogue expression from semantic structure.
+CP8: Add repair flow, --save-invalid, --repair, --dry-run options.
 
 Usage:
     python -m src.generate_dialogue --semantic-ir outputs/latest/semantic_ir.json --mock --validate
-    python -m src.generate_dialogue --semantic-ir outputs/latest/semantic_ir.json --profile minimax_m3_openai --validate
+    python -m src.generate_dialogue --semantic-ir outputs/latest/semantic_ir.json --profile minimax_m3_openai --validate --repair
     python -m src.generate_dialogue --semantic-ir outputs/latest/semantic_ir.json --mock --dry-run
 """
 
@@ -22,7 +23,9 @@ from .utils import PROJECT_ROOT, load_json, save_json
 
 DEFAULT_SEMANTIC_PATH = PROJECT_ROOT / "outputs" / "latest" / "semantic_ir.json"
 DEFAULT_OUTPUT_PATH = PROJECT_ROOT / "outputs" / "latest" / "dialogue_script.json"
+DEFAULT_INVALID_OUTPUT_PATH = PROJECT_ROOT / "outputs" / "latest" / "dialogue_script.invalid.json"
 DEFAULT_PROMPT_PATH = PROJECT_ROOT / "prompts" / "semantic_ir_to_dialogue.md"
+DEFAULT_REPAIR_PROMPT_PATH = PROJECT_ROOT / "prompts" / "repair_dialogue_script.md"
 DEFAULT_LLM_CONFIG = PROJECT_ROOT / "config" / "llm.yaml"
 
 
@@ -145,6 +148,90 @@ def _format_issues(issues):
     )
 
 
+# ---------- repair flow ----------
+
+def _call_llm_for_repair(
+    semantic_ir: dict,
+    invalid_dialogue: dict,
+    issues: list,
+    llm_client,
+    repair_prompt_template: str,
+    attempt: int,
+) -> dict | None:
+    """Call LLM to repair an invalid dialogue_script."""
+    # Substitute placeholders in repair prompt
+    repair_prompt = repair_prompt_template
+    repair_prompt = repair_prompt.replace("<SEMANTIC_IR_JSON>", json.dumps(semantic_ir, ensure_ascii=False, indent=2))
+    repair_prompt = repair_prompt.replace("<INVALID_DIALOGUE_SCRIPT>", json.dumps(invalid_dialogue, ensure_ascii=False, indent=2))
+    repair_prompt = repair_prompt.replace("<VALIDATION_ISSUES_JSON>", json.dumps([i.to_dict() for i in issues], ensure_ascii=False, indent=2))
+
+    # Save repair prompt
+    debug_repair_prompt_path = DEFAULT_OUTPUT_PATH.parent / "debug_repair_prompt.txt"
+    _save_text(repair_prompt, debug_repair_prompt_path)
+
+    # Call LLM
+    try:
+        raw_response = llm_client.generate_text(repair_prompt, "")
+    except Exception as exc:
+        print(f"[generate_dialogue] repair attempt {attempt} LLM call failed: {exc}", file=sys.stderr)
+        return None
+
+    debug_repair_response_path = DEFAULT_OUTPUT_PATH.parent / "debug_repair_response.txt"
+    _save_text(raw_response, debug_repair_response_path)
+
+    # Parse response
+    try:
+        repaired = json.loads(raw_response)
+    except json.JSONDecodeError:
+        text = raw_response.strip()
+        if text.startswith("```"):
+            lines = text.split("\n")
+            start = next((i for i, l in enumerate(lines) if "{" in l), 0)
+            end = next((len(lines) - 1 - i for i, l in enumerate(reversed(lines)) if "}" in l), len(lines) - 1)
+            text = "\n".join(lines[start:end+1])
+        try:
+            repaired = json.loads(text)
+        except json.JSONDecodeError:
+            print(f"[generate_dialogue] repair attempt {attempt} response is not valid JSON", file=sys.stderr)
+            return None
+
+    return repaired
+
+
+def _validate_and_handle(
+    dialogue_script: dict,
+    semantic_ir: dict,
+    output_path: Path,
+    invalid_output_path: Path,
+    save_invalid: bool,
+) -> int:
+    """Validate dialogue_script, handle errors. Returns exit code."""
+    issues = validate_dialogue.validate_dialogue_script(dialogue_script, semantic_ir=semantic_ir)
+    errors = [i for i in issues if i.severity == "error"]
+
+    if not errors:
+        save_json(dialogue_script, output_path)
+        print(f"[generate_dialogue] wrote {output_path}")
+        print(f"[generate_dialogue] validation PASSED")
+        # Save validation issues (empty = valid)
+        save_json([i.to_dict() for i in issues], DEFAULT_OUTPUT_PATH.parent / "debug_dialogue_validation_issues.json")
+        return 0
+
+    # Validation failed
+    print(f"[generate_dialogue] validation failed with {len(errors)} error(s):", file=sys.stderr)
+    for i in errors:
+        print(f"  ERROR  [{i.code}] {i.path}: {i.message}", file=sys.stderr)
+
+    # Save validation issues
+    save_json([i.to_dict() for i in issues], DEFAULT_OUTPUT_PATH.parent / "debug_dialogue_validation_issues.json")
+
+    if save_invalid:
+        save_json(dialogue_script, invalid_output_path)
+        print(f"[generate_dialogue] wrote invalid version to {invalid_output_path}", file=sys.stderr)
+
+    return 5
+
+
 # ---------- CLI ----------
 
 def main(argv=None):
@@ -202,8 +289,33 @@ def main(argv=None):
         default=None,
         help="Path to .env file to load before calling LLM.",
     )
+    parser.add_argument(
+        "--save-invalid",
+        action="store_true",
+        default=True,
+        help="Save invalid dialogue_script to .invalid.json on validation failure (default: True).",
+    )
+    parser.add_argument(
+        "--no-save-invalid",
+        action="store_true",
+        help="Do not save invalid dialogue_script.",
+    )
+    parser.add_argument(
+        "--repair",
+        action="store_true",
+        help="Enable LLM repair on validation failure (non-mock only).",
+    )
+    parser.add_argument(
+        "--repair-attempts",
+        type=int,
+        default=2,
+        help="Max repair attempts (default: 2).",
+    )
 
     args = parser.parse_args(argv)
+
+    save_invalid = not args.no_save_invalid
+    invalid_output_path = Path(str(DEFAULT_OUTPUT_PATH).replace(".json", ".invalid.json"))
 
     semantic_ir_path = Path(args.semantic_ir)
     if not semantic_ir_path.exists():
@@ -232,13 +344,11 @@ def main(argv=None):
     # Substitute variables in prompt (title, etc.)
     system_prompt = prompt_template
 
-    debug_meta = ""
     raw_response = ""
 
     if args.mock:
         print(f"[generate_dialogue] using mock provider (no LLM call)")
         raw_response = json.dumps(_generate_mock_dialogue_script(semantic_ir), ensure_ascii=False, indent=2)
-        debug_meta = "# mock provider (no HTTP call)\n"
     elif args.dry_run:
         full_prompt = f"# System:\n{system_prompt}\n\n# User:\n{user_prompt}"
         _save_text(full_prompt, output_path.parent / "debug_dialogue_prompt.txt")
@@ -253,7 +363,6 @@ def main(argv=None):
         )
         full_prompt = f"# System:\n{system_prompt}\n\n# User:\n{user_prompt}"
         _save_text(full_prompt, output_path.parent / "debug_dialogue_prompt.txt")
-        debug_meta = "# LLM call\n"
         try:
             raw_response = llm_client.generate_text(system_prompt, user_prompt)
         except Exception as exc:
@@ -263,15 +372,11 @@ def main(argv=None):
 
     # Parse LLM response as JSON
     try:
-        # Try direct parse first
         dialogue_script = json.loads(raw_response)
     except json.JSONDecodeError:
-        # Try to extract JSON object from response
         text = raw_response.strip()
-        # Remove markdown code fences if present
         if text.startswith("```"):
             lines = text.split("\n")
-            # Find first { and last }
             start = next((i for i, l in enumerate(lines) if "{" in l), 0)
             end = next((len(lines) - 1 - i for i, l in enumerate(reversed(lines)) if "}" in l), len(lines) - 1)
             text = "\n".join(lines[start:end+1])
@@ -282,22 +387,89 @@ def main(argv=None):
             print(f"Raw response:\n{raw_response[:500]}", file=sys.stderr)
             return 1
 
-    # Save output
-    save_json(dialogue_script, output_path)
-    print(f"[generate_dialogue] wrote {output_path}")
-
     # Validate if requested
     if args.validate:
         print(f"[generate_dialogue] validating...")
         issues = validate_dialogue.validate_dialogue_script(dialogue_script, semantic_ir=semantic_ir)
         errors = [i for i in issues if i.severity == "error"]
-        if errors:
-            print(f"[generate_dialogue] validation failed with {len(errors)} error(s):", file=sys.stderr)
-            for i in errors:
-                print(f"  ERROR  [{i.code}] {i.path}: {i.message}", file=sys.stderr)
-            return 5
-        print(f"[generate_dialogue] validation PASSED")
 
+        if not errors:
+            save_json(dialogue_script, output_path)
+            print(f"[generate_dialogue] wrote {output_path}")
+            print(f"[generate_dialogue] validation PASSED")
+            save_json([i.to_dict() for i in issues], output_path.parent / "debug_dialogue_validation_issues.json")
+            return 0
+
+        # Validation failed
+        print(f"[generate_dialogue] validation failed with {len(errors)} error(s):", file=sys.stderr)
+        for i in errors:
+            print(f"  ERROR  [{i.code}] {i.path}: {i.message}", file=sys.stderr)
+        save_json([i.to_dict() for i in issues], output_path.parent / "debug_dialogue_validation_issues.json")
+
+        # Repair flow (non-mock only)
+        if args.repair and not args.mock:
+            print(f"[generate_dialogue] attempting repair...")
+            repair_prompt_path = Path(args.prompt.replace("semantic_ir_to_dialogue", "repair_dialogue_script"))
+            if not repair_prompt_path.exists():
+                repair_prompt_path = Path(DEFAULT_REPAIR_PROMPT_PATH)
+            if not repair_prompt_path.exists():
+                print(f"[generate_dialogue] repair prompt not found, skipping repair", file=sys.stderr)
+                if save_invalid:
+                    save_json(dialogue_script, invalid_output_path)
+                    print(f"[generate_dialogue] wrote invalid version to {invalid_output_path}", file=sys.stderr)
+                return 5
+
+            repair_prompt_template = repair_prompt_path.read_text(encoding="utf-8")
+
+            llm_client = create_llm_client(
+                profile_name=args.profile,
+                config_path=args.config,
+                env_path=args.env,
+            )
+
+            for attempt in range(1, args.repair_attempts + 1):
+                print(f"[generate_dialogue] repair attempt {attempt}/{args.repair_attempts}...")
+                repaired = _call_llm_for_repair(
+                    semantic_ir, dialogue_script, issues, llm_client,
+                    repair_prompt_template, attempt,
+                )
+                if repaired is None:
+                    continue
+
+                # Validate repaired version
+                repaired_issues = validate_dialogue.validate_dialogue_script(repaired, semantic_ir=semantic_ir)
+                repaired_errors = [i for i in repaired_issues if i.severity == "error"]
+                if not repaired_errors:
+                    print(f"[generate_dialogue] repair attempt {attempt} succeeded")
+                    dialogue_script = repaired
+                    save_json([i.to_dict() for i in repaired_issues], output_path.parent / "debug_dialogue_validation_issues.json")
+                    save_json(dialogue_script, output_path)
+                    print(f"[generate_dialogue] wrote {output_path}")
+                    print(f"[generate_dialogue] validation PASSED after repair")
+                    return 0
+
+                print(f"[generate_dialogue] repair attempt {attempt} still has {len(repaired_errors)} error(s)")
+                for i in repaired_errors:
+                    print(f"  ERROR  [{i.code}] {i.path}: {i.message}", file=sys.stderr)
+                dialogue_script = repaired
+                issues = repaired_errors
+
+            # All repair attempts failed
+            print(f"[generate_dialogue] all {args.repair_attempts} repair attempts failed", file=sys.stderr)
+            if save_invalid:
+                save_json(dialogue_script, invalid_output_path)
+                print(f"[generate_dialogue] wrote invalid version to {invalid_output_path}", file=sys.stderr)
+            return 5
+
+        # No repair requested or mock mode
+        if save_invalid:
+            save_json(dialogue_script, invalid_output_path)
+            print(f"[generate_dialogue] wrote invalid version to {invalid_output_path}", file=sys.stderr)
+        return 5
+
+    # No validation requested - just save
+    save_json(dialogue_script, output_path)
+    print(f"[generate_dialogue] wrote {output_path}")
     return 0
 
 

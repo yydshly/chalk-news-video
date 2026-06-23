@@ -152,9 +152,29 @@
 - [x] 单人口播回归测试通过
 - [x] 无声回归测试通过
 
-## Checkpoint 8+ — Remotion / UI / 主题扩展
+## Checkpoint 8 — 真实 LLM dialogue 验证 + 多角色 TTS mapping
 
-- CP8：多角色 TTS provider 完善 + 真实 dialogue_script LLM 验证
+- [x] `src/generate_dialogue.py` 新增 `--save-invalid` / `--no-save-invalid` / `--repair` / `--repair-attempts` / `--dry-run`
+- [x] `src/generate_dialogue.py` 新增 debug 输出：`debug_dialogue_prompt.txt` / `debug_dialogue_response.txt` / `debug_dialogue_validation_issues.json`
+- [x] `prompts/repair_dialogue_script.md`（新增）
+- [x] `config/tts.yaml` 新增 `dialogue_profiles` 段：mock_dialogue / minimax_dialogue
+- [x] `src/narration.py` 新增 `--dialogue-profile` 参数和 `speaker_profiles` 字段
+- [x] `src/narration.py` `generate_dialogue_audio()` 支持 `dialogue_profile` + `speaker_profiles` 参数
+- [x] `src/pipeline.py` dialogue 模式支持 `--dialogue-profile`
+- [x] `src/pipeline.py` 非 mock 模式默认启用 `--repair`
+- [x] `dialogue_manifest.json` 新增 `dialogue_profile` 和 `speaker_profiles` 字段
+- [x] `docs/CP8_REAL_DIALOGUE_VALIDATION.md`（新增）
+- [x] README / PROJECT_SPEC / BACKLOG 更新
+- [x] mock dialogue 回归测试通过
+- [x] auto mock + dialogue --dialogue-profile 回归测试通过
+- [x] 单人口播回归测试通过
+- [x] 无声回归测试通过
+
+## Checkpoint 9+ — Remotion / UI / 主题扩展
+
+- CP9：对话式视觉表现 / 当前 speaker 高亮
+- CP10：Theme System（黑板 / 米黄 / 深蓝）
+- CP11：Remotion / 视觉升级
 - Remotion 数字人
 - 前端 UI（网页端配置和播放）
 - `structure_type` 扩展：timeline / comparison / list

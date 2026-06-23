@@ -395,6 +395,11 @@ CP7.1 确立三层对话契约（CP7.2 继续加固）：
 {
   "schema_version": "0.1",
   "provider": "mock_host+mock_expert",
+  "dialogue_profile": "mock_dialogue",
+  "speaker_profiles": {
+    "host": { "profile": "mock_host", "voice": "host" },
+    "expert": { "profile": "mock_expert", "voice": "expert" }
+  },
   "source_dialogue_script": { "schema_version": "0.1" },
   "total_duration": 21.0,
   "turns": [
@@ -414,6 +419,10 @@ CP7.1 确立三层对话契约（CP7.2 继续加固）：
 }
 ```
 
+**CP8 新增字段**：
+- `dialogue_profile`：使用的 dialogue profile 名称（如 `"mock_dialogue"`）
+- `speaker_profiles`：speaker → {profile, voice/voice_env}（不记录真实 API key）
+
 ### narration_timing 聚合规则（CP7.1 新增）
 
 `dialogue_manifest.turns` → `render_ir.timeline`：
@@ -428,7 +437,52 @@ CP7.1 确立三层对话契约（CP7.2 继续加固）：
 | host | mock_host | 440Hz A4 note |
 | expert | mock_expert | 330Hz E4 note |
 
-### Pipeline 顺序（CP7.2 dialogue mode）
+### Dialogue Profile Mapping（CP8 新增）
+
+`config/tts.yaml` 中 `dialogue_profiles` 段定义 speaker → TTS profile 映射：
+
+```yaml
+dialogue_profiles:
+  mock_dialogue:
+    host:
+      profile: mock_host
+      voice: host
+    expert:
+      profile: mock_expert
+      voice: expert
+  minimax_dialogue:
+    host:
+      profile: minimax_speech
+      voice_env: MINIMAX_TTS_HOST_VOICE_ID
+    expert:
+      profile: minimax_speech
+      voice_env: MINIMAX_TTS_EXPERT_VOICE_ID
+```
+
+**优先级**：
+1. `--host-profile` + `--expert-profile`（兼容旧方式）
+2. `--dialogue-profile`（CP8 新方式，按 dialogue_profiles 映射）
+
+### generate_dialogue repair 流程（CP8 新增）
+
+**触发条件**：`--repair` 且 validation 失败。
+
+流程：
+1. 用 `prompts/repair_dialogue_script.md` 构造 repair prompt（附 semantic_ir + invalid dialogue_script + issues）
+2. 调用 LLM 获取修复版本
+3. 再次 `validate_dialogue`
+4. 最多 `--repair-attempts` 次（默认 2）
+5. 成功 → 写 `dialogue_script.json`
+6. 失败 → 写 `dialogue_script.invalid.json`，退出 5
+
+**Debug 产物**：
+- `debug_dialogue_prompt.txt`
+- `debug_dialogue_response.txt`
+- `debug_dialogue_validation_issues.json`
+- `debug_repair_prompt.txt`
+- `debug_repair_response.txt`
+
+### Pipeline 顺序（CP8 dialogue mode）
 
 ```
 generate_ir → validate_ir
@@ -437,14 +491,20 @@ generate_ir → validate_ir
 → save render_ir.json → render_html → export_video(audio_path=dialogue.wav)
 ```
 
-### 错误处理（CP7.1）
+### 错误处理（CP8）
 
-- `dialogue_script.json` 不存在 → 自动用 mock 生成
+- `dialogue_script.json` 不存在 → 自动生成（mock 或 real LLM）
+- `dialogue_script.json` validate 失败 → 非 mock 模式调用 repair；仍失败则 exit 5
 - `dialogue_manifest.json` 不存在 → 直接失败
 - `dialogue.wav` 不存在 → 直接失败
 - timeline beat_id 在 manifest turns 中找不到 → ValueError
 
 ## Checkpoint 8+ — Remotion / UI
+
+CP8：真实 LLM dialogue 生成验证 + 多角色 TTS profile mapping
+CP9：对话式视觉表现 / 当前 speaker 高亮
+CP10：Theme System（黑板 / 米黄 / 深蓝）
+CP11：Remotion / 视觉升级
 
 - Remotion 数字人
 - 前端 UI（网页端配置和播放）
@@ -455,8 +515,17 @@ generate_ir → validate_ir
 - `src/tts/`（TTS provider 基础设施）
 - `src/narration.py`（新增 `generate_dialogue` 函数）
 - `src/narration_timing.py`（CP6.1 新增）
-- `config/tts.yaml`（新增 mock_host / mock_expert profiles）
+- `config/tts.yaml`（新增 mock_host / mock_expert profiles + dialogue_profiles）
 - `docs/CP5_REAL_E2E_VALIDATION.md`
+- `prompts/repair_dialogue_script.md`（CP8 新增）
+- `docs/CP8_REAL_DIALOGUE_VALIDATION.md`（CP8 新增）
+
+修改：
+- `src/generate_dialogue.py`（CP8：repair 流程 + debug 输出）
+- `src/narration.py`（CP8：--dialogue-profile + speaker_profiles）
+- `src/pipeline.py`（CP8：dialogue-profile + repair 流程）
+- `config/tts.yaml`（CP8：新增 dialogue_profiles 段）
+- `README.md` / `PROJECT_SPEC.md` / `BACKLOG.md`
 
 修改：
 - `src/pipeline.py`（新增 `--dialogue` / `--host-profile` / `--expert-profile`）

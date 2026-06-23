@@ -3,9 +3,11 @@
 # Each profile under `profiles:` describes one TTS provider.
 # `default_profile` is used when --tts-profile is not passed.
 #
+# `dialogue_profiles:` describes speaker-to-profile mapping for dialogue mode.
+#
 # Real API keys MUST NEVER be committed. Put them in a local `.env` file.
 #
-# CP6 default is `mock` — no real API key required for testing.
+# CP6/CP7 default is `mock` — no real API key required for testing.
 
 default_profile: mock
 
@@ -58,3 +60,28 @@ profiles:
     sample_rate: 24000
     speed: 1.0
     timeout_seconds: 60
+
+# ---- Dialogue profile mappings (CP8) ---------------------------------
+# Maps a dialogue profile name to speaker-specific TTS profile + voice.
+# Used when --dialogue-profile is passed instead of --host-profile/--expert-profile.
+
+dialogue_profiles:
+
+  # Mock dialogue: no real API key needed
+  mock_dialogue:
+    host:
+      profile: mock_host
+      voice: host
+    expert:
+      profile: mock_expert
+      voice: expert
+
+  # MiniMax dialogue: requires real credentials
+  # Set via env vars: MINIMAX_TTS_HOST_VOICE_ID, MINIMAX_TTS_EXPERT_VOICE_ID
+  minimax_dialogue:
+    host:
+      profile: minimax_speech
+      voice_env: MINIMAX_TTS_HOST_VOICE_ID
+    expert:
+      profile: minimax_speech
+      voice_env: MINIMAX_TTS_EXPERT_VOICE_ID

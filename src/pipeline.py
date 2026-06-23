@@ -8,8 +8,12 @@ Usage:
     python -m src.pipeline --auto --source openai_news --profile minimax_m3_openai --repair
     python -m src.pipeline --auto --mock --no-export
 
-    # Checkpoint 7 (V0.11) — Dual-host dialogue
+    # Checkpoint 7/8 (V0.11) — Dual-host dialogue
     python -m src.pipeline --auto --mock --tts --dialogue --host-profile mock_host --expert-profile mock_expert
+    python -m src.pipeline --auto --mock --tts --dialogue --dialogue-profile mock_dialogue
+
+    # Real LLM dialogue (CP8)
+    python -m src.pipeline --auto --news outputs/latest/latest_news.json --profile minimax_m3_openai --tts --dialogue --dialogue-profile mock_dialogue
 
     # Legacy modes
     python -m src.pipeline --use-sample
@@ -75,8 +79,12 @@ def run_auto_pipeline(args):
         OUTPUT_DIR / "narration_manifest.json",
         OUTPUT_DIR / "dialogue_manifest.json",
         OUTPUT_DIR / "dialogue_script.json",
+        OUTPUT_DIR / "dialogue_script.invalid.json",
         OUTPUT_DIR / "debug_dialogue_prompt.txt",
         OUTPUT_DIR / "debug_dialogue_response.txt",
+        OUTPUT_DIR / "debug_dialogue_validation_issues.json",
+        OUTPUT_DIR / "debug_repair_prompt.txt",
+        OUTPUT_DIR / "debug_repair_response.txt",
     ]:
         if artifact.exists():
             artifact.unlink()
@@ -157,14 +165,20 @@ def run_auto_pipeline(args):
             # CP7.1 main path: dialogue_script → dialogue_manifest
             dialogue_script_path = OUTPUT_DIR / "dialogue_script.json"
             if not dialogue_script_path.exists():
-                # Auto-generate dialogue_script using mock LLM
+                # Auto-generate dialogue_script
                 print(f"[auto:dialogue] dialogue_script.json not found, generating...")
                 gen_dialogue_cmd = [
                     sys.executable, "-m", "src.generate_dialogue",
                     "--semantic-ir", str(semantic_ir_path),
-                    "--mock",
                     "--validate",
                 ]
+                if args.mock:
+                    gen_dialogue_cmd.append("--mock")
+                elif args.profile:
+                    gen_dialogue_cmd += ["--profile", args.profile]
+                    gen_dialogue_cmd.append("--repair")
+                    gen_dialogue_cmd += ["--repair-attempts", str(args.repair_attempts)]
+
                 dialogue_gen_result = subprocess.run(gen_dialogue_cmd, capture_output=False)
                 if dialogue_gen_result.returncode != 0:
                     print(f"[auto:dialogue] generate_dialogue failed with code {dialogue_gen_result.returncode}", file=sys.stderr)
@@ -176,14 +190,21 @@ def run_auto_pipeline(args):
             else:
                 print(f"[auto:dialogue] using existing dialogue_script.json")
 
-            print(f"[auto:tts] generating dialogue audio: host={args.host_profile}, expert={args.expert_profile}")
+            # Build narration command with dialogue_profile or host/expert profiles
             narration_cmd = [
                 sys.executable, "-m", "src.narration",
                 "--dialogue-script", str(dialogue_script_path),
                 "--dialogue",
-                "--host-profile", args.host_profile,
-                "--expert-profile", args.expert_profile,
             ]
+            if args.dialogue_profile:
+                narration_cmd += ["--dialogue-profile", args.dialogue_profile]
+                print(f"[auto:tts] generating dialogue audio: dialogue_profile={args.dialogue_profile}")
+            else:
+                narration_cmd += [
+                    "--host-profile", args.host_profile,
+                    "--expert-profile", args.expert_profile,
+                ]
+                print(f"[auto:tts] generating dialogue audio: host={args.host_profile}, expert={args.expert_profile}")
             manifest_path = OUTPUT_DIR / "dialogue_manifest.json"
         elif args.dialogue_legacy:
             # CP7 legacy path: semantic_ir.beats[].speaker → dialogue_manifest
@@ -291,7 +312,10 @@ def run_auto_pipeline(args):
     print(f"  canvas:          {width}x{height}")
     print(f"  tts_enabled:     {args.tts}")
     if args.dialogue:
-        print(f"  dialogue_mode:   True (host={args.host_profile}, expert={args.expert_profile})")
+        if args.dialogue_profile:
+            print(f"  dialogue_mode:   True (dialogue_profile={args.dialogue_profile})")
+        else:
+            print(f"  dialogue_mode:   True (host={args.host_profile}, expert={args.expert_profile})")
     print("=" * 30)
     print("Done.")
 
@@ -393,6 +417,11 @@ def main(argv=None):
     tts_group.add_argument(
         "--dialogue-legacy", action="store_true",
         help="Use legacy semantic_ir.beats[].speaker path for dialogue (CP7 compatibility preview).",
+    )
+    tts_group.add_argument(
+        "--dialogue-profile", type=str, default=None,
+        help="Dialogue profile name from config/tts.yaml (e.g. mock_dialogue, minimax_dialogue). "
+             "Takes priority over --host-profile/--expert-profile when set. (CP8)",
     )
     tts_group.add_argument(
         "--host-profile", type=str, default="mock_host",

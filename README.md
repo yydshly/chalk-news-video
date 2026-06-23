@@ -4,19 +4,21 @@
 
 ## 当前 Checkpoint
 
-**Checkpoint 7.2 — Dialogue Script 校验加固（当前）**
+**Checkpoint 8 — 真实 LLM dialogue 验证 + 多角色 TTS mapping（当前）**
 
-CP7.2 在 CP7.1 基础上加固 dialogue_script 校验，补齐关键校验缺口：
-- REVEAL_MISMATCH：turn.reveal 必须与 semantic_ir beat 的 reveal 对齐
-- MISSING_HOST_TURN：turns 中必须有至少一个 host turn
-- MISSING_EXPERT_TURN：turns 中必须有至少一个 expert turn
-- UNKNOWN_STYLE_SPEAKER：turn.speaker 必须在 style.speakers 中定义
-- DUPLICATE_STYLE_SPEAKER：style.speakers 中 id 不可重复
-- MISSING_STYLE_SPEAKERS：style.speakers 不可为空
+CP8 在 CP7.1/CP7.2 基础上：
+- 实现真实 LLM dialogue_script 生成 + repair 流程
+- 新增 `--dialogue-profile` 参数，映射 speaker → TTS profile
+- dialogue_manifest 增加 `dialogue_profile` 和 `speaker_profiles` 字段
 
 ```bash
-# 双人对话模式（CP7.2 主路径）
-python -m src.pipeline --auto --mock --tts --dialogue --host-profile mock_host --expert-profile mock_expert
+# 双人对话模式（CP8 主路径）
+python -m src.pipeline --auto --mock --tts --dialogue --dialogue-profile mock_dialogue
+
+# 真实 LLM dialogue（需配置 .env）
+python -m src.pipeline --auto --news outputs/latest/latest_news.json \
+    --profile minimax_m3_openai --tts --dialogue \
+    --dialogue-profile mock_dialogue
 
 # 单人模式（CP6.1，不变）
 python -m src.pipeline --auto --mock --tts --tts-profile mock
@@ -24,31 +26,33 @@ python -m src.pipeline --auto --mock --tts --tts-profile mock
 # 单独生成 dialogue_script
 python -m src.generate_dialogue --semantic-ir outputs/latest/semantic_ir.json --mock --validate
 
+# 真实 LLM dialogue + repair
+python -m src.generate_dialogue --semantic-ir outputs/latest/semantic_ir.json \
+    --profile minimax_m3_openai --validate --repair
+
 # 校验 dialogue_script
 python -m src.validate_dialogue outputs/latest/dialogue_script.json --semantic-ir outputs/latest/semantic_ir.json
 ```
 
-**CP7.2 契约层级**：
-1. `semantic_ir` = 结构语义（beat_id、reveal、narration）
-2. `dialogue_script.json` = 对话表达（turns with host/expert alternating）
-3. `dialogue_manifest.json` = 对话音频时间（turns with real start/duration）
-4. `render_ir.timeline` = 最终渲染时间（以 dialogue_manifest 为时间源）
+**CP8 新增 CLI 参数**：
+- `--dialogue-profile`：从 config/tts.yaml 的 dialogue_profiles 映射 speaker → TTS profile
+- `--repair`：validation 失败时自动 LLM 修复
+- `--save-invalid` / `--no-save-invalid`：是否保存无效 dialogue_script
+- `--dry-run`：只生成 prompt，不调用 LLM
 
-**CP7 旧路径（兼容性预览）**：
-`semantic_ir.beats[].speaker` → `dialogue_manifest.json`（仍可用，但标注为 legacy）
+**CP8 dialogue_profile 映射**：
+| Profile | Host → | Expert → |
+|---------|--------|----------|
+| mock_dialogue | mock_host | mock_expert |
+| minimax_dialogue | minimax_speech (MINIMAX_TTS_HOST_VOICE_ID) | minimax_speech (MINIMAX_TTS_EXPERT_VOICE_ID) |
 
-**CP7.2 关键约束**：
-- dialogue_script 由 LLM 生成，turns 数量 8–18
-- 每个 semantic_ir beat 至少被一个 dialogue turn 覆盖
-- turn.reveal 必须与 semantic_ir.beats[beat_id].reveal 一致
-- 不允许 audio_path/start/end/duration 出现在 dialogue_script 中
-- dialogue_manifest.turns 按 beat_id 聚合后同步到 render_ir.timeline
-- style.speakers 是必填字段，定义对话角色
+**CP8 dialogue_manifest 新增字段**：
+- `dialogue_profile`：使用的 dialogue profile 名称
+- `speaker_profiles`：host/expert → {profile, voice/voice_env}
 
 不包含（后续 Checkpoint）：
-- 多角色 TTS（CP8）
-- Theme System（黑板/米黄/深蓝）
-- Remotion / 数字人（CP9）
+- Theme System（黑板/米黄/深蓝）（CP9）
+- Remotion / 数字人（CP10）
 
 ## 项目定位
 
@@ -394,9 +398,9 @@ outputs/latest/audio/narration.wav  # 拼接后完整音频（含 tail_silence�
 outputs/latest/narration_manifest.json  # 音画时间轴 manifest
 ```
 
-## 双人对话（Checkpoint 7.2）
+## 双人对话（Checkpoint 8）
 
-CP7.2 主路径：semantic_ir → dialogue_script → dialogue_manifest → video。
+CP8 主路径：semantic_ir → dialogue_script → dialogue_manifest → video。
 
 ### Mock 对话验收
 
@@ -404,11 +408,14 @@ CP7.2 主路径：semantic_ir → dialogue_script → dialogue_manifest → vide
 # 1. 生成 dialogue_script（CP7.1 新增）
 python -m src.generate_dialogue --semantic-ir outputs/latest/semantic_ir.json --mock --validate
 
-# 2. 生成 dialogue audio
+# 2. 生成 dialogue audio（CP8 新方式：--dialogue-profile）
 python -m src.narration --dialogue-script outputs/latest/dialogue_script.json \
-    --dialogue --host-profile mock_host --expert-profile mock_expert
+    --dialogue --dialogue-profile mock_dialogue
 
-# 3. 完整 pipeline（自动生成 dialogue_script）
+# 3. 完整 pipeline（CP8：--dialogue-profile）
+python -m src.pipeline --auto --mock --tts --dialogue --dialogue-profile mock_dialogue
+
+# 4. 旧方式（仍支持）
 python -m src.pipeline --auto --mock --tts --dialogue \
     --host-profile mock_host --expert-profile mock_expert
 ```
@@ -422,13 +429,15 @@ python -m src.pipeline --auto --mock --tts --dialogue \
 | `turns[].function` | hook/question/explain/clarify/transition/summary |
 | `turns[].duration_hint` | 估算时长（非真实音频时间） |
 
-### dialogue_manifest.json 字段（CP7.1 新结构）
+### dialogue_manifest.json 字段（CP8 新增字段）
 
 | 字段 | 含义 |
 |------|------|
 | `turns` | 音频 turn 列表（含 real start/duration/end） |
 | `source_dialogue_script.schema_version` | 来源 dialogue_script 版本 |
 | `combined_audio_path` | outputs/latest/audio/dialogue.wav |
+| `dialogue_profile` | 使用的 dialogue profile 名称（CP8 新增） |
+| `speaker_profiles` | host/expert → {profile, voice}（CP8 新增） |
 
 ### 旧路径（CP7 compatibility）
 

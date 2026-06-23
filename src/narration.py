@@ -3,11 +3,13 @@
 Checkpoint 6 (V0.10): Single-voice TTS narration generation.
 CP6.1: Audio timing is source of truth for render_ir.timeline.
 CP7: Dual-host dialogue with host/expert voices.
+CP8: Add dialogue_profile mapping and speaker_profiles in manifest.
 
 Usage:
     python -m src.narration --semantic-ir outputs/latest/semantic_ir.json --profile mock
     python -m src.narration --semantic-ir outputs/latest/semantic_ir.json --profile minimax_speech
     python -m src.narration --semantic-ir outputs/latest/semantic_ir.json --dialogue --host-profile mock_host --expert-profile mock_expert
+    python -m src.narration --dialogue-script outputs/latest/dialogue_script.json --dialogue --dialogue-profile mock_dialogue
 """
 
 
@@ -19,6 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .tts import create_tts_client
+from .config_loader import load_yaml
 from .utils import PROJECT_ROOT, load_json, save_json
 
 
@@ -30,11 +33,28 @@ DEFAULT_DIALOGUE_MANIFEST_PATH = OUTPUT_DIR / "dialogue_manifest.json"
 # Default tail silence appended after the last beat
 DEFAULT_TAIL_SILENCE_SEC = 0.5
 
-# Speaker → TTS profile mapping for dialogue mode
+# Speaker → TTS profile mapping for dialogue mode (legacy, used when no dialogue_profile)
 SPEAKER_PROFILE_MAP = {
     "host": "mock_host",
     "expert": "mock_expert",
 }
+
+# Default dialogue profile when --dialogue-profile not specified
+DEFAULT_DIALOGUE_PROFILE = "mock_dialogue"
+
+
+def _get_dialogue_profile_mapping(dialogue_profile_name: str) -> dict:
+    """Load dialogue_profile mapping from config/tts.yaml."""
+    from pathlib import Path as P
+    config_path = P(__file__).resolve().parent.parent / "config" / "tts.yaml"
+    config = load_yaml(config_path)
+    dialogue_profiles = config.get("dialogue_profiles", {})
+    if dialogue_profile_name not in dialogue_profiles:
+        raise ValueError(
+            f"Dialogue profile '{dialogue_profile_name}' not found in config/tts.yaml. "
+            f"Available: {sorted(dialogue_profiles.keys())}"
+        )
+    return dialogue_profiles[dialogue_profile_name]
 
 
 def _get_wav_duration(path: Path) -> float:
@@ -325,6 +345,8 @@ def generate_dialogue_audio(
     expert_profile: str = "mock_expert",
     output_path: Path | str | None = None,
     tail_silence_sec: float = DEFAULT_TAIL_SILENCE_SEC,
+    dialogue_profile: str | None = None,
+    speaker_profiles: dict | None = None,
 ) -> dict:
     """Generate dual-host dialogue audio from dialogue_script.json and produce a dialogue_manifest.
 
@@ -332,10 +354,12 @@ def generate_dialogue_audio(
 
     Args:
         dialogue_script_path: Path to dialogue_script.json
-        host_profile: TTS profile for "host" speaker
-        expert_profile: TTS profile for "expert" speaker
+        host_profile: TTS profile for "host" speaker (used if dialogue_profile not set)
+        expert_profile: TTS profile for "expert" speaker (used if dialogue_profile not set)
         output_path: Optional override for dialogue_manifest.json output path
         tail_silence_sec: Silence duration appended after the last turn (default 0.5s)
+        dialogue_profile: Name of dialogue profile from config/tts.yaml (CP8)
+        speaker_profiles: Dict mapping speaker to {profile, voice/voice_env} (CP8)
 
     Returns:
         dialogue_manifest dict
@@ -349,6 +373,11 @@ def generate_dialogue_audio(
 
     audio_dir = AUDIO_DIR
     audio_dir.mkdir(parents=True, exist_ok=True)
+
+    # Resolve speaker to profile mapping (CP8 dialogue_profile takes priority)
+    if dialogue_profile and speaker_profiles:
+        host_profile = speaker_profiles.get("host", {}).get("profile", host_profile)
+        expert_profile = speaker_profiles.get("expert", {}).get("profile", expert_profile)
 
     # Create providers for each speaker
     host_provider = create_tts_client(profile_name=host_profile)
@@ -423,6 +452,7 @@ def generate_dialogue_audio(
         combined_audio_path = None
         total_duration = 0.0
 
+    # Build manifest (CP8: add dialogue_profile and speaker_profiles)
     manifest = {
         "schema_version": "0.1",
         "provider": f"{host_profile}+{expert_profile}",
@@ -434,6 +464,12 @@ def generate_dialogue_audio(
         "combined_audio_path": str(combined_audio_path) if combined_audio_path else None,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
+
+    # CP8: record dialogue_profile and speaker_profiles
+    if dialogue_profile:
+        manifest["dialogue_profile"] = dialogue_profile
+    if speaker_profiles:
+        manifest["speaker_profiles"] = speaker_profiles
 
     manifest_path = Path(output_path) if output_path else DEFAULT_DIALOGUE_MANIFEST_PATH
     save_json(manifest, manifest_path)
@@ -475,16 +511,23 @@ def main(argv=None):
         help="Enable dual-host dialogue using semantic_ir.beats[].speaker (CP7 compatibility).",
     )
     parser.add_argument(
+        "--dialogue-profile",
+        type=str,
+        default=None,
+        help="Dialogue profile name from config/tts.yaml (e.g. mock_dialogue, minimax_dialogue). "
+             "Takes priority over --host-profile/--expert-profile when set.",
+    )
+    parser.add_argument(
         "--host-profile",
         type=str,
         default="mock_host",
-        help="TTS profile for host speaker",
+        help="TTS profile for host speaker (used when --dialogue-profile not set)",
     )
     parser.add_argument(
         "--expert-profile",
         type=str,
         default="mock_expert",
-        help="TTS profile for expert speaker",
+        help="TTS profile for expert speaker (used when --dialogue-profile not set)",
     )
     parser.add_argument(
         "--output",
@@ -496,12 +539,24 @@ def main(argv=None):
 
     try:
         if args.dialogue:
+            # Resolve dialogue_profile speaker mapping (CP8)
+            dialogue_profile = args.dialogue_profile
+            speaker_profiles = None
+            if dialogue_profile:
+                mapping = _get_dialogue_profile_mapping(dialogue_profile)
+                speaker_profiles = mapping
+                print(f"[dialogue_audio] using dialogue_profile={dialogue_profile}")
+                print(f"[dialogue_audio] host -> {mapping.get('host', {}).get('profile')}")
+                print(f"[dialogue_audio] expert -> {mapping.get('expert', {}).get('profile')}")
+
             # CP7.1 main path: dialogue_script.turns → dialogue_manifest
             manifest = generate_dialogue_audio(
                 args.dialogue_script,
                 host_profile=args.host_profile,
                 expert_profile=args.expert_profile,
                 output_path=args.output,
+                dialogue_profile=dialogue_profile,
+                speaker_profiles=speaker_profiles,
             )
             print(f"[dialogue_audio] generated {len(manifest['turns'])} turn audio(s)")
             print(f"[dialogue_audio] combined audio: {manifest['combined_audio_path']}")
