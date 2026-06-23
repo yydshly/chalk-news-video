@@ -82,14 +82,30 @@ def run_auto_pipeline(args):
     if args.repair:
         generate_cmd.append("--repair")
         generate_cmd += ["--repair-attempts", str(args.repair_attempts)]
+        generate_cmd.append("--save-invalid")
 
     print(f"[auto:generate_ir] running: {' '.join(generate_cmd)}")
     result = subprocess.run(generate_cmd, capture_output=False)
-    if result.returncode != 0:
-        print(f"[auto:generate_ir] exited with code {result.returncode}", file=sys.stderr)
-        sys.exit(result.returncode)
 
     semantic_ir_path = OUTPUT_DIR / "semantic_ir.json"
+    if result.returncode == 0:
+        pass  # normal case, use semantic_ir.json
+    elif result.returncode == 5 and args.repair:
+        # With --repair --save-invalid, generate_ir saves .invalid.json and returns 5
+        # Check if we have a usable output
+        if semantic_ir_path.exists():
+            print(f"[auto:generate_ir] repair ended with warnings, using semantic_ir.json")
+        else:
+            invalid_path = OUTPUT_DIR / "semantic_ir.invalid.json"
+            if invalid_path.exists():
+                semantic_ir_path = invalid_path
+                print(f"[auto:generate_ir] repair ended with warnings, using semantic_ir.invalid.json")
+            else:
+                print(f"[auto:generate_ir] exited with code 5 but no output found", file=sys.stderr)
+                sys.exit(5)
+    else:
+        print(f"[auto:generate_ir] exited with code {result.returncode}", file=sys.stderr)
+        sys.exit(result.returncode)
     if not semantic_ir_path.exists():
         print(f"[auto:generate_ir] output not found: {semantic_ir_path}", file=sys.stderr)
         sys.exit(1)

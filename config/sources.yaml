@@ -12,7 +12,7 @@ sources:
   - id: openai_news
     name: OpenAI News
     type: rss
-    url: "待填 RSS URL"           # TODO: replace with a real OpenAI RSS feed URL
+    url: "https://openai.com/news/rss.xml"
     enabled: true
     language: en
     category: ai_official
