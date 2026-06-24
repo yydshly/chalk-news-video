@@ -2350,99 +2350,120 @@
     var expr = anchorCue.expression || "neutral";
     var act = anchorCue.action || "talk";
 
-    // Eye shape by expression
-    var eyeShapes = {
-      neutral: '<ellipse class="anchor-eye anchor-eye-left" cx="48" cy="65" rx="5" ry="5" fill="#1a1a2e"/><ellipse class="anchor-eye anchor-eye-right" cx="72" cy="65" rx="5" ry="5" fill="#1a1a2e"/>',
-      serious: '<ellipse class="anchor-eye anchor-eye-left" cx="48" cy="65" rx="5" ry="4" fill="#1a1a2e"/><ellipse class="anchor-eye anchor-eye-right" cx="72" cy="65" rx="5" ry="4" fill="#1a1a2e"/>',
-      excited: '<ellipse class="anchor-eye anchor-eye-left" cx="48" cy="65" rx="6" ry="6" fill="#1a1a2e"/><ellipse class="anchor-eye anchor-eye-right" cx="72" cy="65" rx="6" ry="6" fill="#1a1a2e"/>',
-      focused: '<ellipse class="anchor-eye anchor-eye-left" cx="48" cy="65" rx="5" ry="5" fill="#1a1a2e"/><ellipse class="anchor-eye anchor-eye-right" cx="72" cy="65" rx="5" ry="5" fill="#1a1a2e"/>',
-      thinking: '<ellipse class="anchor-eye anchor-eye-left" cx="48" cy="65" rx="5" ry="4" fill="#1a1a2e"/><ellipse class="anchor-eye anchor-eye-right" cx="72" cy="65" rx="5" ry="4" fill="#1a1a2e"/>',
+    // ----------------------------------------------------------------
+    // Expression configs — control mouth, brows, pupils, blush
+    // ----------------------------------------------------------------
+    var exprConfig = {
+      neutral: {
+        mouth: '<path class="anchor-mouth" d="M50 82 Q60 90 70 82" stroke="#2d1b0e" stroke-width="2.5" fill="none" stroke-linecap="round"/>',
+        brows: '<path class="anchor-brow anchor-brow-left" d="M40 59 Q48 56 55 59" stroke="#3d2517" stroke-width="2.5" fill="none" stroke-linecap="round"/><path class="anchor-brow anchor-brow-right" d="M65 59 Q72 56 80 59" stroke="#3d2517" stroke-width="2.5" fill="none" stroke-linecap="round"/>',
+        pupilDx: 0,
+        cheek: '',
+      },
+      serious: {
+        mouth: '<path class="anchor-mouth" d="M50 84 Q60 82 70 84" stroke="#2d1b0e" stroke-width="3" fill="none" stroke-linecap="round"/>',
+        brows: '<path class="anchor-brow anchor-brow-left" d="M40 57 Q48 53 55 57" stroke="#3d2517" stroke-width="3" fill="none" stroke-linecap="round"/><path class="anchor-brow anchor-brow-right" d="M65 57 Q72 53 80 57" stroke="#3d2517" stroke-width="3" fill="none" stroke-linecap="round"/>',
+        pupilDx: 0,
+        cheek: '',
+      },
+      excited: {
+        mouth: '<path class="anchor-mouth" d="M47 80 Q60 94 73 80 Q60 86 47 80 Z" fill="#2d1b0e" stroke="#2d1b0e" stroke-width="1"/>',
+        brows: '<path class="anchor-brow anchor-brow-left" d="M40 58 Q48 54 55 58" stroke="#3d2517" stroke-width="2.5" fill="none" stroke-linecap="round"/><path class="anchor-brow anchor-brow-right" d="M65 58 Q72 54 80 58" stroke="#3d2517" stroke-width="2.5" fill="none" stroke-linecap="round"/>',
+        pupilDx: 0,
+        cheek: '<ellipse cx="36" cy="76" rx="8" ry="5" fill="#fca5a5" opacity=".45"/><ellipse cx="84" cy="76" rx="8" ry="5" fill="#fca5a5" opacity=".45"/>',
+      },
+      focused: {
+        mouth: '<path class="anchor-mouth" d="M50 82 Q60 88 70 82" stroke="#2d1b0e" stroke-width="2.5" fill="none" stroke-linecap="round"/>',
+        brows: '<path class="anchor-brow anchor-brow-left" d="M40 58 Q48 55 55 58" stroke="#3d2517" stroke-width="2.5" fill="none" stroke-linecap="round"/><path class="anchor-brow anchor-brow-right" d="M65 58 Q72 55 80 58" stroke="#3d2517" stroke-width="2.5" fill="none" stroke-linecap="round"/>',
+        pupilDx: 1.5,
+        cheek: '',
+      },
+      thinking: {
+        mouth: '<path class="anchor-mouth" d="M53 84 Q60 81 67 84" stroke="#2d1b0e" stroke-width="2" fill="none" stroke-linecap="round"/>',
+        brows: '<path class="anchor-brow anchor-brow-left" d="M40 60 Q48 58 55 60" stroke="#3d2517" stroke-width="2" fill="none" stroke-linecap="round"/><path class="anchor-brow anchor-brow-right" d="M65 56 Q72 54 80 56" stroke="#3d2517" stroke-width="2" fill="none" stroke-linecap="round"/>',
+        pupilDx: -1,
+        cheek: '',
+      },
     };
-    var eyes = eyeShapes[expr] || eyeShapes.neutral;
+    var cfg = exprConfig[expr] || exprConfig.neutral;
 
-    // Mouth shape by expression
-    var mouthShapes = {
-      neutral: '<path class="anchor-mouth" d="M52 82 Q60 88 68 82" stroke="#1a1a2e" stroke-width="2.5" fill="none" stroke-linecap="round"/>',
-      serious: '<path class="anchor-mouth" d="M52 83 Q60 86 68 83" stroke="#1a1a2e" stroke-width="2.5" fill="none" stroke-linecap="round"/>',
-      excited: '<ellipse class="anchor-mouth anchor-mouth-open" cx="60" cy="82" rx="7" ry="5" fill="#1a1a2e"/>',
-      focused: '<path class="anchor-mouth" d="M52 82 Q60 87 68 82" stroke="#1a1a2e" stroke-width="2.5" fill="none" stroke-linecap="round"/>',
-      thinking: '<path class="anchor-mouth" d="M55 84 Q60 83 65 84" stroke="#1a1a2e" stroke-width="2" fill="none" stroke-linecap="round"/>',
-    };
-    var mouth = mouthShapes[expr] || mouthShapes.neutral;
-
-    // Eyebrow by expression
-    var browShapes = {
-      neutral: '<path class="anchor-brow" d="M43 58 Q48 56 53 58" stroke="#5c3d2e" stroke-width="2" fill="none" stroke-linecap="round"/><path class="anchor-brow" d="M67 58 Q72 56 77 58" stroke="#5c3d2e" stroke-width="2" fill="none" stroke-linecap="round"/>',
-      serious: '<path class="anchor-brow" d="M43 56 Q48 53 53 56" stroke="#5c3d2e" stroke-width="2.5" fill="none" stroke-linecap="round"/><path class="anchor-brow" d="M67 56 Q72 53 77 56" stroke="#5c3d2e" stroke-width="2.5" fill="none" stroke-linecap="round"/>',
-      excited: '<path class="anchor-brow" d="M43 56 Q48 53 53 56" stroke="#5c3d2e" stroke-width="2" fill="none" stroke-linecap="round"/><path class="anchor-brow" d="M67 56 Q72 53 77 56" stroke="#5c3d2e" stroke-width="2" fill="none" stroke-linecap="round"/>',
-      focused: '<path class="anchor-brow" d="M43 57 Q48 55 53 57" stroke="#5c3d2e" stroke-width="2" fill="none" stroke-linecap="round"/><path class="anchor-brow" d="M67 57 Q72 55 77 57" stroke="#5c3d2e" stroke-width="2" fill="none" stroke-linecap="round"/>',
-      thinking: '<path class="anchor-brow" d="M43 59 Q48 57 53 59" stroke="#5c3d2e" stroke-width="2" fill="none" stroke-linecap="round"/><path class="anchor-brow" d="M67 57 Q72 55 77 57" stroke="#5c3d2e" stroke-width="2" fill="none" stroke-linecap="round"/>',
-    };
-    var brows = browShapes[expr] || browShapes.neutral;
-
-    // Hair color by tone
     var hairColor = "#2d1b0e";
     var skinColor = "#f5c9a0";
     var suitColor = "#1a1a2e";
     var tieColor = "#dc2626";
+    var pd = cfg.pupilDx;
 
     var svgContent = '<svg class="cartoon-anchor-svg" viewBox="0 0 120 180" aria-hidden="true" ' +
       'style="width:100%;height:100%;overflow:visible;">' +
 
-      // Shadow under character
-      '<ellipse cx="60" cy="176" rx="28" ry="4" fill="rgba(0,0,0,.3)"/>' +
+      // Ground shadow
+      '<ellipse cx="60" cy="176" rx="28" ry="4" fill="rgba(0,0,0,.28)"/>' +
 
-      // Body / suit jacket
-      '<rect x="30" y="105" width="60" height="68" rx="8" fill="' + suitColor + '"/>' +
+      // === BODY (taller, more presenter-like) ===
+      // Torso
+      '<rect x="28" y="96" width="64" height="78" rx="10" fill="' + suitColor + '"/>' +
+      // Shirt front
+      '<path d="M52 96 L60 124 L68 96" fill="#e8e8f0" stroke="none"/>' +
+      // Lapels
+      '<path d="M48 96 L60 126 L72 96" fill="#252540" stroke="none"/>' +
+      // Red tie
+      '<path d="M56 96 L64 96 L62 144 L60 150 L58 144 Z" fill="' + tieColor + '"/>' +
 
-      // Suit lapels
-      '<path d="M50 105 L60 130 L70 105" fill="#252540" stroke="none"/>' +
+      // Left arm — connected, hangs naturally
+      '<path class="anchor-arm anchor-arm-left" d="M28 100 Q10 122 14 154" stroke="' + suitColor + '" stroke-width="15" fill="none" stroke-linecap="round"/>' +
+      '<circle cx="14" cy="156" r="8" fill="' + skinColor + '"/>' +
 
-      // Tie
-      '<path d="M57 105 L63 105 L61 140 L60 145 L59 140 Z" fill="' + tieColor + '"/>' +
-
-      // Left arm
-      '<path class="anchor-arm anchor-arm-left" d="M30 108 Q14 125 18 150" stroke="' + suitColor + '" stroke-width="14" fill="none" stroke-linecap="round"/>' +
-      '<circle cx="18" cy="152" r="7" fill="#f5c9a0"/>' +
-
-      // Right arm (animated per action)
-      '<path class="anchor-arm anchor-arm-right" d="M90 108 Q106 125 102 150" stroke="' + suitColor + '" stroke-width="14" fill="none" stroke-linecap="round"/>' +
-      '<circle cx="102" cy="152" r="7" fill="#f5c9a0"/>' +
+      // Right arm — animated per action
+      '<path class="anchor-arm anchor-arm-right" d="M92 100 Q110 122 106 154" stroke="' + suitColor + '" stroke-width="15" fill="none" stroke-linecap="round"/>' +
+      '<circle cx="106" cy="156" r="8" fill="' + skinColor + '"/>' +
 
       // Neck
-      '<rect x="52" y="93" width="16" height="14" fill="' + skinColor + '"/>' +
+      '<rect x="50" y="82" width="20" height="16" fill="' + skinColor + '"/>' +
 
       // Head
-      '<ellipse cx="60" cy="68" rx="30" ry="32" fill="' + skinColor + '"/>' +
+      '<ellipse cx="60" cy="60" rx="30" ry="32" fill="' + skinColor + '"/>' +
 
-      // Hair (top/back)
-      '<path d="M32 58 Q35 30 60 26 Q85 30 88 58 Q85 45 60 42 Q35 45 32 58Z" fill="' + hairColor + '"/>' +
+      // Hair — full coverage top
+      '<path d="M31 52 Q34 22 60 18 Q86 22 89 52 Q84 38 60 34 Q36 38 31 52Z" fill="' + hairColor + '"/>' +
 
       // Ears
-      '<ellipse cx="31" cy="68" rx="5" ry="7" fill="' + skinColor + '"/>' +
-      '<ellipse cx="89" cy="68" rx="5" ry="7" fill="' + skinColor + '"/>' +
+      '<ellipse cx="31" cy="60" rx="6" ry="8" fill="' + skinColor + '"/>' +
+      '<ellipse cx="89" cy="60" rx="6" ry="8" fill="' + skinColor + '"/>' +
 
-      // Eyes (white + iris)
-      '<circle cx="48" cy="65" r="7" fill="#fff"/>' +
-      '<circle cx="72" cy="65" r="7" fill="#fff"/>' +
-      '<circle class="anchor-pupil" cx="49" cy="65" r="3.5" fill="#2d1b0e"/>' +
-      '<circle class="anchor-pupil" cx="73" cy="65" r="3.5" fill="#2d1b0e"/>' +
-      // Eye shine
-      '<circle cx="50" cy="64" r="1.2" fill="#fff"/>' +
-      '<circle cx="74" cy="64" r="1.2" fill="#fff"/>' +
-      eyes +
+      // === EYES (proper layering: white → iris → pupil → shine) ===
+      // Left eye white
+      '<circle cx="47" cy="60" r="8" fill="#fff"/>' +
+      // Right eye white
+      '<circle cx="73" cy="60" r="8" fill="#fff"/>' +
+      // Left iris
+      '<circle cx="48" cy="61" r="5.5" fill="#3a5f8a"/>' +
+      // Right iris
+      '<circle cx="74" cy="61" r="5.5" fill="#3a5f8a"/>' +
+      // Left pupil (offset by pd for focused/looking)
+      '<circle class="anchor-pupil" cx="' + (49 + pd) + '" cy="61" r="3" fill="#1a1a2e"/>' +
+      // Right pupil
+      '<circle class="anchor-pupil" cx="' + (75 + pd) + '" cy="61" r="3" fill="#1a1a2e"/>' +
+      // Left eye shine (two dots for cartoon depth)
+      '<circle cx="50" cy="59" r="1.5" fill="#fff"/>' +
+      '<circle cx="46" cy="63" r="0.8" fill="#fff" opacity=".6"/>' +
+      // Right eye shine
+      '<circle cx="76" cy="59" r="1.5" fill="#fff"/>' +
+      '<circle cx="72" cy="63" r="0.8" fill="#fff" opacity=".6"/>' +
 
       // Eyebrows
-      brows +
+      cfg.brows +
 
       // Nose
-      '<path d="M58 74 Q60 78 62 74" stroke="#c9a882" stroke-width="1.5" fill="none" stroke-linecap="round"/>' +
+      '<ellipse cx="60" cy="68" rx="2.5" ry="3.5" fill="#d4a882" opacity=".6"/>' +
 
       // Mouth
-      mouth +
+      cfg.mouth +
 
-      // Cheek blush (for excited)
-      (expr === "excited" ? '<ellipse cx="38" cy="76" rx="6" ry="4" fill="#fca5a5" opacity=".5"/><ellipse cx="82" cy="76" rx="6" ry="4" fill="#fca5a5" opacity=".5"/>' : '') +
+      // Cheek blush (excited only)
+      cfg.cheek +
+
+      // Thinking indicator: small raised dot for "thinking" expression
+      (expr === "thinking" ? '<circle cx="86" cy="44" r="3" fill="#f5c9a0" stroke="#d4a882" stroke-width="1"/><path d="M86 41 Q88 38 90 41" stroke="#3d2517" stroke-width="1.2" fill="none" stroke-linecap="round"/>' : '') +
 
       '</svg>';
 
@@ -2521,7 +2542,7 @@
       '.stage-episode-title{color:#fff;font-size:14px;font-weight:800;line-height:1.3;' +
       'text-shadow:0 2px 8px rgba(0,0,0,.8);margin-bottom:4px;}\n' +
       '.stage-episode-subtitle{color:#fca5a5;font-size:10px;opacity:.9;line-height:1.3;}\n' +
-      '.stage-main-card{position:absolute;top:132px;left:108px;right:14px;z-index:12;' +
+      '.stage-main-card{position:absolute;top:128px;left:100px;right:14px;z-index:12;' +
       'background:rgba(20,0,0,.88);border:1px solid #dc2626;border-radius:14px;' +
       'padding:16px;animation:cardEnter 0.5s ease-out both;}\n' +
       '@keyframes cardEnter{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}\n' +
@@ -2567,32 +2588,49 @@
       'display:flex;align-items:center;gap:6px;font-size:9px;color:#fca5a5;}\n' +
       '.stage-closing-dot{width:6px;height:6px;border-radius:50%;background:#dc2626;}\n' +
       // CP37: Cartoon anchor layer
-      '.stage-anchor-layer{position:absolute;left:10px;bottom:110px;width:90px;height:130px;' +
+      '.stage-anchor-layer{position:absolute;left:8px;bottom:112px;width:86px;height:130px;' +
       'z-index:16;pointer-events:none;}\n' +
-      '.cartoon-anchor-svg{width:100%;height:100%;filter:drop-shadow(0 8px 20px rgba(0,0,0,.5));}\n' +
+      '.cartoon-anchor-svg{width:100%;height:100%;filter:drop-shadow(0 6px 18px rgba(0,0,0,.6));}\n' +
       // Anchor action animations (body float + arm movement)
-      '@keyframes anchorFloat{0%,100%{transform:translateY(0);}50%{transform:translateY(-4px);}}\n' +
-      '@keyframes anchorAlert{0%,100%{transform:rotate(0deg);}25%{transform:rotate(-5deg);}75%{transform:rotate(3deg);}}\n' +
-      '@keyframes armWave{0%,100%{transform:rotate(0deg);}50%{transform:rotate(-8deg);}}\n' +
-      '@keyframes armPoint{0%,100%{transform:rotate(0deg);}50%{transform:rotate(-6deg);}}\n' +
-      '@keyframes armIntroduce{0%,100%{transform:rotate(0deg) scale(1);}50%{transform:rotate(-4deg) scale(1.03);}}\n' +
-      '@keyframes mouthOpen{0%,100%{transform:scaleY(1);}50%{transform:scaleY(1.4);}}\n' +
-      '@keyframes pupilLook{0%,100%{transform:translate(0,0);}25%{transform:translate(1px,0);}75%{transform:translate(-1px,0);}}\n' +
-      // All actions use floating base
-      '.anchor-action-talk{animation:anchorFloat 2.5s ease-in-out infinite;transform-origin:center bottom;}\n' +
-      '.anchor-action-talk .anchor-arm-right{animation:armWave 2s ease-in-out infinite;transform-origin:90px 108px;}\n' +
-      '.anchor-action-talk .anchor-mouth{animation:mouthOpen 1.2s ease-in-out infinite;transform-origin:60px 82px;}\n' +
-      '.anchor-action-point-right{animation:anchorFloat 2.5s ease-in-out infinite;transform-origin:center bottom;}\n' +
-      '.anchor-action-point-right .anchor-arm-right{animation:armPoint 1.5s ease-in-out infinite;transform-origin:90px 108px;}\n' +
-      '.anchor-action-alert-point{animation:anchorAlert 1.2s ease-in-out infinite;transform-origin:center 140px;}\n' +
-      '.anchor-action-alert-point .anchor-arm-right{animation:armPoint .8s ease-in-out infinite;transform-origin:90px 108px;}\n' +
-      '.anchor-action-introduce{animation:anchorFloat 2.5s ease-in-out infinite;transform-origin:center bottom;}\n' +
-      '.anchor-action-introduce .anchor-arm-right{animation:armIntroduce 2s ease-in-out infinite;transform-origin:90px 108px;}\n' +
-      '.anchor-action-explain{animation:anchorFloat 3s ease-in-out infinite;transform-origin:center bottom;}\n' +
-      '.anchor-action-explain .anchor-arm-right{animation:armWave 2.5s ease-in-out infinite;transform-origin:90px 108px;}\n' +
+      '@keyframes anchorFloat{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}\n' +
+      '@keyframes anchorAlert{0%,100%{transform:rotate(0deg);}25%{transform:rotate(-6deg);}75%{transform:rotate(4deg);}}\n' +
+      '@keyframes anchorTilt{0%,100%{transform:rotate(0deg);}50%{transform:rotate(-4deg);}}\n' +
+      '@keyframes armWave{0%,100%{transform:rotate(0deg);}50%{transform:rotate(-10deg);}}\n' +
+      '@keyframes armPointR{0%,100%{transform:rotate(0deg);}50%{transform:rotate(-10deg);}}\n' +
+      '@keyframes armAlert{0%,100%{transform:rotate(0deg);}40%{transform:rotate(-12deg);}}\n' +
+      '@keyframes armIntro{0%,100%{transform:rotate(0deg) scaleX(1);}50%{transform:rotate(-6deg) scaleX(1.05);}}\n' +
+      '@keyframes mouthOpen{0%,100%{transform:scaleY(1);}50%{transform:scaleY(1.5);}}\n' +
+      '@keyframes pupilLook{0%,100%{transform:translate(0,0);}33%{transform:translate(1.5px,0);}66%{transform:translate(-1px,0);}}\n' +
+      // Action: talk — gentle float + arm wave + mouth
+      '.anchor-action-talk{animation:anchorFloat 2.2s ease-in-out infinite;transform-origin:60px 176px;}\n' +
+      '.anchor-action-talk .anchor-arm-right{animation:armWave 1.8s ease-in-out infinite;transform-origin:92px 100px;}\n' +
+      '.anchor-action-talk .anchor-mouth{animation:mouthOpen 1s ease-in-out infinite;transform-origin:60px 82px;}\n' +
+      // Action: point_right — float + right arm points toward main card
+      '.anchor-action-point-right{animation:anchorFloat 2.2s ease-in-out infinite;transform-origin:60px 176px;}\n' +
+      '.anchor-action-point-right .anchor-arm-right{animation:armPointR 1.4s ease-in-out infinite;transform-origin:92px 100px;}\n' +
+      '.anchor-action-point-right .anchor-pupil{animation:pupilLook 3s ease-in-out infinite;}\n' +
+      // Action: alert_point — body tilt + arm alert
+      '.anchor-action-alert-point{animation:anchorTilt 1s ease-in-out infinite;transform-origin:60px 176px;}\n' +
+      '.anchor-action-alert-point .anchor-arm-right{animation:armAlert .7s ease-in-out infinite;transform-origin:92px 100px;}\n' +
+      // Action: introduce — float + palm-out gesture
+      '.anchor-action-introduce{animation:anchorFloat 2.2s ease-in-out infinite;transform-origin:60px 176px;}\n' +
+      '.anchor-action-introduce .anchor-arm-right{animation:armIntro 2s ease-in-out infinite;transform-origin:92px 100px;}\n' +
+      // Action: explain — slow float + gentle arm
+      '.anchor-action-explain{animation:anchorFloat 3s ease-in-out infinite;transform-origin:60px 176px;}\n' +
+      '.anchor-action-explain .anchor-arm-right{animation:armWave 2.5s ease-in-out infinite;transform-origin:92px 100px;}\n' +
+      // Default pupil animation
       '.anchor-pupil{animation:pupilLook 4s ease-in-out infinite;}\n' +
       // Expression-specific tweaks
-      '.anchor-expression-excited .cartoon-anchor-svg{filter:drop-shadow(0 8px 20px rgba(0,0,0,.5)) brightness(1.05);}\n' +
+      '.anchor-expression-excited .cartoon-anchor-svg{filter:drop-shadow(0 8px 20px rgba(0,0,0,.5)) brightness(1.08);}\n' +
+      // Expression differentiation via eyebrow/brow animation
+      '.anchor-expression-serious .anchor-brow{animation:seriousBrow 2s ease-in-out infinite;}\n' +
+      '@keyframes seriousBrow{0%,100%{transform:translateY(0);}50%{transform:translateY(-1px);}}\n' +
+      // Thinking: slight head tilt
+      '.anchor-expression-thinking .cartoon-anchor-svg{animation:thinkTilt 3s ease-in-out infinite;transform-origin:60px 60px;}\n' +
+      '@keyframes thinkTilt{0%,100%{transform:rotate(0deg);}30%{transform:rotate(-3deg);}70%{transform:rotate(1deg);}}\n' +
+      // Focused: pupils shift right slightly
+      '.anchor-expression-focused .anchor-pupil{animation:focusPupil 3s ease-in-out infinite;}\n' +
+      '@keyframes focusPupil{0%,100%{transform:translate(0,0);}50%{transform:translate(1.5px,0);}}\n' +
       '</style>\n';
 
     // Build lead card HTML

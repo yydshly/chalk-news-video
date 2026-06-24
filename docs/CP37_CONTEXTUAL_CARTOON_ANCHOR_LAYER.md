@@ -237,3 +237,90 @@ No character cue data is written to any backend contract or database.
 - Only `breaking_news_v1` has the anchor layer — other 4 styles unchanged
 - No interaction with timeline (anchor doesn't react to playback position)
 - No audio feedback — purely visual
+
+---
+
+## CP37.1: Cartoon Anchor Visual Polish & Occlusion Fix
+
+**Branch:** `fix/cp37.1-cartoon-anchor-visual-polish`
+**Date:** 2026-06-25
+
+### 1. What Was Fixed
+
+CP37.1 addressed visual quality issues in the SVG cartoon anchor introduced in CP37.
+
+### 2. Eye Layering Fix
+
+**Problem:** CP37 drew white sclera + pupils + then an additional dark `anchor-eye` ellipse on top — creating the appearance of solid black blocks instead of eyes.
+
+**Fix:** Removed the redundant dark `anchor-eye` ellipse shapes. Eye structure is now:
+```
+white sclera circle (r=8)
+→ blue iris circle (r=5.5)
+→ dark pupil (r=3) with expression-driven horizontal offset
+→ two white shine dots for cartoon depth
+```
+No shape is drawn over the pupil that would obscure it.
+
+### 3. Expression Differentiation Improvements
+
+Each expression is now visually distinct:
+
+| Expression | Mouth | Eyebrows | Pupils | Extra |
+|------------|-------|----------|--------|-------|
+| `neutral` | Gentle smile curve | Neutral position | Centered | — |
+| `serious` | Flat line (pressed) | Lowered + thicker | Centered | — |
+| `excited` | Open smile (filled shape) | Raised | Centered | Cheek blush ellipses |
+| `focused` | Smile curve | Slightly lowered | Shifted right (+1.5px) | — |
+| `thinking` | Small upward curve | Asymmetric (one raised) | Shifted left (-1px) | Thought bubble dot |
+
+### 4. Body Proportions Improved
+
+- Head repositioned to center at `(60, 60)` for better SVG alignment
+- Body starts higher (`y=96`) giving more upper-body presence
+- Suit lapels redrawn with shirt front for depth
+- Right arm stroke-width increased to `15` for more visible gesturing
+- Neck widened for more human proportions
+
+### 5. Action Animation Enhancement
+
+| Action | Body | Right Arm | Notes |
+|--------|------|-----------|-------|
+| `talk` | `anchorFloat` 2.2s | `armWave` 1.8s | Gentle oscillation |
+| `point_right` | `anchorFloat` 2.2s | `armPointR` 1.4s, faster | Pupils animate |
+| `alert_point` | `anchorTilt` 1s | `armAlert` 0.7s | Body tilts, fast arm |
+| `introduce` | `anchorFloat` 2.2s | `armIntro` 2s | Scale + rotate |
+| `explain` | `anchorFloat` 3s (slow) | `armWave` 2.5s | Calm, slower |
+
+### 6. Occlusion Adjustments
+
+| Element | Before CP37.1 | After CP37.1 |
+|---------|--------------|--------------|
+| `.stage-anchor-layer` | `width:90px; bottom:110px` | `width:86px; bottom:112px; left:8px` |
+| `.stage-main-card` | `left:108px` | `left:100px; top:128px` |
+
+Anchor is slightly smaller and better positioned. Main card starts at `left:100px` giving it more width while keeping clear of the anchor.
+
+### 7. New CSS Expression Animations
+
+- `seriousBrow` — subtle eyebrow lift animation
+- `thinkTilt` — head tilt for thinking expression
+- `focusPupil` — pupil horizontal drift for focused expression
+
+### 8. Lightweight Verification
+
+| Test | Result |
+|------|--------|
+| Eyes render as blue iris + visible pupils (not black blocks) | ✅ |
+| neutral expression clearly distinct from serious | ✅ |
+| excited has cheek blush visible | ✅ |
+| thinking has asymmetric brows + thought bubble | ✅ |
+| All 5 actions still animate | ✅ |
+| Anchor inside 9:16 stage | ✅ |
+| Main card readable and not overlapped | ✅ |
+| Supporting cards readable | ✅ |
+| Subtitle bar not blocked | ✅ |
+| Timeline not blocked | ✅ |
+| `validateMockEpisodeHtml` still passes | ✅ |
+| No external links / CDN / script | ✅ |
+
