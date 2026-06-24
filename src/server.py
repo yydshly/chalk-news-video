@@ -210,6 +210,20 @@ def _get_tts_provider_status() -> list[dict]:
     return result
 
 
+class GenerateRequest(BaseModel):
+    mode: str = "sample"
+    theme: str = "chalkboard"
+    dialogue: bool = True
+    mock: bool = True
+    no_export: bool = False
+    title: str = ""
+    news_text: str = ""
+    llm_provider: Optional[str] = None  # "mock" | "minimax_m3_openai" | etc.
+    tts_provider: Optional[str] = None  # "mock" | "mock_dialogue" | "minimax_dialogue"
+    repair: bool = False
+    repair_attempts: int = 2
+
+
 def _get_provider_status_by_id(kind: str, provider_id: str) -> Optional[dict]:
     """Get provider status dict by kind ('llm' or 'tts') and provider_id."""
     if kind == "llm":
@@ -261,20 +275,6 @@ def _validate_provider_selection(body: GenerateRequest) -> tuple[bool, Optional[
             return False, f"Provider '{tts_provider}' is not ready. Missing env: {missing}"
 
     return True, None
-
-
-class GenerateRequest(BaseModel):
-    mode: str = "sample"
-    theme: str = "chalkboard"
-    dialogue: bool = True
-    mock: bool = True
-    no_export: bool = False
-    title: str = ""
-    news_text: str = ""
-    llm_provider: Optional[str] = None  # "mock" | "minimax_m3_openai" | etc.
-    tts_provider: Optional[str] = None  # "mock" | "mock_dialogue" | "minimax_dialogue"
-    repair: bool = False
-    repair_attempts: int = 2
 
 
 app = FastAPI(title="Chalk News Video Studio")
