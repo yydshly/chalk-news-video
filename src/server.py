@@ -1085,6 +1085,34 @@ def api_save_episode_mock_html(body: EpisodeMockHtmlRequest):
     })
 
 
+# ---------- episode HTML artifact history (CP32) ----------
+
+
+@app.get("/api/episode/html-history")
+def api_episode_html_history():
+    """List saved episode HTML artifacts. Max 50, sorted by mtime descending."""
+    if not EPISODE_PREVIEWS_DIR.exists():
+        return JSONResponse({"ok": True, "items": []})
+
+    try:
+        files = []
+        for f in EPISODE_PREVIEWS_DIR.iterdir():
+            if f.is_file() and f.suffix == ".html":
+                stat = f.stat()
+                files.append({
+                    "filename": f.name,
+                    "path": f"/outputs/episode_previews/{f.name}",
+                    "file_path": f"outputs/episode_previews/{f.name}",
+                    "created_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                    "size": stat.st_size,
+                })
+        # Sort by mtime descending
+        files.sort(key=lambda x: x["created_at"], reverse=True)
+        return JSONResponse({"ok": True, "items": files[:50]})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
 # ---------- health ----------
 
 

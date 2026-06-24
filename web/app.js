@@ -73,6 +73,10 @@
   const episodeEmpty = document.getElementById("episode-empty");
   const episodeStructure = document.getElementById("episode-structure");
 
+  // CP32: Episode HTML artifact history DOM refs
+  const episodeHtmlHistorySection = document.getElementById("episode-html-history-section");
+  const episodeHtmlHistoryListEl = document.getElementById("episode-html-history-list");
+
   // ---------- state ----------
   let lastResult = null;
   let currentEventSource = null;
@@ -88,6 +92,7 @@
   let latestEpisodeRenderIr = null;        // CP27: most recent render IR
   let latestEpisodePreviewUrl = null;      // CP28: Blob URL for mock HTML preview
   let latestEpisodeHtmlArtifact = null;    // CP31: saved episode HTML artifact
+  let episodeHtmlHistoryList = [];        // CP32: episode HTML artifact history
   let currentStyleRecommendations = [];    // CP30: current style recommendations
 
   // CP20/CG29: Expanded theme showcase data — video style gallery
@@ -292,6 +297,9 @@
 
     // Load history on startup and auto-preview latest succeeded
     await loadHistoryAndAutoPreview();
+
+    // CP32: Load episode HTML artifact history
+    loadEpisodeHtmlHistory();
   }
 
   // ---------- load providers (CP15) ----------
@@ -1956,11 +1964,114 @@
         downloadLink.textContent = "💾 下载 HTML";
         downloadLinks.appendChild(downloadLink);
 
+        // CP32: Refresh history so the new artifact appears immediately
+        loadEpisodeHtmlHistory();
+
         setStatus("合集 HTML 已保存至 artifact", "success");
       })
       .catch(function (err) {
         setStatus("保存失败：" + err.message, "error");
       });
+  }
+
+  // CP32: Load episode HTML artifact history from server
+  function loadEpisodeHtmlHistory() {
+    fetch("/api/episode/html-history")
+      .then(function (resp) { return resp.json(); })
+      .then(function (data) {
+        if (!data.ok) {
+          renderEpisodeHtmlHistory([]);
+          return;
+        }
+        episodeHtmlHistoryList = data.items || [];
+        renderEpisodeHtmlHistory(episodeHtmlHistoryList);
+      })
+      .catch(function () {
+        episodeHtmlHistoryList = [];
+        renderEpisodeHtmlHistory([]);
+      });
+  }
+
+  // CP32: Render episode HTML artifact history list
+  function renderEpisodeHtmlHistory(items) {
+    if (!episodeHtmlHistoryListEl) return;
+
+    if (!items || items.length === 0) {
+      episodeHtmlHistoryListEl.innerHTML = '<div class="episode-html-history-empty">暂无已保存合集 HTML</div>';
+      return;
+    }
+
+    episodeHtmlHistoryListEl.innerHTML = "";
+    items.forEach(function (item) {
+      var itemEl = document.createElement("div");
+      itemEl.className = "episode-html-history-item";
+
+      var sizeKB = Math.round((item.size || 0) / 1024);
+      var timeStr = item.created_at ? item.created_at.replace("T", " ").slice(0, 19) : "";
+
+      itemEl.innerHTML =
+        '<div class="episode-html-history-item-name" title="' + escapeHtml(item.filename || "") + '">' +
+          escapeHtml(item.filename || "") +
+        '</div>' +
+        '<div class="episode-html-history-item-meta">' +
+          (timeStr ? escapeHtml(timeStr) : "") +
+          (sizeKB > 0 ? " · " + sizeKB + " KB" : "") +
+        '</div>' +
+        '<div class="episode-html-history-item-actions">' +
+          '<button class="episode-html-history-item-btn" data-action="open">打开</button>' +
+          '<button class="episode-html-history-item-btn" data-action="download">下载</button>' +
+        '</div>';
+
+      itemEl.querySelectorAll(".episode-html-history-item-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var action = btn.getAttribute("data-action");
+          openEpisodeHtmlArtifact(item, action);
+        });
+      });
+
+      episodeHtmlHistoryListEl.appendChild(itemEl);
+    });
+  }
+
+  // CP32: Open or download a history artifact
+  function openEpisodeHtmlArtifact(item, action) {
+    if (!item || !item.path) return;
+
+    if (action === "download") {
+      // Trigger download via a temporary anchor
+      var a = document.createElement("a");
+      a.href = item.path;
+      a.download = item.filename || "episode.html";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    }
+
+    // Open in iframe
+    previewHtml.src = item.path;
+    switchToPreviewTab();
+    setPreviewMode("html");
+
+    autoPreviewBanner.style.display = "block";
+    autoPreviewBanner.textContent = "历史合集 HTML 预览";
+
+    // Show download link
+    downloadLinks.innerHTML = "";
+    var openLink = document.createElement("a");
+    openLink.href = item.path;
+    openLink.target = "_blank";
+    openLink.rel = "noopener";
+    openLink.className = "download-link";
+    openLink.textContent = "🔗 打开已保存 HTML";
+    downloadLinks.appendChild(openLink);
+
+    var downloadLink = document.createElement("a");
+    downloadLink.href = item.path;
+    downloadLink.download = "";
+    downloadLink.className = "download-link";
+    downloadLink.textContent = "💾 下载 HTML";
+    downloadLinks.appendChild(downloadLink);
   }
 
   // CP29.1: Sync theme showcase themes into hidden selectTheme

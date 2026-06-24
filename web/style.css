@@ -1204,6 +1204,83 @@ footer {
   margin-top: 4px;
 }
 
+/* CP32: Episode HTML Artifact History */
+.episode-html-history-section {
+  margin-top: 12px;
+  padding: 10px;
+  background: #0f1117;
+  border: 1px solid #2d3748;
+  border-radius: 6px;
+}
+
+.episode-html-history-header {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #38bdf8;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #2d3748;
+}
+
+.episode-html-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.episode-html-history-empty {
+  font-size: 0.6875rem;
+  color: #64748b;
+  text-align: center;
+  padding: 8px 0;
+}
+
+.episode-html-history-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  background: #1a1d27;
+  border: 1px solid #2d3748;
+  border-radius: 4px;
+}
+
+.episode-html-history-item-name {
+  font-size: 0.6875rem;
+  color: #e2e8f0;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.episode-html-history-item-meta {
+  font-size: 0.625rem;
+  color: #64748b;
+}
+
+.episode-html-history-item-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.episode-html-history-item-btn {
+  background: #2d3748;
+  color: #e2e8f0;
+  border: none;
+  border-radius: 3px;
+  padding: 2px 8px;
+  font-size: 0.625rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.episode-html-history-item-btn:hover {
+  background: #38bdf8;
+  color: #0f172a;
+}
+
 /* CP23: Join episode button in hot news card */
 .hot-news-item-joined-btn {
   background: #1a3a1a !important;
