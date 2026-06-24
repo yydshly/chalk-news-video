@@ -62,8 +62,8 @@
       selectTheme.innerHTML = "";
       data.themes.forEach(function (theme) {
         const opt = document.createElement("option");
-        opt.value = theme;
-        opt.textContent = theme;
+        opt.value = theme.id;
+        opt.textContent = theme.name;
         selectTheme.appendChild(opt);
       });
 
@@ -160,9 +160,9 @@
     if (llmId === "mock") {
       cfgText = "示例新闻 + mock LLM + mock_dialogue（本地无需 API key）";
     } else if (llm && llm.name) {
-      cfgText = "热门 AI 新闻 + research_desk + " + llm.name + " + mock_dialogue + 不导出 MP4";
+      cfgText = "热门 AI 新闻 + research_desk_v2 + " + llm.name + " + mock_dialogue + 不导出 MP4";
     } else {
-      cfgText = "热门 AI 新闻 + research_desk + " + llmId + " + mock_dialogue + 不导出 MP4";
+      cfgText = "热门 AI 新闻 + research_desk_v2 + " + llmId + " + mock_dialogue + 不导出 MP4";
     }
     recommendedConfigText.textContent = cfgText;
 

@@ -906,10 +906,16 @@ def api_themes():
     themes_path = PROJECT_ROOT / "config" / "themes.yaml"
     data = load_yaml(themes_path)
     default_theme = data.get("default_theme", "chalkboard")
-    themes = list(data.get("themes", {}).keys())
+    themes_data = data.get("themes", {})
+    # Return list of {id, name} objects for better UI display
+    theme_list = []
+    for theme_id, theme_cfg in themes_data.items():
+        name = theme_cfg.get("name", theme_id) if isinstance(theme_cfg, dict) else theme_id
+        theme_list.append({"id": theme_id, "name": name})
+    theme_list.sort(key=lambda x: x["id"])
     return JSONResponse({
         "default_theme": default_theme,
-        "themes": sorted(themes),
+        "themes": theme_list,
     })
 
 

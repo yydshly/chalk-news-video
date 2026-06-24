@@ -232,3 +232,178 @@ themes:
         panel_h: 86
         subtitle_h: 70
         subtitle_font_size: 22
+
+  # CP16: Visual Baseline Style Variants
+  research_desk_v2:
+    name: "AI 研究室 v2"
+    description: "深夜研究室风格，深色背景，适合 AI 技术新闻、模型发布、研究动态"
+    background:
+      type: solid
+      color: "#0a0f1a"
+      grid_color: "#1a2535"
+    text:
+      title: "#f0e6d3"
+      body: "#c4b89a"
+      subtitle: "#fff8f0"
+    node:
+      fill: "#1a2535"
+      stroke: "#4a9eff"
+      text: "#f0e6d3"
+      badge_fill: "#0a0f1a"
+      badge_text: "#4a9eff"
+    edge:
+      stroke: "#3a7acc"
+      label: "#a0c4e8"
+    callout:
+      info_fill: "#1e3a5f"
+      info_stroke: "#4a9eff"
+      info_text: "#a0d0ff"
+      alert_fill: "#5f1e1e"
+      alert_stroke: "#ff6b6b"
+      alert_text: "#ffa0a0"
+      positive_fill: "#1e5f2e"
+      positive_stroke: "#4aff8b"
+      positive_text: "#a0ffa0"
+    dialogue:
+      host_accent: "#4a9eff"
+      expert_accent: "#ffd700"
+      host_indicator: "#4a9eff"
+      expert_indicator: "#ffd700"
+      panel_fill: "rgba(10,15,26,0.92)"
+      panel_stroke: "#4a9eff"
+      subtitle_fill: "rgba(10,15,26,0.88)"
+    layout:
+      variant: research_desk_v2
+      canvas:
+        safe_margin: 40
+      title:
+        y: 55
+        font_size: 32
+      nodes:
+        style: research_card
+        radius: 8
+        shadow: true
+        stroke_width: 2
+      dialogue:
+        panel_position: desk_cards
+        panel_y: 120
+        panel_w: 200
+        panel_h: 100
+        subtitle_h: 65
+        subtitle_font_size: 20
+
+  news_card_v1:
+    name: "新闻大卡片"
+    description: "新闻资讯卡片风格，中央大标题加三张关键点卡片，适合热点新闻、公司发布"
+    background:
+      type: solid
+      color: "#1a1a2e"
+      grid_color: "#252540"
+    text:
+      title: "#ffffff"
+      body: "#e0e0e0"
+      subtitle: "#b0b0b0"
+    node:
+      fill: "#252545"
+      stroke: "#ff6b35"
+      text: "#ffffff"
+      badge_fill: "#ff6b35"
+      badge_text: "#ffffff"
+    edge:
+      stroke: "#7070a0"
+      label: "#c0c0d0"
+    callout:
+      info_fill: "#ff6b35"
+      info_stroke: "#ff8c5a"
+      info_text: "#ffffff"
+      alert_fill: "#ff3535"
+      alert_stroke: "#ff5050"
+      alert_text: "#ffffff"
+      positive_fill: "#35ff6b"
+      positive_stroke: "#50ff80"
+      positive_text: "#0a2a0a"
+    dialogue:
+      host_accent: "#ff6b35"
+      expert_accent: "#35a0ff"
+      host_indicator: "#ff6b35"
+      expert_indicator: "#35a0ff"
+      panel_fill: "rgba(37,37,69,0.92)"
+      panel_stroke: "#ff6b35"
+      subtitle_fill: "rgba(26,26,46,0.90)"
+    layout:
+      variant: news_card_v1
+      canvas:
+        safe_margin: 40
+      title:
+        y: 50
+        font_size: 34
+      nodes:
+        style: modern_panel
+        radius: 10
+        shadow: true
+        stroke_width: 2
+      dialogue:
+        panel_position: side
+        panel_y: 100
+        panel_w: 220
+        panel_h: 110
+        subtitle_h: 70
+        subtitle_font_size: 22
+
+  causal_map_v1:
+    name: "因果链地图"
+    description: "因果链动画图风格，节点和边作为主视觉，适合解释性新闻"
+    background:
+      type: grid
+      color: "#0d1b2a"
+      grid_color: "#1b2d42"
+    text:
+      title: "#e0f0ff"
+      body: "#a0c0d8"
+      subtitle: "#ffffff"
+    node:
+      fill: "#1b2d42"
+      stroke: "#00d4ff"
+      text: "#e0f0ff"
+      badge_fill: "#00d4ff"
+      badge_text: "#0d1b2a"
+    edge:
+      stroke: "#00a0cc"
+      label: "#80e0ff"
+    callout:
+      info_fill: "#00d4ff"
+      info_stroke: "#00a0cc"
+      info_text: "#0d1b2a"
+      alert_fill: "#ff4444"
+      alert_stroke: "#cc0000"
+      alert_text: "#ffffff"
+      positive_fill: "#44ff88"
+      positive_stroke: "#00aa44"
+      positive_text: "#0a2a0a"
+    dialogue:
+      host_accent: "#00d4ff"
+      expert_accent: "#ff9900"
+      host_indicator: "#00d4ff"
+      expert_indicator: "#ff9900"
+      panel_fill: "rgba(13,27,42,0.92)"
+      panel_stroke: "#00d4ff"
+      subtitle_fill: "rgba(13,27,42,0.88)"
+    layout:
+      variant: causal_map_v1
+      canvas:
+        safe_margin: 36
+      title:
+        y: 48
+        font_size: 30
+      nodes:
+        style: modern_panel
+        radius: 50
+        shadow: true
+        stroke_width: 2
+      dialogue:
+        panel_position: side
+        panel_y: 110
+        panel_w: 200
+        panel_h: 105
+        subtitle_h: 68
+        subtitle_font_size: 21

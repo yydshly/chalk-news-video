@@ -51,6 +51,31 @@
   .node-research { rx: 6; ry: 6; }
   /* paper_note: soft, paper-like */
   .node-paper { rx: 12; ry: 12; }
+
+  /* CP16: Enhanced node animations */
+  @keyframes cardEnter {
+    0% { opacity: 0; transform: scale(0.85) translateY(15px); }
+    60% { opacity: 1; transform: scale(1.02) translateY(-2px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes slideInLeft {
+    0% { opacity: 0; transform: translateX(-30px); }
+    100% { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes slideInRight {
+    0% { opacity: 0; transform: translateX(30px); }
+    100% { opacity: 1; transform: translateX(0); }
+  }
+  .node-enter {
+    animation: cardEnter 0.5s ease-out forwards;
+  }
+  .title-enter {
+    animation: fadeIn 0.6s ease-out forwards;
+  }
 </style>
 </head>
 <body>
@@ -84,15 +109,24 @@
         fill="url(#boardGrid)"/>
 
   <!-- Title group: fades in once on the first beat that reveals 'title', then stays -->
+  <!-- CP16: Title uses tspan lines for proper wrapping -->
   <g id="title-group" opacity="0">
     <text id="title-text" x="{{ render_ir.title.x }}" y="{{ render_ir.title.y }}"
           text-anchor="middle" fill="#f8f8f2"
-          font-family="'Comic Sans MS', 'Chalkboard SE', 'Comic Neue', cursive, sans-serif"
-          font-size="36" font-weight="bold" filter="url(#chalkRough)">{{ render_ir.title.text }}</text>
+          font-family="'PingFang SC', 'Microsoft YaHei', 'SimHei', sans-serif"
+          font-size="32" font-weight="bold"
+          filter="url(#chalkRough)">
+      <tspan id="title-line-0" x="{{ render_ir.title.x }}"></tspan>
+      <tspan id="title-line-1" x="{{ render_ir.title.x }}" dy="1.2em"></tspan>
+      <tspan id="title-line-2" x="{{ render_ir.title.x }}" dy="1.2em"></tspan>
+    </text>
     <text id="summary-text" x="{{ render_ir.summary.x }}" y="{{ render_ir.summary.y }}"
           text-anchor="middle" fill="#d8e6d4"
-          font-family="'Comic Sans MS', 'Chalkboard SE', cursive, sans-serif"
-          font-size="20" filter="url(#chalkRough)">{{ render_ir.summary.text }}</text>
+          font-family="'PingFang SC', 'Microsoft YaHei', sans-serif"
+          font-size="18">
+      <tspan id="summary-line-0" x="{{ render_ir.summary.x }}"></tspan>
+      <tspan id="summary-line-1" x="{{ render_ir.summary.x }}" dy="1.3em"></tspan>
+    </text>
   </g>
 
   <g id="edges-group"></g>
@@ -237,10 +271,37 @@
       gridLines.forEach(function (l) { l.setAttribute("stroke", BG.grid); });
     }
 
-    // Title / summary text color
-    var titleTexts = titleGroup.querySelectorAll("text");
-    if (titleTexts[0]) titleTexts[0].setAttribute("fill", TEXT.title);
-    if (titleTexts[1]) titleTexts[1].setAttribute("fill", TEXT.body);
+    // CP16: Title text fitting - max 2 lines, 15 chars per line for Chinese
+    // Title max chars based on canvas width (roughly 1 char = 18px at font-size 32)
+    const titleFontSize = (THEME.layout && THEME.layout.title && THEME.layout.title.font_size) || 32;
+    const canvasW = RENDER_IR.canvas.width;
+    const titleMaxChars = Math.floor(canvasW / (titleFontSize * 0.55)) - 4;
+    const titleLines = fitTextLines(RENDER_IR.title.text, titleMaxChars, 3);
+    for (let i = 0; i < 3; i++) {
+      const tspan = document.getElementById("title-line-" + i);
+      if (tspan) {
+        tspan.textContent = titleLines[i] || "";
+      }
+    }
+    // Apply title font size from theme
+    var titleTextEl = document.getElementById("title-text");
+    if (titleTextEl) {
+      titleTextEl.setAttribute("font-size", String(titleFontSize));
+      titleTextEl.setAttribute("fill", TEXT.title);
+    }
+
+    // CP16: Summary text fitting - max 2 lines
+    const summaryLines = fitTextLines(RENDER_IR.summary.text, 40, 2);
+    for (let i = 0; i < 2; i++) {
+      const tspan = document.getElementById("summary-line-" + i);
+      if (tspan) {
+        tspan.textContent = summaryLines[i] || "";
+      }
+    }
+    var summaryTextEl = document.getElementById("summary-text");
+    if (summaryTextEl) {
+      summaryTextEl.setAttribute("fill", TEXT.body);
+    }
 
     // Subtitle bar fill
     var subtitleBar = document.getElementById("subtitle-group");
@@ -338,17 +399,53 @@
     return e;
   }
 
+  // CP16: Improved text wrapping with mixed Chinese/English support
   function wrapText(text, maxChars) {
     const out = [];
     if (!text) return out;
+    const str = String(text);
     let line = "";
-    for (const ch of String(text)) {
-      if (ch === "\n") { out.push(line); line = ""; continue; }
-      if (line.length >= maxChars) { out.push(line); line = ""; }
+    let i = 0;
+    while (i < str.length) {
+      const ch = str[i];
+      // Handle explicit newlines
+      if (ch === "\n") {
+        if (line) out.push(line);
+        line = "";
+        i++;
+        continue;
+      }
+      // Check if it's Chinese character (CJK Unified Ideographs)
+      const isChinese = /[一-鿿　-〿＀-￯]/.test(ch);
+      const charWidth = isChinese ? 1 : 0.6;
+      if (line.length + charWidth > maxChars) {
+        if (line) out.push(line);
+        line = "";
+        continue;
+      }
       line += ch;
+      i++;
     }
     if (line) out.push(line);
     return out;
+  }
+
+  // CP16: fitTextLines - fit text to max chars per line and max lines
+  // Returns array of lines (max maxLines), with ellipsis if overflow
+  function fitTextLines(text, maxCharsPerLine, maxLines) {
+    if (!text) return [];
+    const str = String(text);
+    const rawLines = wrapText(str, maxCharsPerLine);
+    if (rawLines.length <= maxLines) return rawLines;
+    // Truncate with ellipsis
+    const result = rawLines.slice(0, maxLines);
+    const lastLine = result[result.length - 1];
+    if (lastLine.length > maxCharsPerLine - 1) {
+      result[result.length - 1] = lastLine.slice(0, maxCharsPerLine - 1) + "…";
+    } else {
+      result[result.length - 1] = lastLine + "…";
+    }
+    return result;
   }
 
   // ---------- id sets used to interpret timeline.reveal ----------
@@ -397,65 +494,134 @@
       "data-node-id": node.id,
     }, nodesGroup);
 
-    // CP11: Use NODE_LAYOUT for radius, stroke-width, shadow
-    el("rect", {
-      x: node.x, y: node.y, width: node.w, height: node.h,
-      rx: NODE_LAYOUT.radius, ry: NODE_LAYOUT.radius,
-      fill: NODE.fill,
-      stroke: NODE.stroke,
-      "stroke-width": NODE_LAYOUT.stroke_width,
-      filter: NODE_LAYOUT.shadow ? "url(#cardShadow)" : null,
-    }, g);
+    // CP16: Use theme variant to determine node shape
+    // causal_map_v1 uses circular nodes; others use rounded rects
+    const variant = (THEME.layout && THEME.layout.variant) || "chalkboard_v1";
+    const isCircleNode = variant === "causal_map_v1";
 
-    // Index badge (1-based) - CP10.1: use NODE.badge_fill / badge_text for contrast
-    const idx = (RENDER_IR.nodes.indexOf(node) + 1).toString();
-    el("circle", {
-      cx: node.x + 22, cy: node.y + 22, r: 16,
-      fill: NODE.badge_fill,
-      stroke: NODE.stroke,
-      "stroke-width": 2,
-    }, g);
-    el("text", {
-      x: node.x + 22, y: node.y + 28,
-      "text-anchor": "middle",
-      fill: NODE.badge_text,
-      "font-family": "Arial, sans-serif",
-      "font-size": 18,
-      "font-weight": "bold",
-    }, g).textContent = idx;
-
-    // Label (wrapped, up to 3 lines)
-    const labelLines = wrapText(node.label || "", 8).slice(0, 3);
-    let baseY = node.y + 64;
-    if (node.sub) baseY -= 8;
-    labelLines.forEach(function (line, i) {
-      const t = el("text", {
-        x: node.cx,
-        y: baseY + i * 24,
-        "text-anchor": "middle",
-        fill: NODE.text,
-        "font-family": "'Comic Sans MS', 'Chalkboard SE', cursive, sans-serif",
-        "font-size": 18,
-        "font-weight": "bold",
+    if (isCircleNode) {
+      // Circular node for causal_map_v1
+      const cx = node.cx;
+      const cy = node.cy;
+      const r = Math.min(node.w, node.h) / 2 - 4;
+      el("circle", {
+        cx: cx, cy: cy, r: r,
+        fill: NODE.fill,
+        stroke: NODE.stroke,
+        "stroke-width": NODE_LAYOUT.stroke_width,
+        filter: NODE_LAYOUT.shadow ? "url(#cardShadow)" : null,
       }, g);
-      t.textContent = line;
-    });
 
-    // Sub line (single line, smaller)
-    if (node.sub) {
-      const subY = baseY + labelLines.length * 24 + 4;
-      const subLines = wrapText(node.sub, 14).slice(0, 1);
-      subLines.forEach(function (line) {
+      // Index badge (centered circle at top)
+      const idx = (RENDER_IR.nodes.indexOf(node) + 1).toString();
+      el("circle", {
+        cx: cx, cy: node.y + 30, r: 14,
+        fill: NODE.badge_fill,
+        stroke: NODE.stroke,
+        "stroke-width": 2,
+      }, g);
+      el("text", {
+        x: cx, y: node.y + 35,
+        "text-anchor": "middle",
+        fill: NODE.badge_text,
+        "font-family": "Arial, sans-serif",
+        "font-size": 16,
+        "font-weight": "bold",
+      }, g).textContent = idx;
+
+      // Label (inside circle, up to 2 lines)
+      const labelLines = fitTextLines(node.label || "", 6, 2);
+      let baseY = cy - 8;
+      labelLines.forEach(function (line, i) {
         const t = el("text", {
-          x: node.cx,
-          y: subY,
+          x: cx,
+          y: baseY + i * 22,
           "text-anchor": "middle",
-          fill: TEXT.body,
-          "font-family": "Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif",
-          "font-size": 13,
+          fill: NODE.text,
+          "font-family": "'PingFang SC', 'Microsoft YaHei', sans-serif",
+          "font-size": 16,
+          "font-weight": "bold",
         }, g);
         t.textContent = line;
       });
+
+      // Sub line (below label)
+      if (node.sub) {
+        const subLines = fitTextLines(node.sub, 10, 1);
+        const subY = baseY + labelLines.length * 22 + 4;
+        subLines.forEach(function (line) {
+          const t = el("text", {
+            x: cx,
+            y: subY,
+            "text-anchor": "middle",
+            fill: TEXT.body,
+            "font-family": "Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif",
+            "font-size": 12,
+          }, g);
+          t.textContent = line;
+        });
+      }
+    } else {
+      // Rect node for other themes
+      el("rect", {
+        x: node.x, y: node.y, width: node.w, height: node.h,
+        rx: NODE_LAYOUT.radius, ry: NODE_LAYOUT.radius,
+        fill: NODE.fill,
+        stroke: NODE.stroke,
+        "stroke-width": NODE_LAYOUT.stroke_width,
+        filter: NODE_LAYOUT.shadow ? "url(#cardShadow)" : null,
+      }, g);
+
+      // Index badge (1-based) - CP10.1: use NODE.badge_fill / badge_text for contrast
+      const idx = (RENDER_IR.nodes.indexOf(node) + 1).toString();
+      el("circle", {
+        cx: node.x + 22, cy: node.y + 22, r: 16,
+        fill: NODE.badge_fill,
+        stroke: NODE.stroke,
+        "stroke-width": 2,
+      }, g);
+      el("text", {
+        x: node.x + 22, y: node.y + 28,
+        "text-anchor": "middle",
+        fill: NODE.badge_text,
+        "font-family": "Arial, sans-serif",
+        "font-size": 18,
+        "font-weight": "bold",
+      }, g).textContent = idx;
+
+      // Label (wrapped, up to 3 lines)
+      const labelLines = fitTextLines(node.label || "", 8, 3);
+      let baseY = node.y + 64;
+      if (node.sub) baseY -= 8;
+      labelLines.forEach(function (line, i) {
+        const t = el("text", {
+          x: node.cx,
+          y: baseY + i * 24,
+          "text-anchor": "middle",
+          fill: NODE.text,
+          "font-family": "'PingFang SC', 'Microsoft YaHei', sans-serif",
+          "font-size": 18,
+          "font-weight": "bold",
+        }, g);
+        t.textContent = line;
+      });
+
+      // Sub line (single line, smaller)
+      if (node.sub) {
+        const subY = baseY + labelLines.length * 24 + 4;
+        const subLines = fitTextLines(node.sub, 14, 1);
+        subLines.forEach(function (line) {
+          const t = el("text", {
+            x: node.cx,
+            y: subY,
+            "text-anchor": "middle",
+            fill: TEXT.body,
+            "font-family": "Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif",
+            "font-size": 13,
+          }, g);
+          t.textContent = line;
+        });
+      }
     }
   });
 
@@ -497,7 +663,7 @@
       }, g);
     }
 
-    const textLines = wrapText(callout.text || "", 10).slice(0, 2);
+    const textLines = fitTextLines(callout.text || "", 10, 2);
     const cy = callout.y + callout.h / 2;
     textLines.forEach(function (line, i) {
       const offset = (i - (textLines.length - 1) / 2) * 18;

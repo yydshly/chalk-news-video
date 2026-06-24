@@ -39,7 +39,10 @@ _VALID_LAYOUT_VARIANTS = (
     "chalkboard_v1",
     "podcast_v1",
     "research_desk_v1",
+    "research_desk_v2",
     "notebook_v1",
+    "news_card_v1",
+    "causal_map_v1",
 )
 
 # Valid panel positions (CP11)
