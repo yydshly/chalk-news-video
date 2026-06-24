@@ -29,6 +29,10 @@
           <input type="radio" name="mode" value="text">
           粘贴新闻文本
         </label>
+        <label class="radio-label">
+          <input type="radio" name="mode" value="hot_ai">
+          热门 AI 新闻
+        </label>
       </fieldset>
 
       <!-- Text input fields (hidden by default) -->
@@ -88,6 +92,17 @@
       <button id="btn-generate" class="btn-primary">生成视频</button>
       <p id="status-msg" class="status-msg"></p>
 
+      <!-- Recommended Config Hint (CP15.6) -->
+      <div id="recommended-hint" class="recommended-hint">
+        <div class="hint-title">💡 推荐体验配置</div>
+        <div class="hint-text" id="recommended-config-text">
+          热门 AI 新闻 + research_desk + minimax_m3_openai + mock_dialogue + 不导出 MP4
+        </div>
+        <div class="hint-text" id="tts-upgrade-hint" style="display:none">
+          可切换到 MiniMax Dialogue 生成真实语音
+        </div>
+      </div>
+
       <!-- Progress (CP13) -->
       <div id="progress-wrap" class="progress-wrap hidden">
         <div id="progress-bar" class="progress-bar"></div>
@@ -111,6 +126,10 @@
 
       <!-- Tab Content: Preview -->
       <div id="tab-preview" class="tab-content active">
+        <!-- Auto-preview banner -->
+        <div id="auto-preview-banner" class="auto-preview-banner" style="display:none">
+          最近成功作品
+        </div>
         <div class="preview-wrapper">
           <div class="preview-label">animation.html</div>
           <iframe id="preview-html" class="preview-iframe" src=""></iframe>
@@ -118,6 +137,14 @@
         <div class="preview-wrapper">
           <div class="preview-label">output.mp4</div>
           <video id="preview-video" class="preview-video" controls></video>
+        </div>
+        <!-- Audio playback (CP15.6) -->
+        <div id="audio-player-wrap" class="audio-player-wrap" style="display:none">
+          <div class="preview-label">音频 / dialogue.wav</div>
+          <audio id="preview-audio" class="preview-audio" controls>
+            您的浏览器不支持音频播放
+          </audio>
+          <button id="btn-play-audio" class="btn-play-audio">▶ 播放音频</button>
         </div>
         <div id="download-links"></div>
         <div id="export-hint" class="hint"></div>

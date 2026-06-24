@@ -354,6 +354,8 @@ ALLOWED_ARTIFACTS = {
 ALLOWED_PREVIEW_FILES = {
     "animation.html",
     "output.mp4",
+    "audio/dialogue.wav",
+    "audio/dialogue.mp3",
 }
 
 # ---------- job store (in-memory, single-user) ----------
@@ -539,6 +541,20 @@ def _load_history_from_disk() -> list[dict]:
                 if meta.get("exported"):
                     item["output_mp4"] = f"/outputs/jobs/{job_id}/output.mp4"
 
+            # CP15.6: Include dialogue_audio if available
+            dialogue_audio_path = job_dir / "audio" / "dialogue.wav"
+            if dialogue_audio_path.exists():
+                item["dialogue_audio"] = f"/outputs/jobs/{job_id}/audio/dialogue.wav"
+            else:
+                # Try mp3 fallback
+                dialogue_mp3_path = job_dir / "audio" / "dialogue.mp3"
+                if dialogue_mp3_path.exists():
+                    item["dialogue_audio"] = f"/outputs/jobs/{job_id}/audio/dialogue.mp3"
+
+            # CP15.6: Fill in title from meta if not present
+            if not item.get("title"):
+                item["title"] = meta.get("title")
+
             items.append(item)
         except Exception:
             continue
@@ -555,6 +571,18 @@ def _build_generate_result(no_export: bool, output_dir: Path) -> dict:
             "error": "animation.html was not generated. Pipeline may have failed.",
         }
 
+    # CP15.6: Check for dialogue audio
+    dialogue_audio = None
+    audio_dir = output_dir / "audio"
+    if audio_dir.exists():
+        dialogue_wav = audio_dir / "dialogue.wav"
+        if dialogue_wav.exists():
+            dialogue_audio = f"/outputs/jobs/{output_dir.name}/audio/dialogue.wav"
+        else:
+            dialogue_mp3 = audio_dir / "dialogue.mp3"
+            if dialogue_mp3.exists():
+                dialogue_audio = f"/outputs/jobs/{output_dir.name}/audio/dialogue.mp3"
+
     if no_export:
         return {
             "ok": True,
@@ -564,6 +592,7 @@ def _build_generate_result(no_export: bool, output_dir: Path) -> dict:
             "render_ir": f"/api/jobs/{output_dir.name}/artifacts/render_ir",
             "semantic_ir": f"/api/jobs/{output_dir.name}/artifacts/semantic_ir",
             "dialogue_script": f"/api/jobs/{output_dir.name}/artifacts/dialogue_script",
+            "dialogue_audio": dialogue_audio,
         }
     else:
         output_mp4_path = output_dir / "output.mp4"
@@ -580,6 +609,7 @@ def _build_generate_result(no_export: bool, output_dir: Path) -> dict:
             "render_ir": f"/api/jobs/{output_dir.name}/artifacts/render_ir",
             "semantic_ir": f"/api/jobs/{output_dir.name}/artifacts/semantic_ir",
             "dialogue_script": f"/api/jobs/{output_dir.name}/artifacts/dialogue_script",
+            "dialogue_audio": dialogue_audio,
         }
 
 
@@ -614,6 +644,14 @@ def _write_meta(job: dict, output_dir: Path) -> None:
     }
     if exported:
         artifacts["output_mp4"] = f"/outputs/jobs/{job_id}/output.mp4"
+
+    # CP15.6: Include dialogue_audio if available
+    audio_dir = output_dir / "audio"
+    if audio_dir.exists():
+        if (audio_dir / "dialogue.wav").exists():
+            artifacts["dialogue_audio"] = f"/outputs/jobs/{job_id}/audio/dialogue.wav"
+        elif (audio_dir / "dialogue.mp3").exists():
+            artifacts["dialogue_audio"] = f"/outputs/jobs/{job_id}/audio/dialogue.mp3"
 
     # Determine provider ids for meta (safe to record, no secrets)
     request = job.get("request", {})
@@ -1131,12 +1169,14 @@ def api_history():
         if job["result"]:
             item["animation_html"] = job["result"].get("animation_html")
             item["output_mp4"] = job["result"].get("output_mp4")
+            # CP15.6: dialogue_audio from result
+            item["dialogue_audio"] = job["result"].get("dialogue_audio")
 
         # Supplement from disk meta if available
         if job_id in disk_items:
             disk = disk_items.pop(job_id)
             # Fill in missing fields from disk
-            for key in ("title", "summary", "duration", "mode"):
+            for key in ("title", "summary", "duration", "mode", "dialogue_audio"):
                 if key not in item or item[key] is None:
                     item[key] = disk.get(key)
 
@@ -1260,11 +1300,12 @@ def api_job_debug(job_id: str):
 # ---------- job output files ----------
 
 
-@app.get("/outputs/jobs/{job_id}/{filename}")
+@app.get("/outputs/jobs/{job_id}/{filename:path}")
 def api_job_preview(job_id: str, filename: str):
-    """Preview animation.html or output.mp4 from a job's output directory.
+    """Preview animation.html, output.mp4, or audio from a job's output directory.
 
     Supports both in-memory jobs and disk-only jobs (after restart).
+    The :path suffix allows filename to contain slashes (e.g. audio/dialogue.wav).
     """
     if filename not in ALLOWED_PREVIEW_FILES:
         raise HTTPException(status_code=404, detail=f"Preview not allowed: {filename}")
@@ -1279,6 +1320,12 @@ def api_job_preview(job_id: str, filename: str):
         return FileResponse(str(filepath), media_type="text/html")
     elif filename == "output.mp4":
         return FileResponse(str(filepath), media_type="video/mp4")
+    elif filename.startswith("audio/"):
+        if filename.endswith(".wav"):
+            return FileResponse(str(filepath), media_type="audio/wav")
+        elif filename.endswith(".mp3"):
+            return FileResponse(str(filepath), media_type="audio/mpeg")
+        raise HTTPException(status_code=404, detail="Unsupported audio format")
 
     raise HTTPException(status_code=404, detail="Unknown file type")
 

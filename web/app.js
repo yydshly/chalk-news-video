@@ -1,4 +1,4 @@
-/* Chalk News Video Studio — CP15 app.js */
+/* Chalk News Video Studio — CP15.6 app.js */
 
 (function () {
   "use strict";
@@ -32,12 +32,20 @@
   const llmProviderStatus = document.getElementById("llm-provider-status");
   const ttsProviderStatus = document.getElementById("tts-provider-status");
   const checkRepair = document.getElementById("check-repair");
+  const recommendedHint = document.getElementById("recommended-hint");
+  const recommendedConfigText = document.getElementById("recommended-config-text");
+  const ttsUpgradeHint = document.getElementById("tts-upgrade-hint");
+  const autoPreviewBanner = document.getElementById("auto-preview-banner");
+  const audioPlayerWrap = document.getElementById("audio-player-wrap");
+  const previewAudio = document.getElementById("preview-audio");
+  const btnPlayAudio = document.getElementById("btn-play-audio");
 
   // ---------- state ----------
   let lastResult = null;
   let currentEventSource = null;
   let llmProviders = [];
   let ttsProviders = [];
+  let latestSucceededJob = null;
 
   // ---------- init ----------
   async function init() {
@@ -68,8 +76,8 @@
       setStatus("加载主题失败: " + e.message, "error");
     }
 
-    // Load history on startup
-    loadHistory();
+    // Load history on startup and auto-preview latest succeeded
+    await loadHistoryAndAutoPreview();
   }
 
   // ---------- load providers (CP15) ----------
@@ -100,10 +108,11 @@
         selectTtsProvider.appendChild(opt);
       });
 
-      // Set default: mock + mock_dialogue
+      // Set defaults
       selectLlmProvider.value = "mock";
       selectTtsProvider.value = "mock_dialogue";
       updateProviderStatus();
+      updateRecommendedHint();
 
     } catch (e) {
       console.error("Failed to load providers:", e);
@@ -140,12 +149,42 @@
     }
   }
 
+  function updateRecommendedHint() {
+    // Update recommended config text based on current selection
+    const llmId = selectLlmProvider.value;
+    const ttsId = selectTtsProvider.value;
+    const llm = llmProviders.find(function (p) { return p.id === llmId; });
+    const tts = ttsProviders.find(function (p) { return p.id === ttsId; });
+
+    let cfgText = "";
+    if (llmId === "mock") {
+      cfgText = "示例新闻 + mock LLM + mock_dialogue（本地无需 API key）";
+    } else if (llm && llm.name) {
+      cfgText = "热门 AI 新闻 + research_desk + " + llm.name + " + mock_dialogue + 不导出 MP4";
+    } else {
+      cfgText = "热门 AI 新闻 + research_desk + " + llmId + " + mock_dialogue + 不导出 MP4";
+    }
+    recommendedConfigText.textContent = cfgText;
+
+    // Show upgrade hint if minimax_dialogue ready
+    const minimaxReady = ttsProviders.some(function (p) {
+      return p.id === "minimax_dialogue" && p.ready;
+    });
+    ttsUpgradeHint.style.display = minimaxReady ? "block" : "none";
+  }
+
   // Provider select change handlers
   if (selectLlmProvider) {
-    selectLlmProvider.addEventListener("change", updateProviderStatus);
+    selectLlmProvider.addEventListener("change", function () {
+      updateProviderStatus();
+      updateRecommendedHint();
+    });
   }
   if (selectTtsProvider) {
-    selectTtsProvider.addEventListener("change", updateProviderStatus);
+    selectTtsProvider.addEventListener("change", function () {
+      updateProviderStatus();
+      updateRecommendedHint();
+    });
   }
 
   // ---------- mode toggle ----------
@@ -258,10 +297,11 @@
           setStatus("生成成功！", "success");
           updateProgress(100, "完成");
           appendJobLog("[完成] 生成成功");
-          showPreview(d.result);
+          // CP15.6: Auto-jump to preview tab and show result
+          showPreview(d.result, true);
           loadArtifacts(d.result);
-          // Refresh history after job completes
-          loadHistory();
+          // Refresh history and auto-preview after job completes
+          loadHistoryAndAutoPreview(d.result);
         } else {
           setStatus("生成结果异常", "error");
           appendJobLog("[错误] 未收到结果");
@@ -279,7 +319,7 @@
         currentEventSource = null;
         setStatus("错误: " + errorMsg, "error");
         appendJobLog("[失败] " + errorMsg);
-        loadHistory(); // Refresh history to show failed job
+        loadHistory();
         btnGenerate.disabled = false;
       });
 
@@ -296,10 +336,21 @@
     }
   });
 
-  // ---------- history ----------
+  // ---------- history with auto-preview (CP15.6) ----------
   btnRefreshHistory.addEventListener("click", function () {
     loadHistory();
   });
+
+  async function loadHistoryAndAutoPreview(resultFromJob) {
+    await loadHistory();
+    if (resultFromJob) {
+      // Auto-preview the job that just succeeded
+      showPreview(resultFromJob, true);
+    } else if (latestSucceededJob) {
+      // Auto-preview the latest succeeded job on page load
+      showPreviewForJob(latestSucceededJob);
+    }
+  }
 
   async function loadHistory() {
     if (!historyList) return;
@@ -323,7 +374,13 @@
 
       historyList.innerHTML = "";
 
+      // CP15.6: Track latest succeeded job for auto-preview
+      latestSucceededJob = null;
+
       items.forEach(function (job) {
+        if (job.status === "succeeded" && !latestSucceededJob) {
+          latestSucceededJob = job;
+        }
         const item = createHistoryItem(job);
         historyList.appendChild(item);
       });
@@ -335,6 +392,11 @@
   function createHistoryItem(job) {
     const div = document.createElement("div");
     div.className = "history-item";
+    if (job.status === "succeeded") {
+      div.classList.add("history-item-succeeded");
+    } else if (job.status === "failed") {
+      div.classList.add("history-item-failed");
+    }
 
     const statusClass = job.status === "succeeded" ? "status-success" :
                         job.status === "failed" ? "status-error" : "status-pending";
@@ -346,32 +408,40 @@
 
     const dateStr = job.created_at ? job.created_at.replace("T", " ").slice(0, 19) : "";
 
+    // Build action buttons for succeeded jobs
     let linksHtml = "";
-    if (job.status === "succeeded" && job.result) {
+    if (job.status === "succeeded") {
       if (job.animation_html) {
-        linksHtml += '<button class="btn-history-action" data-action="preview" data-job="' + job.job_id + '">预览 animation</button> ';
+        linksHtml += '<button class="btn-history-action" data-action="preview" data-job="' + job.job_id + '">🎬 预览动画</button> ';
       }
       if (job.output_mp4) {
-        linksHtml += '<button class="btn-history-action" data-action="video" data-job="' + job.job_id + '">预览 MP4</button> ';
+        linksHtml += '<button class="btn-history-action" data-action="video" data-job="' + job.job_id + '">▶ 预览 MP4</button> ';
       }
-      linksHtml += '<button class="btn-history-action" data-action="artifacts" data-job="' + job.job_id + '">查看 artifacts</button>';
+      if (job.dialogue_audio) {
+        linksHtml += '<button class="btn-history-action" data-action="audio" data-job="' + job.job_id + '">🔊 播放音频</button> ';
+      }
+      linksHtml += '<button class="btn-history-action" data-action="artifacts" data-job="' + job.job_id + '">📋 查看脚本</button>';
     }
+
+    // Title from job (CP15.6)
+    const jobTitle = job.title || job.summary || "";
 
     div.innerHTML =
       '<div class="history-item-header">' +
         '<span class="history-job-id">' + job.job_id + '</span>' +
         '<span class="history-badge ' + statusClass + '">' + job.status + '</span>' +
       '</div>' +
+      (jobTitle ? '<div class="history-item-title">' + escapeHtml(jobTitle.slice(0, 80)) + '</div>' : '') +
       '<div class="history-item-meta">' +
-        '<span>主题: ' + (job.theme || "-") + '</span> ' +
-        '<span>模式: ' + dialogueLabel + '</span> ' +
+        '<span>' + (job.theme ? '主题: ' + job.theme : '') + '</span> ' +
+        '<span>' + dialogueLabel + '</span> ' +
         '<span>LLM: ' + llmLabel + '</span> ' +
-        '<span>TTS: ' + ttsLabel + '</span> ' +
+        '<span>TTS: ' + ttsLabel + '</span>' +
+        (job.duration ? '<span class="history-item-duration">' + job.duration.toFixed(1) + 's</span>' : '') +
         '<span>' + exportedLabel + '</span>' +
       '</div>' +
       '<div class="history-item-time">' + dateStr + '</div>' +
-      '<div class="history-item-message">' + (job.message || "") + '</div>' +
-      (job.error ? '<div class="history-item-error">' + job.error.slice(0, 100) + '</div>' : '') +
+      (job.error ? '<div class="history-item-error-collapsed" data-job="' + job.job_id + '">' + escapeHtml(job.error.slice(0, 80)) + '</div>' : '') +
       '<div class="history-item-actions">' + linksHtml + '</div>';
 
     // Attach event listeners
@@ -383,29 +453,31 @@
       });
     });
 
+    // CP15.6: Collapsible failed job error
+    const errorCollapsed = div.querySelector(".history-item-error-collapsed");
+    if (errorCollapsed && job.status === "failed") {
+      errorCollapsed.style.cursor = "pointer";
+      errorCollapsed.addEventListener("click", function () {
+        const existing = div.querySelector(".history-item-error-expanded");
+        if (existing) {
+          existing.remove();
+          errorCollapsed.style.display = "block";
+        } else {
+          errorCollapsed.style.display = "none";
+          const expanded = document.createElement("div");
+          expanded.className = "history-item-error-expanded";
+          expanded.textContent = job.error || "(无错误信息)";
+          div.insertBefore(expanded, div.querySelector(".history-item-actions"));
+        }
+      });
+    }
+
     return div;
   }
 
   function handleHistoryAction(action, jobId, job) {
     if (action === "preview") {
-      // Show animation in iframe
-      previewHtml.src = job.animation_html + "?t=" + Date.now();
-      previewVideo.src = "about:blank";
-      downloadLinks.innerHTML = "";
-      if (job.animation_html) {
-        addDownloadLink(job.animation_html, "📄 animation.html");
-      }
-      if (job.output_mp4) {
-        addDownloadLink(job.output_mp4, "🎬 output.mp4");
-      }
-      if (exportHint) {
-        exportHint.textContent = job.exported ? "已导出 MP4" : "本次未导出 MP4";
-      }
-      // Switch to preview tab
-      tabBtns.forEach(function (b) { b.classList.remove("active"); });
-      tabContents.forEach(function (c) { c.classList.remove("active"); });
-      document.querySelector('[data-tab="preview"]').classList.add("active");
-      document.getElementById("tab-preview").classList.add("active");
+      showPreviewForJob(job);
 
     } else if (action === "video") {
       if (job.output_mp4) {
@@ -416,23 +488,73 @@
           addDownloadLink(job.animation_html, "📄 animation.html");
         }
         addDownloadLink(job.output_mp4, "🎬 output.mp4");
-        if (exportHint) {
-          exportHint.textContent = "已导出 MP4";
-        }
-        tabBtns.forEach(function (b) { b.classList.remove("active"); });
-        tabContents.forEach(function (c) { c.classList.remove("active"); });
-        document.querySelector('[data-tab="preview"]').classList.add("active");
-        document.getElementById("tab-preview").classList.add("active");
+        setExportHint(true);
+        switchToPreviewTab();
+      }
+
+    } else if (action === "audio") {
+      if (job.dialogue_audio) {
+        previewAudio.src = job.dialogue_audio + "?t=" + Date.now();
+        audioPlayerWrap.style.display = "block";
+        previewAudio.style.display = "block";
+        btnPlayAudio.style.display = "none";
+        switchToPreviewTab();
       }
 
     } else if (action === "artifacts") {
-      // Load artifacts from this job
       loadJobArtifacts(job);
+      switchToPreviewTab();
+      // Switch to semantic_ir tab to show scripts
+      tabBtns.forEach(function (b) { b.classList.remove("active"); });
+      tabContents.forEach(function (c) { c.classList.remove("active"); });
+      document.querySelector('[data-tab="semantic_ir"]').classList.add("active");
+      document.getElementById("tab-semantic_ir").classList.add("active");
+      // Actually show render_ir which has title/summary
       tabBtns.forEach(function (b) { b.classList.remove("active"); });
       tabContents.forEach(function (c) { c.classList.remove("active"); });
       document.querySelector('[data-tab="render_ir"]').classList.add("active");
       document.getElementById("tab-render_ir").classList.add("active");
     }
+  }
+
+  function showPreviewForJob(job) {
+    autoPreviewBanner.style.display = "none";
+    const ts = "?t=" + Date.now();
+
+    if (job.animation_html) {
+      previewHtml.src = job.animation_html + ts;
+    }
+
+    if (job.output_mp4) {
+      previewVideo.src = job.output_mp4 + ts;
+    } else {
+      previewVideo.src = "about:blank";
+    }
+
+    // Audio
+    if (job.dialogue_audio) {
+      previewAudio.src = job.dialogue_audio + ts;
+      audioPlayerWrap.style.display = "block";
+      previewAudio.style.display = "block";
+      btnPlayAudio.style.display = "none";
+    } else {
+      audioPlayerWrap.style.display = "none";
+    }
+
+    // Download links
+    downloadLinks.innerHTML = "";
+    if (job.animation_html) {
+      addDownloadLink(job.animation_html, "📄 animation.html");
+    }
+    if (job.output_mp4) {
+      addDownloadLink(job.output_mp4, "🎬 output.mp4");
+    }
+    if (job.dialogue_audio) {
+      addDownloadLink(job.dialogue_audio, "🔊 dialogue.wav");
+    }
+
+    setExportHint(job.exported);
+    switchToPreviewTab();
   }
 
   async function loadJobArtifacts(job) {
@@ -458,7 +580,24 @@
     }
   }
 
+  // Audio play button
+  if (btnPlayAudio) {
+    btnPlayAudio.addEventListener("click", function () {
+      if (previewAudio.src) {
+        previewAudio.play().catch(function () {});
+        btnPlayAudio.style.display = "none";
+      }
+    });
+  }
+
   // ---------- helpers ----------
+  function switchToPreviewTab() {
+    tabBtns.forEach(function (b) { b.classList.remove("active"); });
+    tabContents.forEach(function (c) { c.classList.remove("active"); });
+    document.querySelector('[data-tab="preview"]').classList.add("active");
+    document.getElementById("tab-preview").classList.add("active");
+  }
+
   function setStatus(msg, type) {
     statusMsg.textContent = msg;
     statusMsg.className = "status-msg " + (type || "");
@@ -472,9 +611,9 @@
     jsonRenderIr.textContent = "";
     jsonSemanticIr.textContent = "";
     jsonDialogueScript.textContent = "";
-    if (exportHint) {
-      exportHint.textContent = "";
-    }
+    setExportHint(null);
+    audioPlayerWrap.style.display = "none";
+    autoPreviewBanner.style.display = "none";
   }
 
   function clearJobLog() {
@@ -509,40 +648,56 @@
     }
   }
 
-  function showPreview(result) {
-    const ts = "t=" + Date.now();
+  function showPreview(result, autoPreview) {
+    const ts = "?t=" + Date.now();
 
-    if (result.animation_html) {
-      previewHtml.src = result.animation_html + "?" + ts;
+    if (autoPreview) {
+      autoPreviewBanner.style.display = "block";
+      autoPreviewBanner.textContent = "最近成功作品";
     }
 
-    if (exportHint) {
-      exportHint.textContent = "";
+    if (result.animation_html) {
+      previewHtml.src = result.animation_html + ts;
     }
 
     if (result.exported === true && result.output_mp4) {
-      previewVideo.src = result.output_mp4 + "?" + ts;
+      previewVideo.src = result.output_mp4 + ts;
       downloadLinks.innerHTML = "";
       addDownloadLink(result.animation_html, "📄 animation.html");
       addDownloadLink(result.output_mp4, "🎬 output.mp4");
-      if (exportHint) {
-        exportHint.textContent = "已导出 MP4";
-      }
+      setExportHint(true);
     } else {
       previewVideo.src = "about:blank";
       downloadLinks.innerHTML = "";
       if (result.animation_html) {
         addDownloadLink(result.animation_html, "📄 animation.html");
       }
-      if (exportHint) {
-        exportHint.textContent = "本次未导出 MP4，仅生成 animation.html 预览";
-      }
+      setExportHint(false);
     }
 
-    tabBtns.forEach(function (b) { b.classList.remove("active"); });
-    tabContents.forEach(function (c) { c.classList.remove("active"); });
-    document.querySelector('[data-tab="preview"]').classList.add("active");
-    document.getElementById("tab-preview").classList.add("active");
+    // Audio
+    if (result.dialogue_audio) {
+      previewAudio.src = result.dialogue_audio + ts;
+      audioPlayerWrap.style.display = "block";
+      previewAudio.style.display = "block";
+      btnPlayAudio.style.display = "none";
+      addDownloadLink(result.dialogue_audio, "🔊 dialogue.wav");
+    } else {
+      audioPlayerWrap.style.display = "none";
+    }
+
+    switchToPreviewTab();
+  }
+
+  function setExportHint(exported) {
+    if (!exportHint) return;
+    if (exported === true) {
+      exportHint.textContent = "已导出 MP4";
+    } else if (exported === false) {
+      exportHint.textContent = "本次未导出 MP4，仅生成 animation.html 预览";
+    } else {
+      exportHint.textContent = "";
+    }
   }
 
   function addDownloadLink(href, label) {
@@ -565,6 +720,10 @@
     }
 
     await Promise.all(artifacts.map(function (art) {
+      if (!art.url) {
+        art.el.textContent = "(未生成)";
+        return Promise.resolve();
+      }
       return fetch(art.url)
         .then(function (r) { return r.json(); })
         .then(function (data) {
@@ -574,6 +733,11 @@
           art.el.textContent = "(未生成)";
         });
     }));
+  }
+
+  function escapeHtml(str) {
+    if (!str) return "";
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
 
   // ---------- start ----------
