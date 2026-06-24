@@ -106,3 +106,42 @@ Each item shows: filename, created time, size, "打开" and "下载" buttons.
 - No HTML content inspection (only filename/metadata)
 - No pagination beyond 50 items
 - No merge with regular job history
+
+---
+
+## CP32.1: History Filename Safety Filter
+
+**Branch:** `fix/cp32.1-history-filename-safety`
+**Commit:** `fix(cp32.1): harden episode html history filename filtering`
+**Date:** 2026-06-25
+
+### Problem
+
+CP32's history endpoint only checked `f.is_file() and f.suffix == ".html"`. There was no explicit filtering of suspicious filenames. While `iterdir()` doesn't recurse into subdirectories, the static route `/outputs/episode_previews/{filename}` already guards against `..`, `/`, and `\`, so the history endpoint should match that same safety boundary.
+
+### Fix
+
+Explicit filename filter before appending to results:
+```python
+filename = f.name
+if ".." in filename or "/" in filename or "\\" in filename:
+    continue
+if not filename.endswith(".html"):
+    continue
+```
+
+This is consistent with the `serve_episode_preview()` static route which blocks path traversal in the same way.
+
+### Lightweight Verification Results
+
+| Test | Result |
+|------|--------|
+| Normal `episode_xxx.html` returned | ✓ |
+| Non-`.html` files not returned | ✓ |
+| Subdirectory files not returned | ✓ |
+| Filename with `..` not returned | ✓ |
+| `file_path` still relative | ✓ |
+| No HTML content read | ✓ |
+| No `/api/jobs` called | ✓ |
+| No real LLM / TTS / MP4 | ✓ |
+

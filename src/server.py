@@ -1097,15 +1097,26 @@ def api_episode_html_history():
     try:
         files = []
         for f in EPISODE_PREVIEWS_DIR.iterdir():
-            if f.is_file() and f.suffix == ".html":
-                stat = f.stat()
-                files.append({
-                    "filename": f.name,
-                    "path": f"/outputs/episode_previews/{f.name}",
-                    "file_path": f"outputs/episode_previews/{f.name}",
-                    "created_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                    "size": stat.st_size,
-                })
+            if not f.is_file():
+                continue
+
+            filename = f.name
+
+            # CP32.1: Explicit safety filter — must match static route rules
+            if ".." in filename or "/" in filename or "\\" in filename:
+                continue
+
+            if not filename.endswith(".html"):
+                continue
+
+            stat = f.stat()
+            files.append({
+                "filename": filename,
+                "path": f"/outputs/episode_previews/{filename}",
+                "file_path": f"outputs/episode_previews/{filename}",
+                "created_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                "size": stat.st_size,
+            })
         # Sort by mtime descending
         files.sort(key=lambda x: x["created_at"], reverse=True)
         return JSONResponse({"ok": True, "items": files[:50]})
