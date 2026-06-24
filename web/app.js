@@ -93,6 +93,7 @@
   let latestEpisodePreviewUrl = null;      // CP28: Blob URL for mock HTML preview
   let latestEpisodeHtmlArtifact = null;    // CP31: saved episode HTML artifact
   let episodeHtmlHistoryList = [];        // CP32: episode HTML artifact history
+  let latestEpisodeTemplateContract = null;  // CP34: most recent episode template contract
   let currentStyleRecommendations = [];    // CP30: current style recommendations
 
   // CP20/CG29: Expanded theme showcase data — video style gallery
@@ -1688,9 +1689,16 @@
     }
   }
 
-  // CP33: Build polished mock episode HTML — video timeline preview style
-  function buildMockEpisodeHtml(renderIr) {
-    if (!renderIr) return "";
+  // CP34: Format seconds to MM:SS timecode string
+  function formatTimecode(seconds) {
+    var m = Math.floor(seconds / 60);
+    var s = seconds % 60;
+    return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+  }
+
+  // CP34: Build episode template contract from renderIr — episode_template_v1
+  function buildEpisodeTemplateContract(renderIr) {
+    if (!renderIr) return null;
 
     var sections = renderIr.timeline && renderIr.timeline.sections ? renderIr.timeline.sections : [];
     var newsSegs = sections.filter(function (s) { return s.type === "news_segment"; });
@@ -1699,149 +1707,303 @@
     var closingSec = sections.find(function (s) { return s.type === "closing"; });
     var totalDuration = renderIr.timeline && renderIr.timeline.estimated_duration_sec ? renderIr.timeline.estimated_duration_sec : 0;
 
-    // Build timeline markers with pseudo timecodes
-    function pseudoTimecode(offsetSec) {
-      var m = Math.floor(offsetSec / 60);
-      var s = offsetSec % 60;
-      return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
-    }
+    var themeName = (THEME_SHOWCASES[renderIr.theme] && THEME_SHOWCASES[renderIr.theme].name) ? THEME_SHOWCASES[renderIr.theme].name : (renderIr.theme || "");
+    var leadCount = newsSegs.filter(function (s) { return s.role === "lead"; }).length || 1;
 
-    function buildTimelineMarkers() {
-      var markers = [];
-      var cursor = 0;
+    // Build timeline markers
+    var markers = [];
+    var cursor = 0;
 
-      // Opening marker
-      var openingDur = openingSec ? (openingSec.duration_hint_sec || 12) : 12;
-      markers.push('<div class="tl-marker">' +
-        '<div class="tl-dot tl-dot-opening"></div>' +
-        '<div class="tl-label"><span class="tl-time">' + pseudoTimecode(cursor) + '</span><span class="tl-name">开场</span></div>' +
-        '</div>');
-      cursor += openingDur;
+    // Opening marker
+    var openingDur = openingSec ? (openingSec.duration_hint_sec || 12) : 12;
+    markers.push({
+      type: "opening",
+      label: "开场",
+      timecode: formatTimecode(cursor),
+      role: null,
+      section_id: openingSec ? openingSec.section_id : null
+    });
+    cursor += openingDur;
 
-      // Per-segment markers + transitions
-      newsSegs.forEach(function (seg, i) {
-        var segDur = seg.duration_hint_sec || 32;
-        var isLead = seg.role === "lead";
-        markers.push('<div class="tl-marker">' +
-          '<div class="tl-dot ' + (isLead ? "tl-dot-lead" : "tl-dot-supporting") + '"></div>' +
-          '<div class="tl-label"><span class="tl-time">' + pseudoTimecode(cursor) + '</span>' +
-          '<span class="tl-name">' + (isLead ? "主线 " : "补充 ") + (i + 1) + '</span></div>' +
-          '</div>');
-        cursor += segDur;
-
-        // Transition after this segment (if not last)
-        if (i < newsSegs.length - 1) {
-          var transDur = 4;
-          var trans = transitions[i];
-          if (trans && trans.duration_hint_sec) transDur = trans.duration_hint_sec;
-          markers.push('<div class="tl-marker tl-marker-trans">' +
-            '<div class="tl-dot tl-dot-trans"></div>' +
-            '<div class="tl-label"><span class="tl-time">' + pseudoTimecode(cursor) + '</span>' +
-            '<span class="tl-name">转场</span></div>' +
-            '</div>');
-          cursor += transDur;
-        }
-      });
-
-      // Closing marker
-      var closingDur = closingSec ? (closingSec.duration_hint_sec || 12) : 12;
-      markers.push('<div class="tl-marker">' +
-        '<div class="tl-dot tl-dot-closing"></div>' +
-        '<div class="tl-label"><span class="tl-time">' + pseudoTimecode(cursor) + '</span>' +
-        '<span class="tl-name">结尾</span></div>' +
-        '</div>');
-
-      return markers.join("");
-    }
-
-    function buildNewsCard(seg, index) {
-      var isLead = seg.role === "lead";
-      var badges = seg.visual && seg.visual.badges ? seg.visual.badges : [];
-      var layout = seg.visual && seg.visual.layout ? seg.visual.layout : "";
-      var emphasis = seg.visual && seg.visual.emphasis ? seg.visual.emphasis : "";
-      var audioCount = seg.audio_clip_ids ? seg.audio_clip_ids.length : 0;
-      var durHint = seg.duration_hint_sec || 32;
-      var roleLabel = isLead ? "主线" : "补充";
-
-      // Calculate pseudo time range for this card
-      var startOffset = 0;
-      var cursor = 0;
-      cursor += openingSec ? (openingSec.duration_hint_sec || 12) : 12;
-      for (var j = 0; j < index; j++) {
-        cursor += newsSegs[j].duration_hint_sec || 32;
-        if (j < newsSegs.length - 1) cursor += 4; // transition
-      }
-      startOffset = cursor;
-      var endOffset = startOffset + durHint;
-      var timeRange = pseudoTimecode(startOffset) + " – " + pseudoTimecode(endOffset);
-
-      var cardClass = isLead ? "mock-news-card mock-news-card-lead" : "mock-news-card";
-      var borderColor = isLead ? "#f59e0b" : "#2d3748";
-      var bgColor = isLead ? "#1a1a2e" : "#111827";
-      var badgeLeadHtml = isLead ? '<span class="card-lead-badge">★ 主线</span>' : "";
-
-      var badgesHtml = badges.map(function (b) {
-        return '<span class="card-badge">' + escapeHtml(b) + '</span>';
-      }).join("");
-
-      return '<div class="mock-news-card ' + (isLead ? "mock-news-card-lead" : "") + '" data-section-type="news_segment" style="background:' + bgColor + ';border:1px solid ' + borderColor + ';border-radius:12px;padding:20px;margin:10px 0;animation:fadeUp 0.4s ease-out both;">' +
-        '<div class="card-header-row" style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">' +
-        '<span class="card-rank" style="background:#1e293b;color:#64748b;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;">#' + (index + 1) + '</span>' +
-        '<span class="card-time" style="color:#475569;font-size:11px;font-family:monospace;">' + timeRange + '</span>' +
-        '<span class="card-dur" style="color:#475569;font-size:11px;">' + durHint + 's</span>' +
-        badgeLeadHtml +
-        '</div>' +
-        '<div class="card-headline" style="color:#f9fafb;font-size:16px;font-weight:600;margin-bottom:8px;line-height:1.4;">' +
-        escapeHtml(seg.visual && seg.visual.headline ? seg.visual.headline : "") + '</div>' +
-        '<div class="card-meta-row" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">' +
-        '<span class="card-layout-tag" style="color:#38bdf8;font-size:11px;background:#1e293b;padding:2px 6px;border-radius:3px;">' + escapeHtml(layout) + '</span>' +
-        (emphasis ? '<span class="card-emphasis-tag" style="color:#fbbf24;font-size:11px;background:#1e293b;padding:2px 6px;border-radius:3px;">' + escapeHtml(emphasis) + '</span>' : '') +
-        badgesHtml +
-        '</div>' +
-        '<div class="card-footer-row" style="color:#4b5563;font-size:11px;margin-top:8px;">' +
-        '<span>🎙 ' + audioCount + ' 音频片段</span>' +
-        '<span style="margin-left:12px;">📋 ' + escapeHtml(roleLabel) + '</span>' +
-        '</div>' +
-        '</div>';
-    }
-
-    function buildTransitionRow(seg, index) {
-      // Find the corresponding transition in sections
-      var segOrder = seg.order || (index + 1);
-      var trans = transitions.find(function (t) {
-        // transition after order N has after_order = N
-        return t.type === "transition" && t.section_id && t.section_id.includes(String(segOrder).padStart(3, "0"));
-      });
-      var transText = (trans && trans.visual && trans.visual.text) ? trans.visual.text : "接着看下一条";
-      return '<div class="mock-transition-row" style="display:flex;align-items:center;gap:12px;padding:8px 16px;margin:4px 0;color:#475569;font-size:12px;">' +
-        '<span style="flex:1;height:1px;background:#1e293b;"></span>' +
-        '<span style="white-space:nowrap;">→ ' + escapeHtml(transText) + ' →</span>' +
-        '<span style="flex:1;height:1px;background:#1e293b;"></span>' +
-        '</div>';
-    }
-
-    var newsCardsHtml = [];
+    // Per-segment markers + transitions
     newsSegs.forEach(function (seg, i) {
-      newsCardsHtml.push(buildNewsCard(seg, i));
+      var segDur = seg.duration_hint_sec || 32;
+      var isLead = seg.role === "lead";
+      markers.push({
+        type: "news_segment",
+        label: (isLead ? "主线 " : "补充 ") + (i + 1),
+        timecode: formatTimecode(cursor),
+        role: seg.role,
+        section_id: seg.section_id
+      });
+      cursor += segDur;
+
       if (i < newsSegs.length - 1) {
-        newsCardsHtml.push(buildTransitionRow(seg, i));
+        var transDur = 4;
+        var trans = transitions[i];
+        if (trans && trans.duration_hint_sec) transDur = trans.duration_hint_sec;
+        markers.push({
+          type: "transition",
+          label: "转场",
+          timecode: formatTimecode(cursor),
+          role: null,
+          section_id: trans ? trans.section_id : null
+        });
+        cursor += transDur;
       }
     });
 
-    var themeName = (THEME_SHOWCASES[renderIr.theme] && THEME_SHOWCASES[renderIr.theme].name) ? THEME_SHOWCASES[renderIr.theme].name : (renderIr.theme || "");
-    var totalTimeStr = pseudoTimecode(totalDuration);
+    // Closing marker
+    var closingDur = closingSec ? (closingSec.duration_hint_sec || 12) : 12;
+    markers.push({
+      type: "closing",
+      label: "结尾",
+      timecode: formatTimecode(cursor),
+      role: null,
+      section_id: closingSec ? closingSec.section_id : null
+    });
+
+    // Build news cards data
+    var newsCards = [];
+    newsSegs.forEach(function (seg, index) {
+      var isLead = seg.role === "lead";
+      var badges = seg.visual && seg.visual.badges ? seg.visual.badges : [];
+      var durHint = seg.duration_hint_sec || 32;
+      var roleLabel = isLead ? "主线" : "补充";
+
+      // Calculate pseudo time range
+      var cardCursor = 0;
+      cardCursor += openingSec ? (openingSec.duration_hint_sec || 12) : 12;
+      for (var j = 0; j < index; j++) {
+        cardCursor += newsSegs[j].duration_hint_sec || 32;
+        if (j < newsSegs.length - 1) cardCursor += 4;
+      }
+      var startOffset = cardCursor;
+      var endOffset = startOffset + durHint;
+      var timeRange = formatTimecode(startOffset) + " – " + formatTimecode(endOffset);
+
+      newsCards.push({
+        section_id: seg.section_id,
+        order: index + 1,
+        role: seg.role,
+        headline: seg.visual && seg.visual.headline ? seg.visual.headline : "",
+        layout: seg.visual && seg.visual.layout ? seg.visual.layout : "",
+        emphasis: seg.visual && seg.visual.emphasis ? seg.visual.emphasis : "",
+        badges: badges,
+        audio_clip_count: seg.audio_clip_ids ? seg.audio_clip_ids.length : 0,
+        duration_hint_sec: durHint,
+        time_range: timeRange,
+        is_lead: isLead,
+        section_type: "news_segment"
+      });
+    });
+
+    // Build transitions data
+    var transitionRows = [];
+    newsSegs.forEach(function (seg, index) {
+      var segOrder = seg.order || (index + 1);
+      var trans = transitions.find(function (t) {
+        return t.type === "transition" && t.section_id && t.section_id.includes(String(segOrder).padStart(3, "0"));
+      });
+      var transText = (trans && trans.visual && trans.visual.text) ? trans.visual.text : "接着看下一条";
+      transitionRows.push({
+        after_order: index + 1,
+        text: transText
+      });
+    });
+
+    return {
+      schema_version: "episode_template_v1",
+      template_id: "timeline_preview_v1",
+      episode: {
+        title: renderIr.episode_title || "今日 AI 前沿速览",
+        subtitle: renderIr.subtitle || "多条热门 AI 新闻合集",
+        theme_id: renderIr.theme || "",
+        theme_name: themeName,
+        estimated_duration_sec: totalDuration,
+        news_count: newsSegs.length,
+        lead_count: leadCount
+      },
+      timeline: {
+        markers: markers
+      },
+      sections: {
+        opening: {
+          title: openingSec && openingSec.visual && openingSec.visual.title ? openingSec.visual.title : "今日 AI 前沿速览",
+          subtitle: renderIr.subtitle || "多条热门 AI 新闻合集",
+          duration_hint_sec: openingSec ? (openingSec.duration_hint_sec || 12) : 12
+        },
+        news_cards: newsCards,
+        transitions: transitionRows,
+        closing: {
+          title: closingSec && closingSec.visual ? (closingSec.visual.title || "今天最值得关注的是...") : "今天最值得关注的是...",
+          focus_news_id: closingSec && closingSec.visual && closingSec.visual.focus_news_id ? closingSec.visual.focus_news_id : null
+        }
+      },
+      constraints: {
+        no_external_assets: true,
+        no_script: true,
+        no_real_render: true,
+        no_audio: true,
+        no_mp4: true
+      }
+    };
+  }
+
+  // CP34: Validate episode template contract
+  function validateEpisodeTemplateContract(contract) {
+    var warnings = [];
+    var errors = [];
+
+    if (!contract || typeof contract !== "object") {
+      errors.push("Contract 必须是一个对象");
+      return { ok: false, warnings: warnings, errors: errors };
+    }
+
+    if (contract.schema_version !== "episode_template_v1") {
+      errors.push('Contract schema_version 必须为 "episode_template_v1"');
+    }
+
+    if (contract.template_id !== "timeline_preview_v1") {
+      errors.push('Contract template_id 必须为 "timeline_preview_v1"');
+    }
+
+    if (!contract.episode || !contract.episode.title) {
+      errors.push("Contract episode.title 必填");
+    }
+
+    if (!contract.timeline || !Array.isArray(contract.timeline.markers) || contract.timeline.markers.length === 0) {
+      errors.push("Contract timeline.markers 非空数组必填");
+    }
+
+    if (!contract.sections || !Array.isArray(contract.sections.news_cards) || contract.sections.news_cards.length === 0) {
+      errors.push("Contract sections.news_cards 非空数组必填");
+    }
+
+    // Check each news_card has required fields
+    if (contract.sections && Array.isArray(contract.sections.news_cards)) {
+      contract.sections.news_cards.forEach(function (card, i) {
+        if (!card.section_id) errors.push("news_card[" + i + "] section_id 必填");
+        if (!card.headline) errors.push("news_card[" + i + "] headline 必填");
+        if (!card.time_range) errors.push("news_card[" + i + "] time_range 必填");
+      });
+    }
+
+    // Check constraints
+    if (!contract.constraints) {
+      errors.push("Contract constraints 必填");
+    } else {
+      if (contract.constraints.no_external_assets !== true) errors.push("constraints.no_external_assets 必须为 true");
+      if (contract.constraints.no_script !== true) errors.push("constraints.no_script 必须为 true");
+      if (contract.constraints.no_audio !== true) errors.push("constraints.no_audio 必须为 true");
+      if (contract.constraints.no_mp4 !== true) errors.push("constraints.no_mp4 必须为 true");
+    }
+
+    // Security: no API key / voice_id in JSON
+    var contractStr = JSON.stringify(contract);
+    if (/api[_-]?key/i.test(contractStr)) {
+      errors.push("Contract 中不允许出现 API key");
+    }
+    if (/voice[_-]?id/i.test(contractStr)) {
+      errors.push("Contract 中不允许出现 voice_id");
+    }
+
+    return { ok: errors.length === 0, warnings: warnings, errors: errors };
+  }
+
+  // CP34: Render HTML from episode template contract
+  function renderEpisodeTemplateHtml(contract) {
+    if (!contract) return "";
+
+    var episode = contract.episode;
+    var timeline = contract.timeline;
+    var sections = contract.sections;
+
+    // Render timeline markers HTML
+    function renderTimelineMarkersHtml() {
+      if (!timeline || !timeline.markers) return "";
+      var cursor = 0;
+      var htmlParts = [];
+
+      timeline.markers.forEach(function (marker) {
+        var dotClass = "tl-dot";
+        if (marker.type === "opening") dotClass = "tl-dot tl-dot-opening";
+        else if (marker.type === "news_segment") dotClass = "tl-dot " + (marker.role === "lead" ? "tl-dot-lead" : "tl-dot-supporting");
+        else if (marker.type === "transition") dotClass = "tl-dot tl-dot-trans";
+        else if (marker.type === "closing") dotClass = "tl-dot tl-dot-closing";
+
+        htmlParts.push('<div class="tl-marker">' +
+          '<div class="' + dotClass + '"></div>' +
+          '<div class="tl-label"><span class="tl-time">' + marker.timecode + '</span><span class="tl-name">' + escapeHtml(marker.label) + '</span></div>' +
+          '</div>');
+      });
+
+      return htmlParts.join("");
+    }
+
+    // Render a single news card HTML
+    function renderNewsCardHtml(card) {
+      var isLead = card.is_lead;
+      var borderColor = isLead ? "#f59e0b" : "#2d3748";
+      var bgColor = isLead ? "#1a1a2e" : "#111827";
+      var badgeLeadHtml = isLead ? '<span class="card-lead-badge">★ 主线</span>' : "";
+      var emphasisTag = card.emphasis ? '<span class="card-emphasis-tag" style="color:#fbbf24;font-size:11px;background:#1e293b;padding:2px 6px;border-radius:3px;">' + escapeHtml(card.emphasis) + '</span>' : '';
+      var badgesHtml = card.badges.map(function (b) {
+        return '<span class="card-badge">' + escapeHtml(b) + '</span>';
+      }).join("");
+
+      return '<div class="mock-news-card' + (isLead ? " mock-news-card-lead" : "") + '" data-section-type="news_segment" style="background:' + bgColor + ';border:1px solid ' + borderColor + ';border-radius:12px;padding:20px;margin:10px 0;animation:fadeUp 0.4s ease-out both;">' +
+        '<div class="card-header-row" style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">' +
+        '<span class="card-rank" style="background:#1e293b;color:#64748b;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;">#' + card.order + '</span>' +
+        '<span class="card-time" style="color:#475569;font-size:11px;font-family:monospace;">' + card.time_range + '</span>' +
+        '<span class="card-dur" style="color:#475569;font-size:11px;">' + card.duration_hint_sec + 's</span>' +
+        badgeLeadHtml +
+        '</div>' +
+        '<div class="card-headline" style="color:#f9fafb;font-size:16px;font-weight:600;margin-bottom:8px;line-height:1.4;">' +
+        escapeHtml(card.headline) + '</div>' +
+        '<div class="card-meta-row" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">' +
+        '<span class="card-layout-tag" style="color:#38bdf8;font-size:11px;background:#1e293b;padding:2px 6px;border-radius:3px;">' + escapeHtml(card.layout) + '</span>' +
+        emphasisTag +
+        badgesHtml +
+        '</div>' +
+        '<div class="card-footer-row" style="color:#4b5563;font-size:11px;margin-top:8px;">' +
+        '<span>🎙 ' + card.audio_clip_count + ' 音频片段</span>' +
+        '<span style="margin-left:12px;">📋 ' + escapeHtml(card.is_lead ? "主线" : "补充") + '</span>' +
+        '</div>' +
+        '</div>';
+    }
+
+    // Render a transition row HTML
+    function renderTransitionRowHtml(row) {
+      return '<div class="mock-transition-row" style="display:flex;align-items:center;gap:12px;padding:8px 16px;margin:4px 0;color:#475569;font-size:12px;">' +
+        '<span style="flex:1;height:1px;background:#1e293b;"></span>' +
+        '<span style="white-space:nowrap;">→ ' + escapeHtml(row.text) + ' →</span>' +
+        '<span style="flex:1;height:1px;background:#1e293b;"></span>' +
+        '</div>';
+    }
+
+    // Assemble news cards + transitions
+    var cardsAndTransitions = [];
+    sections.news_cards.forEach(function (card, i) {
+      cardsAndTransitions.push(renderNewsCardHtml(card));
+      if (i < sections.news_cards.length - 1 && sections.transitions && sections.transitions[i]) {
+        cardsAndTransitions.push(renderTransitionRowHtml(sections.transitions[i]));
+      }
+    });
+
+    var totalTimeStr = formatTimecode(episode.estimated_duration_sec);
+    var themeName = episode.theme_name || "";
 
     var html = '<!DOCTYPE html>\n' +
       '<html lang="zh-CN">\n' +
       '<head>\n' +
       '<meta charset="UTF-8">\n' +
       '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
-      '<title>' + escapeHtml(renderIr.episode_title || "今日 AI 前沿速览") + '</title>\n' +
+      '<title>' + escapeHtml(episode.title) + '</title>\n' +
       '<style>\n' +
       '*{margin:0;padding:0;box-sizing:border-box}\n' +
       'body{background:#0f172a;color:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;' +
       'display:flex;flex-direction:column;min-height:100vh;padding:0}\n' +
-      /* Hero header */
       '.hero{background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);padding:32px 40px;border-bottom:1px solid #1e3a5f;position:relative;overflow:hidden;}\n' +
       '.hero::before{content:"";position:absolute;top:0;left:0;right:0;bottom:0;background:repeating-linear-gradient(90deg,transparent,transparent 40px,#1e293b 40px,#1e293b 41px);opacity:0.3;pointer-events:none;}\n' +
       '.hero-content{position:relative;z-index:1;}\n' +
@@ -1855,7 +2017,6 @@
       '.hero-stat{text-align:center;}\n' +
       '.hero-stat-num{font-size:20px;font-weight:700;color:#38bdf8;}\n' +
       '.hero-stat-label{font-size:11px;color:#64748b;}\n' +
-      /* Timeline rail */
       '.tl-rail{background:#0f172a;padding:16px 40px;border-bottom:1px solid #1e293b;overflow-x:auto;}\n' +
       '.tl-track{display:flex;align-items:center;gap:0;min-width:600px;position:relative;padding:8px 0;}\n' +
       '.tl-track::before{content:"";position:absolute;left:0;right:0;top:50%;height:2px;background:#1e293b;transform:translateY(-50%);z-index:0;}\n' +
@@ -1870,24 +2031,18 @@
       '.tl-time{color:#475569;font-size:10px;font-family:monospace;display:block;}\n' +
       '.tl-name{color:#94a3b8;font-size:10px;display:block;white-space:nowrap;}\n' +
       '.tl-marker-trans .tl-name{color:#475569;}\n' +
-      /* Content */
       '.content{padding:24px 40px;flex:1;max-width:900px;margin:0 auto;width:100%;}\n' +
-      /* Section labels */
       '.section-label{color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;margin:20px 0 8px 0;display:flex;align-items:center;gap:10px;}\n' +
       '.section-label::after{content:"";flex:1;height:1px;background:#1e293b;}\n' +
-      /* Lead card */
       '.mock-news-card-lead{border-left:3px solid #f59e0b!important;}\n' +
       '.card-lead-badge{background:#f59e0b;color:#0f172a;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;margin-left:6px;}\n' +
-      /* Footer */
       '.footer-bar{background:#0f172a;padding:12px 40px;border-top:1px solid #1e293b;font-size:11px;color:#475569;display:flex;justify-content:space-between;align-items:center;}\n' +
-      /* Animations */
       '@keyframes fadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}\n' +
       '@keyframes pulseLine{0%,100%{opacity:1;}50%{opacity:0.5;}}\n' +
       '@keyframes shimmer{0%{background-position:-200% 0;}100%{background-position:200% 0;}}\n' +
       '</style>\n' +
       '</head>\n' +
       '<body>\n' +
-      /* Hero */
       '<div class="hero">\n' +
       '<div class="hero-content">' +
       '<div class="hero-eyebrow">' +
@@ -1895,49 +2050,50 @@
       '<span class="hero-theme">' + escapeHtml(themeName) + '</span>' +
       '<span class="hero-badge-dur">⏱ ' + totalTimeStr + '</span>' +
       '</div>' +
-      '<h1>' + escapeHtml(renderIr.episode_title || "今日 AI 前沿速览") + '</h1>' +
-      '<div class="hero-subtitle">' + escapeHtml(renderIr.subtitle || "多条热门 AI 新闻合集") + '</div>' +
+      '<h1>' + escapeHtml(episode.title) + '</h1>' +
+      '<div class="hero-subtitle">' + escapeHtml(episode.subtitle) + '</div>' +
       '<div class="hero-stats">' +
-      '<div class="hero-stat"><div class="hero-stat-num">' + newsSegs.length + '</div><div class="hero-stat-label">条新闻</div></div>' +
+      '<div class="hero-stat"><div class="hero-stat-num">' + sections.news_cards.length + '</div><div class="hero-stat-label">条新闻</div></div>' +
       '<div class="hero-stat"><div class="hero-stat-num">' + totalTimeStr + '</div><div class="hero-stat-label">总时长</div></div>' +
-      '<div class="hero-stat"><div class="hero-stat-num">' + (newsSegs.filter(function(s){return s.role==="lead";}).length || 1) + '</div><div class="hero-stat-label">主线</div></div>' +
+      '<div class="hero-stat"><div class="hero-stat-num">' + episode.lead_count + '</div><div class="hero-stat-label">主线</div></div>' +
       '</div>' +
       '</div>\n' +
       '</div>\n' +
-      /* Timeline rail */
-      '<div class="tl-rail">' +
-      '<div class="tl-track">' + buildTimelineMarkers() + '</div>' +
+      '<div class="tl-rail">\n' +
+      '<div class="tl-track">' + renderTimelineMarkersHtml() + '</div>\n' +
       '</div>\n' +
-      /* Content */
-      '<div class="content">' +
-      '<div class="section-label">开场</div>' +
+      '<div class="content">\n' +
+      '<div class="section-label">开场</div>\n' +
       '<div style="background:linear-gradient(135deg,#1e293b,#0f172a);border-radius:12px;padding:20px;margin-bottom:8px;border:1px solid #1e3a5f;">' +
-      '<div style="font-size:15px;color:#e2e8f0;font-weight:600;margin-bottom:4px;">' +
-      escapeHtml(openingSec && openingSec.visual && openingSec.visual.title ? openingSec.visual.title : "今日 AI 前沿速览") +
-      '</div>' +
-      '<div style="color:#475569;font-size:12px;">' + escapeHtml(renderIr.subtitle || "多条热门 AI 新闻合集") + '</div>' +
-      '</div>' +
+      '<div style="font-size:15px;color:#e2e8f0;font-weight:600;margin-bottom:4px;">' + escapeHtml(sections.opening.title) + '</div>' +
+      '<div style="color:#475569;font-size:12px;">' + escapeHtml(sections.opening.subtitle) + '</div>' +
+      '</div>\n' +
       '<div class="section-label">新闻列表</div>\n' +
-      newsCardsHtml.join("") +
-      '<div class="section-label">结尾</div>' +
+      cardsAndTransitions.join("") +
+      '<div class="section-label">结尾</div>\n' +
       '<div style="background:linear-gradient(135deg,#1e293b,#0f172a);border-radius:12px;padding:20px;border:1px solid #1e3a5f;">' +
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
       '<span style="background:#4ade80;color:#0f172a;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;">重点回看</span>' +
       '</div>' +
-      '<div style="color:#f9fafb;font-size:14px;font-weight:600;margin-bottom:4px;">' +
-      escapeHtml(closingSec && closingSec.visual ? closingSec.visual.title : "今天最值得关注的是...") +
-      '</div>' +
-      (closingSec && closingSec.visual && closingSec.visual.focus_news_id ? '<div style="color:#475569;font-size:11px;">📋 主线新闻 ID: ' + escapeHtml(closingSec.visual.focus_news_id) + '</div>' : '') +
-      '</div>' +
+      '<div style="color:#f9fafb;font-size:14px;font-weight:600;margin-bottom:4px;">' + escapeHtml(sections.closing.title) + '</div>' +
+      (sections.closing.focus_news_id ? '<div style="color:#475569;font-size:11px;">📋 主线新闻 ID: ' + escapeHtml(sections.closing.focus_news_id) + '</div>' : '') +
       '</div>\n' +
-      /* Footer */
+      '</div>\n' +
       '<div class="footer-bar">' +
       '<span>Mock Timeline Preview · ' + escapeHtml(themeName) + ' · no real render</span>' +
-      '<span>' + escapeHtml(renderIr.episode_title || "") + '</span>' +
+      '<span>' + escapeHtml(episode.title) + '</span>' +
       '</div>\n' +
       '</body>\n' +
       '</html>';
+
     return html;
+  }
+
+  // CP34: Thin wrapper — buildMockEpisodeHtml delegates to contract pipeline
+  function buildMockEpisodeHtml(renderIr) {
+    var contract = buildEpisodeTemplateContract(renderIr);
+    if (!contract) return "";
+    return renderEpisodeTemplateHtml(contract);
   }
 
   // CP28: Validate mock episode HTML
@@ -2046,6 +2202,15 @@
       return;
     }
 
+    // CP34: Build and validate template contract
+    var contract = buildEpisodeTemplateContract(renderIr);
+    var contractResult = validateEpisodeTemplateContract(contract);
+    if (!contractResult.ok) {
+      setStatus("模板契约有误：" + contractResult.errors.join("；"), "error");
+      return;
+    }
+    latestEpisodeTemplateContract = contract;
+
     var html = buildMockEpisodeHtml(renderIr);
     var htmlResult = validateMockEpisodeHtml(html);
     if (!htmlResult.ok) {
@@ -2109,6 +2274,15 @@
       setStatus("视觉计划有误：" + renderIrResult.errors.join("；"), "error");
       return;
     }
+
+    // CP34: Build and validate template contract
+    var contract = buildEpisodeTemplateContract(renderIr);
+    var contractResult = validateEpisodeTemplateContract(contract);
+    if (!contractResult.ok) {
+      setStatus("模板契约有误：" + contractResult.errors.join("；"), "error");
+      return;
+    }
+    latestEpisodeTemplateContract = contract;
 
     var html = buildMockEpisodeHtml(renderIr);
     var htmlResult = validateMockEpisodeHtml(html);
