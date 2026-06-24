@@ -19,6 +19,8 @@ themes:
       fill: "#fff8dc"
       stroke: "#f0d77b"
       text: "#1d1d1d"
+      badge_fill: "#143b2e"
+      badge_text: "#f8f8f2"
     edge:
       stroke: "#f8f8f2"
       label: "#f8f8f2"
@@ -55,6 +57,8 @@ themes:
       fill: "#111827"
       stroke: "#38bdf8"
       text: "#f8fafc"
+      badge_fill: "#0f172a"
+      badge_text: "#f8fafc"
     edge:
       stroke: "#94a3b8"
       label: "#e2e8f0"
@@ -91,6 +95,8 @@ themes:
       fill: "#2a2420"
       stroke: "#d6a85c"
       text: "#fff7ed"
+      badge_fill: "#1f2933"
+      badge_text: "#f5e6c8"
     edge:
       stroke: "#c4a56a"
       label: "#f5e6c8"
@@ -127,6 +133,8 @@ themes:
       fill: "#fffaf0"
       stroke: "#d8b56d"
       text: "#2f2a24"
+      badge_fill: "#f7e7c2"
+      badge_text: "#2f2a24"
     edge:
       stroke: "#7c6f5b"
       label: "#4b4032"

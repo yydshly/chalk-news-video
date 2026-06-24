@@ -84,7 +84,7 @@ python -m src.pipeline --auto --mock --tts --tts-profile mock --theme notebook
   "name": "双人播客",
   "background": {"type": "solid", "color": "#0b1020", "grid_color": "#1f2a44"},
   "text": {"title": "#f8fafc", "body": "#cbd5e1", "subtitle": "#f8fafc"},
-  "node": {"fill": "#111827", "stroke": "#38bdf8", "text": "#f8fafc"},
+  "node": {"fill": "#111827", "stroke": "#38bdf8", "text": "#f8fafc", "badge_fill": "#0f172a", "badge_text": "#f8fafc"},
   ...
 }
 ```
@@ -94,6 +94,29 @@ python -m src.pipeline --auto --mock --tts --tts-profile mock --theme notebook
 - 不是数字人（CP11+）
 - 不做 lip-sync
 - 不改 semantic_ir / dialogue_script / dialogue_manifest schema
+
+**Checkpoint 10.1 — Theme System 加固（当前）**：
+
+- `template.html`：`board-bg` rect 使用 `id` 选择，不再用 `querySelector("rect[width]")` 猜测背景 rect
+- `background.type = solid`：JS 正确设置 `board-bg fill = BG.color`，不引用 `url(#boardGrid)`
+- `background.type = grid`：JS 设置 `board-bg fill = url(#boardGrid)` 并更新 pattern 填充色
+- `node.badge_fill` / `node.badge_text`：所有 4 个主题均已配置，提升 index badge 对比度
+- `src/theme.py`：`validate_theme()` 基础校验（必填字段、background.type 枚举、颜色格式）
+- `src/theme.py`：新增 CLI（`python -m src.theme --theme podcast`）
+- `examples/invalid.themes.yaml`：用于手动验收 invalid theme 失败路径
+- `--theme not_exist` / `--theme broken` → exit 非 0，列出可用 themes 或 validation 错误
+- legacy `--use-sample` 不支持 `--theme`（CP10.1 暂不修，需文档明确）
+
+```bash
+# 验证 podcast theme
+python -m src.theme --theme podcast
+
+# 验证 invalid theme
+python -m src.theme --theme broken --config examples/invalid.themes.yaml
+
+# pipeline 拒绝无效 theme
+python -m src.pipeline --auto --mock --theme not_exist --no-export
+```
 
 ## 项目定位
 

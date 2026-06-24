@@ -271,10 +271,14 @@ def run_auto_pipeline(args):
             print(f"[auto:layout] applying dialogue visual cues (CP9)")
             render_ir = apply_dialogue_visual_cues(render_ir, dialogue_manifest, dialogue_script)
 
-    # ---- Stage 4d: apply theme (CP10) ----
+    # ---- Stage 4d: apply theme (CP10 / CP10.1) ----
     theme_name = getattr(args, "theme", None) or "chalkboard"
     print(f"[auto:layout] applying theme: {theme_name}")
-    render_ir = apply_theme(render_ir, theme_name)
+    try:
+        render_ir = apply_theme(render_ir, theme_name)
+    except ValueError as exc:
+        print(f"[auto:layout] THEME ERROR: {exc}", file=sys.stderr)
+        sys.exit(1)
 
     # Save render_ir BEFORE render_html so timing is committed
     render_ir_path = save_json(render_ir, OUTPUT_DIR / "render_ir.json")

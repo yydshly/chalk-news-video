@@ -217,6 +217,18 @@
 - [x] 非 dialogue 模式 speaker panels 不出现
 - [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
 
+## Checkpoint 10.1 — Theme System 加固
+
+- [x] `template.html`：`board-bg` rect 使用 `id` 选择，明确区分 solid/grid
+- [x] `background.type = solid`：JS 正确设置 solid fill，不引用 boardGrid pattern
+- [x] `background.type = grid`：JS 设置 `url(#boardGrid)` 并更新 pattern 颜色
+- [x] `node.badge_fill` / `node.badge_text`：所有 4 个主题均已配置
+- [x] `src/theme.py`：`validate_theme()` 基础校验（必填字段、background.type 枚举、颜色格式）
+- [x] `src/theme.py`：新增 CLI（`--theme` / `--config` / `--json`）
+- [x] `examples/invalid.themes.yaml`：invalid theme 测试 fixture
+- [x] pipeline 拒绝无效 theme name 和 invalid theme token
+- [x] README.md / BACKLOG.md 更新
+
 ## Checkpoint 11 — Remotion / 视觉升级
 
 - Remotion 数字人

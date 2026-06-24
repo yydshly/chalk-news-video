@@ -70,7 +70,7 @@
     </filter>
   </defs>
 
-  <rect width="{{ render_ir.canvas.width }}" height="{{ render_ir.canvas.height }}"
+  <rect id="board-bg" width="{{ render_ir.canvas.width }}" height="{{ render_ir.canvas.height }}"
         fill="url(#boardGrid)"/>
 
   <!-- Title group: fades in once on the first beat that reveals 'title', then stays -->
@@ -150,6 +150,8 @@
     fill: THEME.node ? THEME.node.fill : "#fff8dc",
     stroke: THEME.node ? THEME.node.stroke : "#f0d77b",
     text: THEME.node ? THEME.node.text : "#1d1d1d",
+    badge_fill: (THEME.node && THEME.node.badge_fill) || BG.color,
+    badge_text: (THEME.node && THEME.node.badge_text) || TEXT.title,
   };
   const EDGE = {
     stroke: THEME.edge ? THEME.edge.stroke : "#f8f8f2",
@@ -203,13 +205,15 @@
   const DIALOGUE_TURNS = DIALOGUE ? DIALOGUE.turns : null;
 
   // CP10: Apply theme to static SVG elements at init
+  // CP10.1: Use board-bg id to avoid selecting pattern rects or node rects
   function applyTheme() {
-    // Board background
-    const boardRect = board.querySelector("rect[width]");
-    if (boardRect && boardRect.getAttribute("fill") !== "url(#boardGrid)") {
-      boardRect.setAttribute("fill", BG.color);
-    } else if (boardRect) {
-      // grid type: set base fill
+    const boardBg = document.getElementById("board-bg");
+    if (BG.type === "solid") {
+      // Solid background: use solid color, no grid
+      if (boardBg) boardBg.setAttribute("fill", BG.color);
+    } else {
+      // Grid background: use boardGrid pattern, update pattern colors
+      if (boardBg) boardBg.setAttribute("fill", "url(#boardGrid)");
       const patternRect = board.querySelector("pattern rect");
       if (patternRect) patternRect.setAttribute("fill", BG.color);
       const gridLines = board.querySelectorAll("pattern line");
@@ -385,18 +389,18 @@
       filter: "url(#cardShadow)",
     }, g);
 
-    // Index badge (1-based) - use background color for contrast
+    // Index badge (1-based) - CP10.1: use NODE.badge_fill / badge_text for contrast
     const idx = (RENDER_IR.nodes.indexOf(node) + 1).toString();
     el("circle", {
       cx: node.x + 22, cy: node.y + 22, r: 16,
-      fill: BG.color,
+      fill: NODE.badge_fill,
       stroke: NODE.stroke,
       "stroke-width": 2,
     }, g);
     el("text", {
       x: node.x + 22, y: node.y + 28,
       "text-anchor": "middle",
-      fill: TEXT.title,
+      fill: NODE.badge_text,
       "font-family": "Arial, sans-serif",
       "font-size": 18,
       "font-weight": "bold",

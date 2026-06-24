@@ -619,7 +619,7 @@ generate_ir → validate_ir
   "name": "双人播客",
   "background": { "type": "solid", "color": "#0b1020", "grid_color": "#1f2a44" },
   "text": { "title": "#f8fafc", "body": "#cbd5e1", "subtitle": "#f8fafc" },
-  "node": { "fill": "#111827", "stroke": "#38bdf8", "text": "#f8fafc" },
+  "node": { "fill": "#111827", "stroke": "#38bdf8", "text": "#f8fafc", "badge_fill": "#0f172a", "badge_text": "#f8fafc" },
   "edge": { "stroke": "#94a3b8", "label": "#e2e8f0" },
   "callout": {
     "info_fill": "#38bdf8", "info_stroke": "#0284c7", "info_text": "#f8fafc",
@@ -668,9 +668,9 @@ generate_ir → validate_ir
 ### template.html 主题应用
 
 JS 在初始化时从 `RENDER_IR.theme` 读取所有视觉 token：
-- `BG.color` / `BG.grid`：背景填充/网格线
+- `BG.color` / `BG.grid` / `BG.type`：背景填充/网格线/类型
 - `TEXT.title/body/subtitle`：标题/正文/字幕颜色
-- `NODE.fill/stroke/text`：节点填充/描边/文字
+- `NODE.fill/stroke/text/badge_fill/badge_text`：节点填充/描边/文字/badge 颜色
 - `EDGE.stroke/label`：边线/标签颜色
 - `CALLOUT.*`：标注填充/描边/文字（按 tone）
 - `DIALOGUE_THEME.*`：speaker accent / panel fill / subtitle fill
@@ -685,6 +685,57 @@ JS 在初始化时从 `RENDER_IR.theme` 读取所有视觉 token：
 | `theme.id` 仅限已知主题 | chalkboard/podcast/research_desk/notebook |
 | `theme` 不含 API 密钥 | 只包含视觉 token |
 | `theme` 不影响业务契约 | semantic_ir / dialogue_script / dialogue_manifest 不变 |
+
+## Checkpoint 10.1 — Theme System 加固
+
+### background.type 渲染语义
+
+| `background.type` | board-bg fill | grid lines | 适用主题 |
+|---|---|---|---|
+| `"grid"` | `url(#boardGrid)` | 可见，stroke = `BG.grid` | chalkboard |
+| `"solid"` | `BG.color`（纯色） | 不可见 | podcast / research_desk / notebook |
+
+`template.html` 中主背景 rect 使用 `id="board-bg"`，JS 中通过 `getElementById("board-bg")` 精准选取，不再用 `querySelector("rect[width]")` 猜测。
+
+### node.badge_fill / node.badge_text
+
+index badge（圆形数字标记）使用专用对比度优化颜色：
+
+| 主题 | badge_fill | badge_text |
+|---|---|---|
+| chalkboard | `#143b2e` | `#f8f8f2` |
+| podcast | `#0f172a` | `#f8fafc` |
+| research_desk | `#1f2933` | `#f5e6c8` |
+| notebook | `#f7e7c2` | `#2f2a24` |
+
+### theme validation 规则（CP10.1 新增）
+
+`src/theme.validate_theme(theme, theme_id) -> list[str]` 校验：
+1. 必须有 background/text/node/edge/callout/dialogue 六个 section
+2. background 必须有 `type`（仅 grid/solid）和 `color`（合法颜色格式）
+3. text 必须有 title/body/subtitle（合法颜色格式）
+4. node 必须有 fill/stroke/text（合法颜色格式）；badge_fill/badge_text 可选
+5. edge 必须有 stroke/label（合法颜色格式）
+6. dialogue 必须有 host_accent/expert_accent/panel_fill/subtitle_fill（合法颜色格式）
+7. 颜色格式：`#RGB` / `#RRGGBB` / `rgba(...)` / `transparent`
+
+发现错误时 `resolve_theme()` raise ValueError，列出 theme_id 和具体字段路径。
+
+### src/theme.py CLI（CP10.1 新增）
+
+```bash
+python -m src.theme --theme podcast          # 验证并输出
+python -m src.theme --theme not_exist       # exit 非 0，列出可用 themes
+python -m src.theme --theme broken --config examples/invalid.themes.yaml  # exit 非 0
+python -m src.theme --theme podcast --json   # JSON 输出完整 theme
+```
+
+### examples/invalid.themes.yaml（CP10.1 新增）
+
+用于人工验收 invalid theme 失败路径：
+- `broken`：background.type=unknown，background.color="not-a-color"
+- `broken_missing_sections`：缺少 callout/dialogue section
+
 
 ## 文件清单（V0.11 新增 / 修改）
 
@@ -701,10 +752,20 @@ JS 在初始化时从 `RENDER_IR.theme` 读取所有视觉 token：
 - `prompts/repair_dialogue_script.md`（CP8 新增）
 - `docs/CP8_REAL_DIALOGUE_VALIDATION.md`（CP8 新增）
 
+新增（CP10.1）：
+- `examples/invalid.themes.yaml`（invalid theme 测试 fixture）
+
 修改（CP10）：
 - `src/pipeline.py`（新增 `--theme` 参数，默认 chalkboard）
 - `renderer/template.html`（JS 读取 RENDER_IR.theme 覆盖所有视觉 token）
 - `README.md` / `PROJECT_SPEC.md` / `BACKLOG.md`
+
+修改（CP10.1）：
+- `config/themes.yaml`（新增 node.badge_fill / node.badge_text 四个主题）
+- `src/theme.py`（新增 validate_theme() 校验 + CLI）
+- `src/pipeline.py`（theme 解析失败 → ValueError → exit 1）
+- `renderer/template.html`（board-bg id 选择，solid/grid 分支，badge_fill/badge_text）
+- `README.md` / `PROJECT_SPEC.md` / `BACKLOG.md`（CP10.1 更新）
 
 修改（历史）：
 - `src/generate_dialogue.py`（CP8：repair 流程 + debug 输出）

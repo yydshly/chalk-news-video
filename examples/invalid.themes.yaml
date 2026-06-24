@@ -1,0 +1,31 @@
+# Theme validation test file (CP10.1)
+# This file is used for manual verification:
+#   python -m src.theme --theme broken --config examples/invalid.themes.yaml
+# Expected: exit non-0 with validation errors.
+
+default_theme: broken
+
+themes:
+  broken:
+    # Missing: text, node, edge, callout, dialogue sections
+    background:
+      type: unknown
+      color: "not-a-color"
+
+  broken_missing_sections:
+    # Missing: callout and dialogue
+    background:
+      type: grid
+      color: "#143b2e"
+      grid_color: "#1f523e"
+    text:
+      title: "#f8f8f2"
+      body: "#d8e6d4"
+      subtitle: "#ffffff"
+    node:
+      fill: "#fff8dc"
+      stroke: "#f0d77b"
+      text: "#1d1d1d"
+    edge:
+      stroke: "#f8f8f2"
+      label: "#f8f8f2"
