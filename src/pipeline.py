@@ -211,6 +211,12 @@ def run_auto_pipeline(args):
                     gen_dialogue_cmd.append("--repair")
                     gen_dialogue_cmd += ["--repair-attempts", str(args.repair_attempts)]
 
+                # CP15.4: dialogue duration control
+                if args.target_duration_sec is not None:
+                    gen_dialogue_cmd += ["--target-duration-sec", str(args.target_duration_sec)]
+                if args.max_turns is not None:
+                    gen_dialogue_cmd += ["--max-turns", str(args.max_turns)]
+
                 dialogue_gen_result = subprocess.run(gen_dialogue_cmd, capture_output=False)
                 if dialogue_gen_result.returncode != 0:
                     print(f"[auto:dialogue] generate_dialogue failed with code {dialogue_gen_result.returncode}", file=sys.stderr)
@@ -221,6 +227,20 @@ def run_auto_pipeline(args):
                 print(f"[auto:dialogue] generated dialogue_script.json")
             else:
                 print(f"[auto:dialogue] using existing dialogue_script.json")
+
+            # CP15.4: TTS cost protection - check dialogue budget before real TTS
+            if args.dialogue_profile and args.dialogue_profile not in ("mock", "mock_dialogue"):
+                budget_path = output_dir / "dialogue_budget.json"
+                if budget_path.exists():
+                    budget = load_json(budget_path)
+                    turns_count = budget.get("after_turns", 0)
+                    chars_count = budget.get("after_chars", 0)
+                    max_turns = args.max_turns or 14
+                    if turns_count > 18 or chars_count > 800:
+                        print(f"[auto:tts] COST PROTECTION: dialogue_script has {turns_count} turns / {chars_count} chars", file=sys.stderr)
+                        print(f"[auto:tts] exceeds safe budget (18 turns / 800 chars)", file=sys.stderr)
+                        print(f"[auto:tts] Suggestion: lower target_duration_sec or use mock_dialogue", file=sys.stderr)
+                        sys.exit(1)
 
             # Build narration command with dialogue_profile or host/expert profiles
             narration_cmd = [
@@ -465,6 +485,15 @@ def main(argv=None):
     auto_group.add_argument(
         "--theme", type=str, default="chalkboard",
         help="Theme name: chalkboard (default), podcast, research_desk, notebook. (CP10)",
+    )
+    # CP15.4: dialogue duration control
+    auto_group.add_argument(
+        "--target-duration-sec", type=int, default=None,
+        help="Target total dialogue duration in seconds. Default: 60. (CP15.4)",
+    )
+    auto_group.add_argument(
+        "--max-turns", type=int, default=None,
+        help="Maximum number of dialogue turns. Default: 14. (CP15.4)",
     )
 
     # TTS group

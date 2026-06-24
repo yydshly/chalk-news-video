@@ -79,7 +79,7 @@ beats[]          揭示序列（id/reveal/narration）
 - `speaker` 必须是 `"host"` 或 `"expert"`
 - `beat_id` 必须引用 semantic_ir.beats 中存在的 id
 - `reveal` 必须与对应 beat 的 reveal 一致
-- `text` 非空，建议 8–80 个中文字符
+- `text` 非空，建议 20–42 个中文字符
 - `function` 枚举：`hook` / `question` / `explain` / `clarify` / `transition` / `summary`
 
 ### 交替规则
@@ -104,6 +104,20 @@ beats[]          揭示序列（id/reveal/narration）
 - **绝对禁止音频产物字段**：audio_path / start / end / duration
 - 不要添加 semantic_ir 中没有的信息
 - 不要编造新闻事实
+
+# Duration budget (CP15.4)
+
+**目标：总时长 45-60 秒，默认不超过 60 秒。**
+
+1. **turns 数量**：控制在 10-14 turns 以内（不是 beat 数量，是 turns 数量）
+2. **每个 turn 字符数**：每个 turn 尽量 20-42 个中文字符，不要超过 60 个字符
+3. **总对话字符数**：尽量不超过 520 个中文字符
+4. **只讲一个主线**：是什么、为什么重要、影响、结论，不要展开太多背景
+5. **host 只负责提问和转场**：不要 host 长篇大论
+6. **expert 负责解释**：expert 的每个 turn 尽量简洁
+7. **不要扩写**：如果新闻信息不足，不要凑字数，简洁描述即可
+8. **LLM 可能生成超过 14 turns**：如果生成 18+ turns，系统会自动压缩
+9. **宁可少 turn 不要多 turn**：宁可 10 个精炼 turn，不要 18 个冗长 turn
 
 # Now generate
 

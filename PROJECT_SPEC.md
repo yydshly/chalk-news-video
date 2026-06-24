@@ -1430,3 +1430,57 @@ WEAK_KEYWORDS（低精度）：需至少 2 个才能入选
 - `dialogue_manifest.json` 记录 speaker / timing / audio_path，不记录 voice_id
 - `/api/providers` 只显示 missing_env 名称列表，不显示值
 - `/api/jobs/{id}/debug` 不返回 voice_id
+
+### Dialogue Duration Budget（CP15.4）
+
+**目标**：控制口播总时长在 45-60 秒，避免 TTS 成本过高、视频节奏拖慢。
+
+**配置参数**：
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `target_duration_sec` | 60 | 目标口播总时长（秒） |
+| `max_turns` | 14 | 最大 dialogue turns 数 |
+
+**GenerateRequest 新增字段（CP15.4）**：
+```python
+class GenerateRequest(BaseModel):
+    # ... existing fields ...
+    target_duration_sec: Optional[int] = 60  # CP15.4
+    max_turns: Optional[int] = 14           # CP15.4
+```
+
+**压缩函数** `compress_dialogue_script(dialogue_script, max_turns, max_chars_per_turn)`：
+- 策略：保留前 2 turns + 后 2 turns，中间部分合并/截断
+- 单 turn 超过 `max_chars_per_turn`（42 字）时截断
+- 保证至少 6 turns
+- Renumber turn ids 重新编号为 d1, d2, d3...
+
+**dialogue_budget.json 输出（CP15.4）**：
+```json
+{
+  "target_duration_sec": 60,
+  "max_turns": 14,
+  "max_chars_per_turn": 42,
+  "before_turns": 18,
+  "after_turns": 14,
+  "before_chars": 720,
+  "after_chars": 510,
+  "compressed": true,
+  "warnings": []
+}
+```
+
+**TTS 成本保护（CP15.4）**：
+- 真实 TTS（minimax_dialogue）前检查 dialogue_budget.json
+- 如果 `after_turns > 18` 或 `after_chars > 800`：fail fast，提示用户降低目标或改用 mock
+- 不直接发起大量 TTS 请求
+
+**Prompt 层控制（CP15.4）**：
+- semantic_ir_to_dialogue.md 新增 Duration Budget 章节
+- 要求 LLM：10-14 turns，每 turn 20-42 字，只讲一个主线
+- 如果 LLM 仍生成超过 14 turns，后处理压缩
+
+**验证规则（CP15.4）**：
+- dialogue_script turns <= 14（压缩后）
+- dialogue_manifest.total_duration <= 65 秒（mock 下允许近似）
+- render_ir.total_duration == dialogue_manifest.total_duration

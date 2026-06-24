@@ -2,11 +2,13 @@
 
 CP7.1: Dialogue script contract — separates dialogue expression from semantic structure.
 CP8: Add repair flow, --save-invalid, --repair, --dry-run options.
+CP15.4: Add dialogue duration control via --target-duration-sec and --max-turns.
 
 Usage:
     python -m src.generate_dialogue --semantic-ir outputs/latest/semantic_ir.json --mock --validate
     python -m src.generate_dialogue --semantic-ir outputs/latest/semantic_ir.json --profile minimax_m3_openai --validate --repair
     python -m src.generate_dialogue --semantic-ir outputs/latest/semantic_ir.json --mock --dry-run
+    python -m src.generate_dialogue --semantic-ir outputs/latest/semantic_ir.json --mock --target-duration-sec 60 --max-turns 14
 """
 
 from __future__ import annotations
@@ -27,6 +29,146 @@ DEFAULT_INVALID_OUTPUT_PATH = PROJECT_ROOT / "outputs" / "latest" / "dialogue_sc
 DEFAULT_PROMPT_PATH = PROJECT_ROOT / "prompts" / "semantic_ir_to_dialogue.md"
 DEFAULT_REPAIR_PROMPT_PATH = PROJECT_ROOT / "prompts" / "repair_dialogue_script.md"
 DEFAULT_LLM_CONFIG = PROJECT_ROOT / "config" / "llm.yaml"
+
+# CP15.4: Default dialogue budget
+DEFAULT_TARGET_DURATION_SEC = 60
+DEFAULT_MAX_TURNS = 14
+DEFAULT_MAX_CHARS_PER_TURN = 42
+DEFAULT_MAX_TOTAL_DIALOGUE_CHARS = 520
+
+
+# ---------- compression (CP15.4) ----------
+
+
+def compress_dialogue_script(
+    dialogue_script: dict,
+    max_turns: int = DEFAULT_MAX_TURNS,
+    max_chars_per_turn: int = DEFAULT_MAX_CHARS_PER_TURN,
+    min_turns: int = 6,
+) -> tuple[dict, dict]:
+    """Compress a dialogue_script if it exceeds budget.
+
+    Strategy:
+    1. Keep first 2 turns (hook + first explain).
+    2. Keep last 2 turns (conclusion/summary).
+    3. Merge/truncate middle turns.
+    4. If single turn exceeds max_chars_per_turn, truncate to ~max_chars_per_turn.
+    5. Ensure at least min_turns are kept.
+    6. Renumber turn ids sequentially: d1, d2, d3...
+
+    Returns:
+        (compressed_dialogue_script, budget_info)
+    """
+    turns = dialogue_script.get("turns", [])
+    before_turns = len(turns)
+    before_chars = sum(len(t.get("text", "")) for t in turns)
+
+    if before_turns <= max_turns and before_chars <= DEFAULT_MAX_TOTAL_DIALOGUE_CHARS:
+        budget_info = {
+            "target_duration_sec": DEFAULT_TARGET_DURATION_SEC,
+            "max_turns": max_turns,
+            "max_chars_per_turn": max_chars_per_turn,
+            "before_turns": before_turns,
+            "after_turns": before_turns,
+            "before_chars": before_chars,
+            "after_chars": before_chars,
+            "compressed": False,
+            "warnings": [],
+        }
+        return dialogue_script, budget_info
+
+    warnings = []
+    if before_turns > max_turns:
+        warnings.append(f"turns {before_turns} > max_turns {max_turns}, will compress")
+    if before_chars > DEFAULT_MAX_TOTAL_DIALOGUE_CHARS:
+        warnings.append(f"chars {before_chars} > max_chars {DEFAULT_MAX_TOTAL_DIALOGUE_CHARS}, will compress")
+
+    # Always keep first 2 and last 2 turns (if available)
+    keep_first = min(2, len(turns))
+    keep_last = min(2, len(turns) - keep_first)
+    keep_last = max(0, keep_last)
+
+    if keep_first + keep_last >= len(turns):
+        # Not enough to trim middle
+        compressed_turns = turns[:max_turns] if len(turns) > max_turns else turns
+    else:
+        # Build compressed turns
+        compressed_turns = []
+        compressed_turns.extend(turns[:keep_first])
+
+        # Middle turns: try to fit within budget
+        middle_turns = turns[keep_first:-keep_last] if keep_last > 0 else turns[keep_first:]
+        allowed_middle = max_turns - keep_first - keep_last
+
+        if allowed_middle <= 0:
+            allowed_middle = 0
+
+        # Merge middle turns if needed
+        if len(middle_turns) > max(0, allowed_middle):
+            # Merge excess middle turns
+            excess = len(middle_turns) - max(0, allowed_middle)
+            # Merge every pair of adjacent same-speaker or adjacent turns
+            # Simple approach: take every nth turn from middle
+            step = max(1, len(middle_turns) // allowed_middle) if allowed_middle > 0 else 1
+            for i in range(0, len(middle_turns), step):
+                if len(compressed_turns) < max_turns - keep_last:
+                    compressed_turns.append(middle_turns[i])
+        else:
+            compressed_turns.extend(middle_turns)
+
+        # Add last turns
+        if keep_last > 0:
+            compressed_turns.extend(turns[-keep_last:])
+
+    # Ensure minimum turns
+    if len(compressed_turns) < min_turns:
+        # Take more from middle if needed
+        middle_turns = turns[keep_first:-keep_last] if keep_last > 0 else turns[keep_first:]
+        needed = min_turns - len(compressed_turns)
+        for t in middle_turns:
+            if len(compressed_turns) >= min_turns:
+                break
+            if t not in compressed_turns:
+                compressed_turns.append(t)
+
+    # Truncate individual turns that are too long
+    for turn in compressed_turns:
+        text = turn.get("text", "")
+        if len(text) > max_chars_per_turn:
+            # Truncate to max_chars_per_turn and add Chinese ellipsis if meaningful cut
+            truncated = text[:max_chars_per_turn]
+            # Try to cut at a natural boundary (comma, period, question mark)
+            for cut_char in ["。", "，", "？", "！", ".", ",", "?"]:
+                last_idx = truncated.rfind(cut_char)
+                if last_idx > max_chars_per_turn * 0.5:
+                    truncated = truncated[:last_idx + 1]
+                    break
+            turn["text"] = truncated
+
+    # Renumber turns sequentially
+    for i, turn in enumerate(compressed_turns, start=1):
+        turn["id"] = f"d{i}"
+
+    after_turns = len(compressed_turns)
+    after_chars = sum(len(t.get("text", "")) for t in compressed_turns)
+
+    # Build new dialogue_script
+    new_script = dict(dialogue_script)
+    new_script["turns"] = compressed_turns
+
+    budget_info = {
+        "target_duration_sec": DEFAULT_TARGET_DURATION_SEC,
+        "max_turns": max_turns,
+        "max_chars_per_turn": max_chars_per_turn,
+        "before_turns": before_turns,
+        "after_turns": after_turns,
+        "before_chars": before_chars,
+        "after_chars": after_chars,
+        "compressed": before_turns != after_turns or before_chars != after_chars,
+        "warnings": warnings,
+    }
+
+    return new_script, budget_info
 
 
 # ---------- mock generator ----------
@@ -311,6 +453,19 @@ def main(argv=None):
         default=2,
         help="Max repair attempts (default: 2).",
     )
+    # CP15.4: dialogue duration control
+    parser.add_argument(
+        "--target-duration-sec",
+        type=int,
+        default=DEFAULT_TARGET_DURATION_SEC,
+        help=f"Target total dialogue duration in seconds (default: {DEFAULT_TARGET_DURATION_SEC}).",
+    )
+    parser.add_argument(
+        "--max-turns",
+        type=int,
+        default=DEFAULT_MAX_TURNS,
+        help=f"Maximum number of dialogue turns (default: {DEFAULT_MAX_TURNS}).",
+    )
 
     args = parser.parse_args(argv)
 
@@ -386,6 +541,26 @@ def main(argv=None):
             print(f"Error: LLM response is not valid JSON: {exc}", file=sys.stderr)
             print(f"Raw response:\n{raw_response[:500]}", file=sys.stderr)
             return 1
+
+    # CP15.4: Apply compression if dialogue exceeds budget
+    max_turns = args.max_turns
+    max_chars_per_turn = DEFAULT_MAX_CHARS_PER_TURN
+    dialogue_script, budget_info = compress_dialogue_script(
+        dialogue_script,
+        max_turns=max_turns,
+        max_chars_per_turn=max_chars_per_turn,
+    )
+    if budget_info["compressed"]:
+        print(f"[generate_dialogue] compressed: {budget_info['before_turns']} turns -> {budget_info['after_turns']} turns")
+        print(f"[generate_dialogue] compressed: {budget_info['before_chars']} chars -> {budget_info['after_chars']} chars")
+        for w in budget_info.get("warnings", []):
+            print(f"[generate_dialogue] warning: {w}", file=sys.stderr)
+
+    # Save dialogue_budget.json (CP15.4)
+    budget_info["target_duration_sec"] = args.target_duration_sec
+    budget_path = output_path.parent / "dialogue_budget.json"
+    save_json(budget_info, budget_path)
+    print(f"[generate_dialogue] wrote {budget_path}")
 
     # Validate if requested
     if args.validate:

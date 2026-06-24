@@ -658,6 +658,53 @@ python -m src.server --host 127.0.0.1 --port 8777
 - animation.html 含真实双人音频
 - API key / voice_id 不泄露
 
+## CP15.4 — 口播时长控制与 turns 控制（CP15.4）
+
+**目标**：hot_ai 新闻生成的视频默认控制在 45-60 秒内，避免 dialogue_script 过长、TTS 成本过高、视频节奏拖慢。
+
+**新增配置**：
+- `--target-duration-sec`（CLI/API）：目标口播总时长，默认 60 秒
+- `--max-turns`（CLI/API）：最大 dialogue turns 数，默认 14
+
+**新增参数（GenerateRequest）**：
+```python
+target_duration_sec: int | None = 60  # 目标时长
+max_turns: int | None = 14           # 最大 turns
+```
+
+**新增输出**：
+- `dialogue_budget.json`：口播预算信息
+  - `target_duration_sec`、`max_turns`、`max_chars_per_turn`
+  - `before_turns` / `after_turns`、`before_chars` / `after_chars`
+  - `compressed`：是否被压缩
+
+**压缩策略**：
+1. 保留前 2 个 turns（hook + first explain）
+2. 保留最后 1-2 个 conclusion turns
+3. 中间 turns 合并或截断
+4. 单个 turn 超过 max_chars_per_turn（42）时截断
+5. 保证至少 6 turns
+
+**TTS 成本保护**：
+- 真实 TTS（minimax_dialogue）前检查 dialogue_script 规模
+- 如果 turns > 18 或 chars > 800：fail fast，提示降低目标或改用 mock
+- 不直接发起大量 TTS 请求
+
+**Prompt 层控制**：
+- semantic_ir_to_dialogue.md 新增 Duration Budget 章节
+- 要求 LLM 生成 10-14 turns，每 turn 20-42 个中文字符
+- 只讲一个主线，不展开过多背景
+
+**CP15.4 验收**：
+- `mode=hot_ai` + minimax_m3_openai + mock_dialogue → job succeeded
+- dialogue_script turns <= 14
+- dialogue_manifest.total_duration <= 65 秒（mock 下允许近似）
+- render_ir.total_duration == dialogue_manifest.total_duration
+- animation.html 存在
+- dialogue_budget.json 存在
+- 如果压缩发生，compressed=true
+- validation 无 error
+
 ## 项目定位
 
 V0.11: News → LLM → semantic_ir → dual-host dialogue → video（含双角色音频）。

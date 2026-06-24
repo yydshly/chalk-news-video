@@ -255,6 +255,9 @@ class GenerateRequest(BaseModel):
     tts_provider: Optional[str] = None  # "mock" | "mock_dialogue" | "minimax_dialogue"
     repair: bool = False
     repair_attempts: int = 2
+    # CP15.4: dialogue duration control
+    target_duration_sec: Optional[int] = 60
+    max_turns: Optional[int] = 14
 
 
 def _get_provider_status_by_id(kind: str, provider_id: str) -> Optional[dict]:
@@ -423,6 +426,12 @@ def _build_pipeline_cmd(body: GenerateRequest, news_path: str, output_dir: Path)
 
     if body.no_export:
         cmd.append("--no-export")
+
+    # CP15.4: dialogue duration control
+    if body.target_duration_sec is not None:
+        cmd += ["--target-duration-sec", str(body.target_duration_sec)]
+    if body.max_turns is not None:
+        cmd += ["--max-turns", str(body.max_turns)]
 
     return cmd
 

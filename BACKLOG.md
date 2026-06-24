@@ -410,8 +410,38 @@
 - [ ] dialogue_manifest timing 验收
 - [ ] animation.html 含真实 TTS 音频验收
 - [ ] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
-- [ ] 口播时长控制 / beats 数量控制（CP15.4）
-- [ ] 选题可讲性评分（CP15.5）
+
+## Checkpoint 15.4 — 口播时长控制与 turns 控制
+
+- [x] `compress_dialogue_script()` 函数实现
+- [x] `--target-duration-sec` / `--max-turns` CLI 参数
+- [x] GenerateRequest 新增 `target_duration_sec` / `max_turns` 字段
+- [x] `dialogue_budget.json` 输出
+- [x] TTS 成本保护（turns > 18 or chars > 800 时 fail fast）
+- [x] Prompt 层控制（semantic_ir_to_dialogue.md 新增 Duration Budget 章节）
+- [x] mode=hot_ai + mock_dialogue E2E 验收
+- [ ] mode=hot_ai + minimax_dialogue 真实 TTS E2E（待 env 配置后）
+- [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
+
+## Checkpoint 15.5 — 选题可讲性评分
+
+- [ ] 新闻内容可讲性评分（是否有足够的观点/数据/因果链）
+- [ ] 可讲性不足时给出警告或自动补充
+
+## Checkpoint 15.6 — 不同音色推荐与 voice preset
+
+- [ ] 根据新闻类型推荐不同音色（严肃/轻松/技术等）
+- [ ] voice preset 配置
+
+## Checkpoint 16 — 主题预览图库
+
+- [ ] 前端主题预览缩略图
+- [ ] Theme gallery
+
+## Checkpoint 17 — Remotion / 视觉升级
+
+- [ ] Remotion 集成（可选）
+- [ ] 视觉样式升级
 
 ## Checkpoint 14.2 — Job 删除 / 清理
 
