@@ -341,6 +341,19 @@
 - [x] `/api/providers` 能读取 .env 中配置的 MINIMAX_API_KEY
 - [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
 
+## Checkpoint 15.2.2 — 真实 LLM 失败诊断增强
+
+- [x] pipeline.py：generate_ir 失败时打印 validation issues 摘要和 debug 文件路径
+- [x] server.py：`_redact_secret_text()` helper，自动脱敏 API key / voice_id
+- [x] server.py：改进 `_run_job` 错误提取，保留所有 `[auto:]` 行
+- [x] server.py：`GET /api/jobs/{job_id}/debug` 端点，返回 validation issues 摘要
+- [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
+
+## Checkpoint 15.2.3 — 真实 LLM E2E 成功收敛
+
+- 真实 LLM + mock TTS E2E 完整成功
+- semantic_ir / dialogue_script / dialogue_manifest / render_ir / animation.html 全部生成
+
 ## Checkpoint 15.3 — 真实 MiniMax TTS E2E
 
 ## Checkpoint 14.2 — Job 删除 / 清理

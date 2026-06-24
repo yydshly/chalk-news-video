@@ -139,7 +139,30 @@ def run_auto_pipeline(args):
     if result.returncode != 0:
         if result.returncode == 5:
             print(f"[auto:generate_ir] validation/repair failed", file=sys.stderr)
-            print(f"[auto:generate_ir] see outputs/latest/debug_validation_issues.json", file=sys.stderr)
+            # Try to read and display validation issues from outputs/latest
+            debug_issues_path = OUTPUT_DIR / "debug_validation_issues.json"
+            if debug_issues_path.exists():
+                import json as _json
+                try:
+                    data = _json.loads(debug_issues_path.read_text(encoding="utf-8"))
+                    issues = data.get("issues", [])
+                    print(f"[auto:generate_ir] debug_validation_issues: {debug_issues_path}", file=sys.stderr)
+                    for i, issue in enumerate(issues[:5]):
+                        code = issue.get("code", "?")
+                        path = issue.get("path", "?")
+                        msg = issue.get("message", "?")
+                        severity = issue.get("severity", "error")
+                        print(f"[auto:generate_ir] issue[{i}] {severity.upper()} [{code}] {path}: {msg}", file=sys.stderr)
+                    if len(issues) > 5:
+                        print(f"[auto:generate_ir] ... and {len(issues) - 5} more issue(s)", file=sys.stderr)
+                except Exception:
+                    print(f"[auto:generate_ir] debug_validation_issues: {debug_issues_path}", file=sys.stderr)
+            invalid_path = output_dir / "semantic_ir.invalid.json"
+            if invalid_path.exists():
+                print(f"[auto:generate_ir] invalid_json: {invalid_path}", file=sys.stderr)
+            repair_resp_path = OUTPUT_DIR / "debug_repair_response.txt"
+            if repair_resp_path.exists():
+                print(f"[auto:generate_ir] repair_response: {repair_resp_path}", file=sys.stderr)
             print(f"[auto:generate_ir] invalid output is only for debugging, not used by pipeline", file=sys.stderr)
         else:
             print(f"[auto:generate_ir] exited with code {result.returncode}", file=sys.stderr)

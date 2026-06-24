@@ -54,6 +54,31 @@ def _dedupe_keep_order(items: list[str]) -> list[str]:
     return result
 
 
+def _redact_secret_text(text: str) -> str:
+    """Remove API keys and secrets from error text for safe display.
+
+    Redacts:
+    - sk- tokens (API keys)
+    - MINIMAX_API_KEY=<value>
+    - MIMO_API_KEY=<value>
+    - Any voice_id values
+    """
+    if not text:
+        return text
+    # Redact sk- tokens (length 20+ alphanumeric strings)
+    text = re.sub(r"sk-[a-zA-Z0-9_-]{20,}", "[REDACTED]", text)
+    # Redact env var assignments with values
+    for pattern in [
+        r"(MINIMAX_API_KEY)=[^\s,;]+",
+        r"(MIMO_API_KEY)=[^\s,;]+",
+        r"(MINIMAX_TTS_HOST_VOICE_ID)=[^\s,;]+",
+        r"(MINIMAX_TTS_EXPERT_VOICE_ID)=[^\s,;]+",
+        r"(MINIMAX_TTS_VOICE_ID)=[^\s,;]+",
+    ]:
+        text = re.sub(pattern, r"\1=[REDACTED]", text)
+    return text
+
+
 def _check_env_vars(required_env: list[str]) -> list[str]:
     """Return list of missing env var names (not values)."""
     missing = []
@@ -630,17 +655,27 @@ def _run_job(job_id: str, body: GenerateRequest, output_dir: Path) -> None:
             returncode, stdout, stderr = _run_pipeline(body, job_id, output_dir)
 
         if returncode != 0:
-            error_msg = stderr[-1000:] if stderr else stdout[-1000:]
-            if not error_msg:
-                error_msg = f"Pipeline failed with exit code {returncode}."
+            # Take up to 3000 chars of stderr/stdout, redact secrets
+            raw_error = stderr[-3000:] if stderr else stdout[-3000:]
+            if not raw_error:
+                raw_error = f"Pipeline failed with exit code {returncode}."
 
-            theme_match = re.search(r"THEME ERROR.*", error_msg)
+            # Theme errors get priority
+            theme_match = re.search(r"THEME ERROR.*", raw_error)
             if theme_match:
                 error_msg = theme_match.group(0)
-            elif "[auto:" in error_msg:
-                stage_error = re.search(r"\[auto:[^\]]+\].*", error_msg)
-                if stage_error:
-                    error_msg = stage_error.group(0)
+            elif "[auto:" in raw_error:
+                # Collect all [auto:...] lines for better diagnostics
+                auto_lines = re.findall(r"\[auto:[^\]]+\][^\n]*", raw_error)
+                if auto_lines:
+                    # Join all auto: lines, redact, and truncate
+                    error_msg = " | ".join(auto_lines[:5])
+                else:
+                    error_msg = raw_error.strip().split("\n")[-1] if raw_error else f"exit code {returncode}"
+            else:
+                error_msg = raw_error.strip().split("\n")[-1] if raw_error else f"exit code {returncode}"
+
+            error_msg = _redact_secret_text(error_msg)
 
             _emit_job_event(job_id, "error", {
                 "status": "failed",
@@ -1106,6 +1141,59 @@ def api_job_artifact(job_id: str, name: str):
         return JSONResponse(data)
     except json.JSONDecodeError:
         raise HTTPException(status_code=500, detail=f"Invalid JSON in {filename}")
+
+
+# ---------- job debug info (CP15.2.2) ----------
+
+
+@app.get("/api/jobs/{job_id}/debug")
+def api_job_debug(job_id: str):
+    """Return debug summary for a job.
+
+    Returns validation issues and debug file presence without exposing secrets.
+    This endpoint is for local debugging only.
+    """
+    output_dir = _resolve_job_output_dir(job_id)
+
+    debug_files = {}
+    validation_issues = []
+
+    # Check for debug files in outputs/latest (where generate_ir writes them)
+    latest_dir = PROJECT_ROOT / "outputs" / "latest"
+
+    debug_issues_path = latest_dir / "debug_validation_issues.json"
+    if debug_issues_path.exists():
+        debug_files["debug_validation_issues"] = True
+        try:
+            data = json.loads(debug_issues_path.read_text(encoding="utf-8"))
+            # Return first 10 issues only (summary, not full details)
+            issues = data.get("issues", [])
+            for issue in issues[:10]:
+                validation_issues.append({
+                    "severity": issue.get("severity", "error"),
+                    "code": issue.get("code", "?"),
+                    "path": issue.get("path", "?"),
+                    "message": _redact_secret_text(issue.get("message", "?")),
+                })
+        except Exception:
+            pass
+    else:
+        debug_files["debug_validation_issues"] = False
+
+    # Check for invalid semantic_ir in job output_dir
+    invalid_path = output_dir / "semantic_ir.invalid.json"
+    debug_files["semantic_ir_invalid"] = invalid_path.exists()
+
+    # Check for repair response (outputs/latest)
+    repair_resp_path = latest_dir / "debug_repair_response.txt"
+    debug_files["debug_repair_response"] = repair_resp_path.exists()
+
+    return JSONResponse({
+        "ok": True,
+        "job_id": job_id,
+        "debug_files": debug_files,
+        "validation_issues": validation_issues,
+    })
 
 
 # ---------- job output files ----------

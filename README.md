@@ -560,6 +560,21 @@ python -m src.server --host 127.0.0.1 --port 8777
 - `minimax_m3_openai` 的 `missing_env=[]`（不报缺 MINIMAX_API_KEY）
 - API 响应中不出现真实 key / sk-
 
+**Checkpoint 15.2.2 — 真实 LLM 失败诊断增强（当前）**：
+
+- pipeline.py：generate_ir 失败时打印 validation issues 摘要（前 5 条）到 stderr
+- pipeline.py：打印 debug_validation_issues.json / semantic_ir.invalid.json / debug_repair_response.txt 路径
+- server.py：`_redact_secret_text()` helper — 自动脱敏 API key / voice_id
+- server.py：改进错误提取 — 保留所有 `[auto:]` 行（最多 5 条）
+- server.py：新增 `GET /api/jobs/{job_id}/debug` — 返回 validation issues 摘要
+- debug prompt/response 不走普通 artifact 白名单
+
+**CP15.2.2 验收**：
+- 真实 LLM 失败时 job error 包含 validation issues 摘要（前 5 条）
+- `GET /api/jobs/{job_id}/debug` 返回 validation_issues 列表（最多 10 条）
+- error 文本中 API key 已脱敏（`sk-` → `[REDACTED]`，`MINIMAX_API_KEY=...` → `MINIMAX_API_KEY=[REDACTED]`）
+- debug 文件不通过普通 artifact API 暴露
+
 ## 项目定位
 
 V0.11: News → LLM → semantic_ir → dual-host dialogue → video（含双角色音频）。

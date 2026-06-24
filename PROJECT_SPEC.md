@@ -1150,6 +1150,24 @@ ALLOWED_ARTIFACTS = {
 - `/api/jobs/{job_id}/artifacts/meta` 可读
 - error message 只含 env var name，不含 value
 
+### Real Provider Diagnostics（CP15.2.2）
+
+`_redact_secret_text(text)` 脱敏规则：
+- `sk-<token>` → `[REDACTED]`
+- `MINIMAX_API_KEY=<value>` → `MINIMAX_API_KEY=[REDACTED]`
+- `MIMO_API_KEY=<value>` → `MIMO_API_KEY=[REDACTED]`
+- `MINIMAX_TTS_*_VOICE_ID=<value>` → `MINIMAX_TTS_*_VOICE_ID=[REDACTED]`
+
+`GET /api/jobs/{job_id}/debug` 返回：
+- `debug_files`: 各 debug 文件是否存在
+- `validation_issues`: 前 10 条 validation issues 摘要（severity / code / path / message）
+- 不返回完整 prompt / raw LLM response / API key
+
+pipeline.py generate_ir 失败时：
+- 打印 `debug_validation_issues.json` 路径和前 5 条 issues 到 stderr
+- 打印 `semantic_ir.invalid.json` 路径（如果存在）
+- 打印 `debug_repair_response.txt` 路径（如果存在）
+
 ## 文件清单（V0.11 新增 / 修改）
 
 新增（CP10）：
@@ -1224,6 +1242,11 @@ ALLOWED_ARTIFACTS = {
 - `src/server.py`（启动时 `load_dotenv(PROJECT_ROOT / ".env", override=False)`）
 - `requirements.txt`（新增 `python-dotenv>=1.0.0`）
 - README.md / PROJECT_SPEC.md / BACKLOG.md（CP15.2.1 更新）
+
+修改（CP15.2.2）：
+- `src/pipeline.py`（generate_ir 失败时打印 validation issues 摘要和 debug 文件路径）
+- `src/server.py`（`_redact_secret_text` helper、`_run_job` 错误提取改进、`/api/jobs/{job_id}/debug` 端点）
+- README.md / PROJECT_SPEC.md / BACKLOG.md（CP15.2.2 更新）
 
 未修改：
 - `src/pace.py` / `src/render_html.py`
