@@ -311,3 +311,62 @@ All 5 layouts continue to satisfy:
 | No API key / voice_id | ✓ |
 | No `/api/jobs` called | ✓ |
 | No real LLM / TTS / MP4 | ✓ |
+
+---
+
+## CP35.2: Episode Layout Validation Compatibility
+
+**Branch:** `fix/cp35.2-episode-layout-validation-compatibility`
+**Commit:** `fix(cp35.2): keep episode layouts validation-compatible`
+**Date:** 2026-06-25
+
+### 1. Issue
+
+CP35.1's distinct layouts introduced three validation incompatibilities:
+
+1. **`breaking_news_v1`**: The lead hero card had no `class="mock-news-card"` or `data-section-type="news_segment"`, so if supporting cards were empty the HTML would fail the `mock-news-card` check.
+
+2. **`research_briefing_v1`**: Used a custom chapter bar instead of `tl-rail`/`tl-track`/`tl-time`, failing the timeline presence check.
+
+3. **`podcast_cards_v1`**: Similarly used a custom chapter rail instead of `tl-rail`/`tl-track`/`tl-time`, failing the timeline check.
+
+The validator was not relaxed — the layouts were patched to remain compliant.
+
+### 2. Fixes Applied
+
+| Layout | Fix |
+|--------|-----|
+| `breaking_news_v1` lead card | Added `class="mock-news-card mock-news-card-lead"` and `data-section-type="news_segment"` to the lead hero card div |
+| `research_briefing_v1` | Added `<div class="tl-rail"><div class="tl-track">` + `renderSharedTimelineMarkersHtml()` after the research header |
+| `podcast_cards_v1` | Added `<div class="tl-rail"><div class="tl-track">` + `renderSharedTimelineMarkersHtml()` after the episode cover header |
+| `research_briefing_v1` closing | Added literal "结尾" to closing takeaway label: `"🔬 结尾 — CLOSING TAKEAWAY"` |
+
+### 3. Validation Matrix
+
+| Check | daily | breaking | dashboard | research | podcast |
+|-------|-------|----------|-----------|----------|---------|
+| `mock-news-card` present | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `data-section-type="news_segment"` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `tl-rail` / `tl-track` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `tl-time` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| "开场" literal | ✓ | ✓ | ✓ | ✓ | ✓ |
+| "结尾" literal | ✓ | ✓ | ✓ | ✓ | ✓ |
+| No script | ✓ | ✓ | ✓ | ✓ | ✓ |
+| No external http | ✓ | ✓ | ✓ | ✓ | ✓ |
+| No API key / voice_id | ✓ | ✓ | ✓ | ✓ | ✓ |
+
+### 4. Lightweight Verification Results
+
+| Test | Result |
+|------|--------|
+| All 5 layouts pass `validateMockEpisodeHtml` | ✓ |
+| All 5 layouts pass `validateEpisodeTemplateContract` | ✓ |
+| `breaking_news_v1` lead card has required attrs | ✓ |
+| `research_briefing_v1` has `tl-rail` + `tl-time` | ✓ |
+| `podcast_cards_v1` has `tl-rail` + `tl-time` | ✓ |
+| All layouts contain "开场" and "结尾" | ✓ |
+| No external http/https | ✓ |
+| No script tags | ✓ |
+| No API key / voice_id | ✓ |
+| No `/api/jobs` called | ✓ |
+| No real LLM / TTS / MP4 | ✓ |

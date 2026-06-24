@@ -2234,7 +2234,7 @@
 
     var leadHtml = "";
     if (leadCard) {
-      leadHtml = '<div style="background:' + st.cardBgLead + ';border:2px solid ' + st.cardBorderLead + ';border-radius:12px;padding:24px;margin:16px 0;animation:fadeUp 0.4s ease-out both;">' +
+      leadHtml = '<div class="mock-news-card mock-news-card-lead" data-section-type="news_segment" style="background:' + st.cardBgLead + ';border:2px solid ' + st.cardBorderLead + ';border-radius:12px;padding:24px;margin:16px 0;animation:fadeUp 0.4s ease-out both;">' +
         '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">' +
         '<span style="background:' + st.badgeBg + ';color:' + st.badgeColor + ';padding:3px 10px;border-radius:4px;font-size:11px;font-weight:900;letter-spacing:1px;">★ 主线</span>' +
         '<span style="color:' + st.metaText + ';font-size:11px;font-family:monospace;">' + leadCard.time_range + '</span>' +
@@ -2380,6 +2380,7 @@
       '<span>📰 ' + sections.news_cards.length + ' observations</span>' +
       '<span>⏱ ' + totalTimeStr + '</span>' +
       '<span>◆ ' + episode.lead_count + ' key findings</span></div></div>\n</div>\n' +
+      '<div class="tl-rail" style="padding:8px 40px;border-bottom:1px solid ' + st.sectionDivider + ';"><div class="tl-track">' + renderSharedTimelineMarkersHtml(timeline, st) + '</div></div>\n' +
       '<div style="background:' + st.bodyBg + ';padding:0 40px;border-bottom:1px solid ' + st.sectionDivider + ';"><div style="display:flex;gap:24px;padding:8px 0;font-size:10px;color:' + st.metaText + ';overflow-x:auto;white-space:nowrap;">' +
       '<span>📍 开场</span>' +
       (sections.news_cards.map(function (c, i) { return '<span>#' + (i + 1) + ' ' + escapeHtml(c.headline).substring(0, 20) + '...</span>'; }).join(' → ')) +
@@ -2391,7 +2392,7 @@
       '<div style="color:' + st.metaText + ';font-size:12px;">' + escapeHtml(sections.opening.subtitle) + '</div></div>\n' +
       '<div class="section-label">Key Findings & Observations</div>\n' + briefItems.join("") +
       '<div style="background:' + st.closingBg + ';border-left:3px solid ' + st.cardBorder + ';border-radius:4px;padding:16px;margin-top:16px;">' +
-      '<div style="color:' + st.metaText + ';font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">🔬 CLOSING TAKEAWAY</div>' +
+      '<div style="color:' + st.metaText + ';font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">🔬 结尾 — CLOSING TAKEAWAY</div>' +
       '<div style="color:#f9fafb;font-size:14px;font-weight:600;margin-bottom:4px;">' + escapeHtml(sections.closing.title) + '</div>' +
       (sections.closing.focus_news_id ? '<div style="color:' + st.metaText + ';font-size:11px;margin-top:6px;">📋 ID: ' + escapeHtml(sections.closing.focus_news_id) + '</div>' : '') + '</div>\n' +
       '</div>\n<div class="footer-bar"><span>Research Briefing · ' + escapeHtml(themeName) + ' · no real render</span><span>' + escapeHtml(episode.title) + '</span></div>\n</body>\n</html>';
@@ -2449,7 +2450,8 @@
       '<span>📰 ' + sections.news_cards.length + ' topics</span>' +
       '<span>⏱ ' + totalTimeStr + '</span>' +
       '<span>◆ ' + episode.lead_count + ' featured</span></div></div>\n' +
-      '<div style="background:' + st.bodyBg + ';padding:16px 40px;border-bottom:1px solid ' + st.heroBorder + ';"><div style="display:flex;gap:20px;overflow-x:auto;padding:4px 0;">' +
+      '<div class="tl-rail" style="padding:8px 40px;border-bottom:1px solid ' + st.heroBorder + ';"><div class="tl-track">' + renderSharedTimelineMarkersHtml(timeline, st) + '</div></div>\n' +
+      '<div style="background:' + st.bodyBg + ';padding:12px 40px;border-bottom:1px solid ' + st.heroBorder + ';"><div style="display:flex;gap:20px;overflow-x:auto;padding:4px 0;">' +
       '<span style="color:' + st.metaText + ';font-size:11px;font-weight:700;white-space:nowrap;padding:4px 0;">📑 CHAPTERS:</span>' +
       '<span style="color:' + st.accentText + ';font-size:11px;white-space:nowrap;padding:4px 8px;background:' + st.cardBadgeBg + ';border-radius:10px;">🎙️ 开场</span>' +
       sections.news_cards.map(function (c, i) {
