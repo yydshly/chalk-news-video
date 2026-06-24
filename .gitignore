@@ -20,6 +20,19 @@ outputs/latest/*.mp3
 outputs/latest/*.aac
 outputs/latest/*.m4a
 
+# Job outputs (only .gitkeep is tracked, job dirs are generated)
+outputs/jobs/*
+!outputs/jobs/.gitkeep
+!outputs/jobs/job_*/
+outputs/jobs/job_*/*.json
+outputs/jobs/job_*/*.html
+outputs/jobs/job_*/*.mp4
+outputs/jobs/job_*/*.txt
+outputs/jobs/job_*/*.wav
+outputs/jobs/job_*/*.m4a
+outputs/jobs/job_*/*.aac
+outputs/jobs/job_*/*.mp3
+
 # OS / editor noise
 .DS_Store
 Thumbs.db

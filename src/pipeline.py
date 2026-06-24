@@ -175,6 +175,7 @@ def run_auto_pipeline(args):
                 gen_dialogue_cmd = [
                     sys.executable, "-m", "src.generate_dialogue",
                     "--semantic-ir", str(semantic_ir_path),
+                    "--output", str(dialogue_script_path),
                     "--validate",
                 ]
                 if args.mock:
