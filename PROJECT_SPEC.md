@@ -604,9 +604,95 @@ generate_ir → validate_ir
 - 当前 speaker 高亮：active class + pulse 动画指示点
 - 非 dialogue 模式：speaker panels 透明（opacity=0）
 
+## Checkpoint 10 — Theme System V1
+
+### 职责边界
+
+- **做**：可配置视觉主题、背景/文字/节点/边线/标注/对话框颜色 token
+- **不做**：Remotion、数字人、lip-sync、改变业务契约
+
+### render_ir.theme 契约
+
+```json
+{
+  "id": "podcast",
+  "name": "双人播客",
+  "background": { "type": "solid", "color": "#0b1020", "grid_color": "#1f2a44" },
+  "text": { "title": "#f8fafc", "body": "#cbd5e1", "subtitle": "#f8fafc" },
+  "node": { "fill": "#111827", "stroke": "#38bdf8", "text": "#f8fafc" },
+  "edge": { "stroke": "#94a3b8", "label": "#e2e8f0" },
+  "callout": {
+    "info_fill": "#38bdf8", "info_stroke": "#0284c7", "info_text": "#f8fafc",
+    "alert_fill": "#fb923c", "alert_stroke": "#ea580c", "alert_text": "#f8fafc",
+    "positive_fill": "#22c55e", "positive_stroke": "#16a34a", "positive_text": "#f8fafc"
+  },
+  "dialogue": {
+    "host_accent": "#38bdf8", "expert_accent": "#facc15",
+    "host_indicator": "#38bdf8", "expert_indicator": "#facc15",
+    "panel_fill": "rgba(15,23,42,0.92)", "panel_stroke": "#38bdf8",
+    "subtitle_fill": "rgba(15,23,42,0.86)"
+  }
+}
+```
+
+### 主题列表
+
+| ID | name | 风格 |
+|---|---|---|
+| `chalkboard` | 绿色黑板 | 默认，绿色网格背景，粉笔节点 |
+| `podcast` | 双人播客 | 深蓝背景，现代 UI，高对比度 |
+| `research_desk` | 深夜研究室 | 深蓝灰背景，暖黄强调色 |
+| `notebook` | 手写笔记 | 米白纸张背景，手账风格 |
+
+### config/themes.yaml
+
+定义所有主题的视觉 token，读取路径：`PROJECT_ROOT / "config" / "themes.yaml"`。
+
+### src/theme.py
+
+- `load_themes()`：读取 themes.yaml，返回 {default_theme, themes}
+- `resolve_theme(name)`：按名称解析单个 theme，不存在则 ValueError
+- `apply_theme(render_ir, name)`：写入 `render_ir["theme"]`
+
+### Pipeline 顺序（CP10）
+
+```
+generate_ir → validate_ir
+→ (auto-generate dialogue_script.json if missing)
+→ narration (dialogue_audio) → layout → apply_narration_timing
+→ apply_dialogue_visual_cues
+→ apply_theme (CP10 新增，始终执行)
+→ save render_ir.json → render_html → export_video
+```
+
+### template.html 主题应用
+
+JS 在初始化时从 `RENDER_IR.theme` 读取所有视觉 token：
+- `BG.color` / `BG.grid`：背景填充/网格线
+- `TEXT.title/body/subtitle`：标题/正文/字幕颜色
+- `NODE.fill/stroke/text`：节点填充/描边/文字
+- `EDGE.stroke/label`：边线/标签颜色
+- `CALLOUT.*`：标注填充/描边/文字（按 tone）
+- `DIALOGUE_THEME.*`：speaker accent / panel fill / subtitle fill
+
+动态创建的元素（节点/边线/标注）直接在 `el()` 调用中使用 THEME 常量。
+静态元素的 HTML 默认值为 chalkboard fallback，由 `applyTheme()` JS 函数覆盖。
+
+### 字段约束
+
+| 约束 | 说明 |
+|------|------|
+| `theme.id` 仅限已知主题 | chalkboard/podcast/research_desk/notebook |
+| `theme` 不含 API 密钥 | 只包含视觉 token |
+| `theme` 不影响业务契约 | semantic_ir / dialogue_script / dialogue_manifest 不变 |
+
 ## 文件清单（V0.11 新增 / 修改）
 
-新增：
+新增（CP10）：
+- `config/themes.yaml`（主题 token 定义：chalkboard/podcast/research_desk/notebook）
+- `src/theme.py`（load_themes / resolve_theme / apply_theme）
+
+新增（历史）：
 - `src/tts/`（TTS provider 基础设施）
 - `src/narration.py`（新增 `generate_dialogue` 函数）
 - `src/narration_timing.py`（CP6.1 新增）
@@ -615,23 +701,22 @@ generate_ir → validate_ir
 - `prompts/repair_dialogue_script.md`（CP8 新增）
 - `docs/CP8_REAL_DIALOGUE_VALIDATION.md`（CP8 新增）
 
-修改：
-- `src/generate_dialogue.py`（CP8：repair 流程 + debug 输出）
-- `src/narration.py`（CP8：--dialogue-profile + speaker_profiles）
-- `src/pipeline.py`（CP8：dialogue-profile + repair 流程）
-- `config/tts.yaml`（CP8：新增 dialogue_profiles 段）
+修改（CP10）：
+- `src/pipeline.py`（新增 `--theme` 参数，默认 chalkboard）
+- `renderer/template.html`（JS 读取 RENDER_IR.theme 覆盖所有视觉 token）
 - `README.md` / `PROJECT_SPEC.md` / `BACKLOG.md`
 
-修改：
-- `src/pipeline.py`（新增 `--dialogue` / `--host-profile` / `--expert-profile`）
+修改（历史）：
+- `src/generate_dialogue.py`（CP8：repair 流程 + debug 输出）
+- `src/narration.py`（CP8：--dialogue-profile + speaker_profiles）
+- `src/pipeline.py`（CP8：dialogue-profile + repair 流程；CP9：dialogue visual cues）
+- `config/tts.yaml`（CP8：新增 dialogue_profiles 段）
 - `src/export_video.py`（添加 mux 日志和 ffprobe 时长检查）
 - `src/tts/mock_tts_provider.py`（返回 sample_rate，不同 voice 不同频率）
 - `prompts/news_to_semantic_ir.md`（新增 speaker 字段说明）
-- `README.md` / `PROJECT_SPEC.md` / `BACKLOG.md`
 
 未修改：
 - `src/pace.py` / `src/render_html.py`
 - `src/fetch_news.py` / `src/config_loader.py` / `src/utils.py`
 - `schema/semantic_ir.schema.json`
-- `renderer/template.html`
 - `examples/sample.semantic.json`

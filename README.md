@@ -43,7 +43,6 @@ python -m src.pipeline --auto --mock --tts --dialogue --dialogue-profile mock_di
 ```
 
 **CP9 限制（明确不做）**：
-- 不是完整 Theme System（CP10）
 - 不是 Remotion（CP11）
 - 不是数字人（CP11+）
 - 不做 lip-sync
@@ -57,6 +56,44 @@ python -m src.pipeline --auto --mock --tts --dialogue --dialogue-profile mock_di
 - `examples/sample.dialogue.custom_speakers.json`：自定义 speaker name 测试 fixture（提问者/分析员）
 - speaker name 优先从 `dialogue_script.style.speakers` 读取，支持自定义
 - `dialogue.turns` 仍然不含 audio_path / voice_id
+
+**Checkpoint 10 — Theme System V1**：
+
+支持 4 种视觉主题：`chalkboard`（默认）、`podcast`、`research_desk`、`notebook`。
+
+```bash
+# 使用 podcast 主题
+python -m src.pipeline --auto --mock --tts --dialogue --dialogue-profile mock_dialogue --theme podcast
+
+# 使用 notebook 主题
+python -m src.pipeline --auto --mock --tts --tts-profile mock --theme notebook
+```
+
+**config/themes.yaml** 定义所有主题的视觉 token：
+- background（color, grid_color, type）
+- text（title, body, subtitle）
+- node（fill, stroke, text）
+- edge（stroke, label）
+- callout（info/alert/positive fill/stroke/text）
+- dialogue（host_accent, expert_accent, panel_fill, subtitle_fill）
+
+**render_ir.theme** 结构：
+```json
+{
+  "id": "podcast",
+  "name": "双人播客",
+  "background": {"type": "solid", "color": "#0b1020", "grid_color": "#1f2a44"},
+  "text": {"title": "#f8fafc", "body": "#cbd5e1", "subtitle": "#f8fafc"},
+  "node": {"fill": "#111827", "stroke": "#38bdf8", "text": "#f8fafc"},
+  ...
+}
+```
+
+**CP10 限制（明确不做）**：
+- 不是 Remotion（CP11）
+- 不是数字人（CP11+）
+- 不做 lip-sync
+- 不改 semantic_ir / dialogue_script / dialogue_manifest schema
 
 ## 项目定位
 
@@ -350,8 +387,9 @@ python -m src.pipeline --auto --news outputs/latest/latest_news.json --profile m
 5. `layout.build_render_ir`
 6. `apply_narration_timing`（仅当 TTS）
 7. `apply_dialogue_visual_cues`（仅当 `--dialogue`，CP9 新增）
-8. `render_html.render_html`
-9. `export_video.export_video`（除非 `--no-export`，音频 mux 在此阶段）
+8. `apply_theme`（CP10 新增，始终执行）
+9. `render_html.render_html`
+10. `export_video.export_video`（除非 `--no-export`，音频 mux 在此阶段）
 
 **常见失败**：
 - `sources.yaml` 仍是占位 URL → `[auto:fetch_news]` 失败

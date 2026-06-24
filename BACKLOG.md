@@ -204,12 +204,18 @@
 - [x] speaker metadata 读取测试通过（custom/standard/default）
 - [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
 
-## Checkpoint 10 — Theme System
+## Checkpoint 10 — Theme System V1
 
-- 黑板（当前默认）
-- podcast（CP9 speaker overlay）
-- research_desk
-- notebook
+- [x] `config/themes.yaml`（新增：chalkboard / podcast / research_desk / notebook）
+- [x] `src/theme.py`（新增 `load_themes` / `resolve_theme` / `apply_theme`）
+- [x] `src/pipeline.py`（新增 `--theme` 参数，默认 chalkboard）
+- [x] `renderer/template.html`（JS 读取 `RENDER_IR.theme` 覆盖所有颜色/填充/边框）
+- [x] `render_ir.theme` 包含完整视觉 token（background/text/node/edge/callout/dialogue）
+- [x] 4 个主题均可通过 `--theme` 切换
+- [x] invalid theme → ValueError，pipeline exit 非 0
+- [x] 单人口播/无声模式均可使用 `--theme`
+- [x] 非 dialogue 模式 speaker panels 不出现
+- [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
 
 ## Checkpoint 11 — Remotion / 视觉升级
 
@@ -219,7 +225,6 @@
 
 ## 不做（Out of Scope）
 
-- Theme System（CP10+）
 - Remotion（CP11+）
 - 数字人（CP11+）
 - lip-sync（CP9+）

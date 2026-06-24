@@ -134,6 +134,54 @@
   const RENDER_IR = {{ render_ir_json|safe }};
   const SVG_NS = "http://www.w3.org/2000/svg";
 
+  // CP10: Theme system - fallbacks are chalkboard defaults
+  const THEME = RENDER_IR.theme || {};
+  const BG = {
+    color: THEME.background ? THEME.background.color : "#143b2e",
+    grid: THEME.background ? THEME.background.grid_color : "#1f523e",
+    type: THEME.background ? THEME.background.type : "grid",
+  };
+  const TEXT = {
+    title: THEME.text ? THEME.text.title : "#f8f8f2",
+    body: THEME.text ? THEME.text.body : "#d8e6d4",
+    subtitle: THEME.text ? THEME.text.subtitle : "#ffffff",
+  };
+  const NODE = {
+    fill: THEME.node ? THEME.node.fill : "#fff8dc",
+    stroke: THEME.node ? THEME.node.stroke : "#f0d77b",
+    text: THEME.node ? THEME.node.text : "#1d1d1d",
+  };
+  const EDGE = {
+    stroke: THEME.edge ? THEME.edge.stroke : "#f8f8f2",
+    label: THEME.edge ? THEME.edge.label : "#f8f8f2",
+  };
+  const CALLOUT = {
+    info: {
+      fill: THEME.callout ? THEME.callout.info_fill : "#ffe066",
+      stroke: THEME.callout ? THEME.callout.info_stroke : "#b58900",
+      text: THEME.callout ? THEME.callout.info_text : "#5d4037",
+    },
+    alert: {
+      fill: THEME.callout ? THEME.callout.alert_fill : "#ff8a65",
+      stroke: THEME.callout ? THEME.callout.alert_stroke : "#bf360c",
+      text: THEME.callout ? THEME.callout.alert_text : "#ffffff",
+    },
+    positive: {
+      fill: THEME.callout ? THEME.callout.positive_fill : "#a5d6a7",
+      stroke: THEME.callout ? THEME.callout.positive_stroke : "#2e7d32",
+      text: THEME.callout ? THEME.callout.positive_text : "#1b5e20",
+    },
+  };
+  const DIALOGUE_THEME = {
+    host_accent: (THEME.dialogue && THEME.dialogue.host_accent) || "#4db6ac",
+    expert_accent: (THEME.dialogue && THEME.dialogue.expert_accent) || "#f0d77b",
+    host_indicator: (THEME.dialogue && THEME.dialogue.host_indicator) || "#4db6ac",
+    expert_indicator: (THEME.dialogue && THEME.dialogue.expert_indicator) || "#f0d77b",
+    panel_fill: (THEME.dialogue && THEME.dialogue.panel_fill) || "rgba(20,59,46,0.85)",
+    panel_stroke: (THEME.dialogue && THEME.dialogue.panel_stroke) || "#4db6ac",
+    subtitle_fill: (THEME.dialogue && THEME.dialogue.subtitle_fill) || "rgba(0,0,0,0.75)",
+  };
+
   const board = document.getElementById("board");
   const edgesGroup = document.getElementById("edges-group");
   const nodesGroup = document.getElementById("nodes-group");
@@ -153,6 +201,64 @@
   // CP9: Dialogue state
   const DIALOGUE = RENDER_IR.dialogue || null;
   const DIALOGUE_TURNS = DIALOGUE ? DIALOGUE.turns : null;
+
+  // CP10: Apply theme to static SVG elements at init
+  function applyTheme() {
+    // Board background
+    const boardRect = board.querySelector("rect[width]");
+    if (boardRect && boardRect.getAttribute("fill") !== "url(#boardGrid)") {
+      boardRect.setAttribute("fill", BG.color);
+    } else if (boardRect) {
+      // grid type: set base fill
+      const patternRect = board.querySelector("pattern rect");
+      if (patternRect) patternRect.setAttribute("fill", BG.color);
+      const gridLines = board.querySelectorAll("pattern line");
+      gridLines.forEach(function (l) { l.setAttribute("stroke", BG.grid); });
+    }
+
+    // Title / summary text color
+    var titleTexts = titleGroup.querySelectorAll("text");
+    if (titleTexts[0]) titleTexts[0].setAttribute("fill", TEXT.title);
+    if (titleTexts[1]) titleTexts[1].setAttribute("fill", TEXT.body);
+
+    // Subtitle bar fill
+    var subtitleBar = document.getElementById("subtitle-group");
+    if (subtitleBar) {
+      var subtitleBarRect = subtitleBar.querySelector("rect");
+      if (subtitleBarRect) subtitleBarRect.setAttribute("fill", DIALOGUE_THEME.subtitle_fill);
+      subtitleText.setAttribute("fill", TEXT.subtitle);
+    }
+
+    // Speaker panels: apply theme colors
+    if (DIALOGUE && DIALOGUE.enabled) {
+      // Host panel
+      var hostRect = speakerHostCard.querySelector("rect");
+      if (hostRect) {
+        hostRect.setAttribute("fill", DIALOGUE_THEME.panel_fill);
+        hostRect.setAttribute("stroke", DIALOGUE_THEME.panel_stroke);
+      }
+      if (hostIndicator) {
+        hostIndicator.setAttribute("fill", DIALOGUE_THEME.host_indicator);
+      }
+      // Expert panel
+      var expertRect = speakerExpertCard.querySelector("rect");
+      if (expertRect) {
+        expertRect.setAttribute("fill", DIALOGUE_THEME.panel_fill);
+        expertRect.setAttribute("stroke", DIALOGUE_THEME.expert_accent);
+      }
+      if (expertIndicator) {
+        expertIndicator.setAttribute("fill", DIALOGUE_THEME.expert_indicator);
+      }
+      // Host/expert card text colors
+      if (hostSpeakerName) hostSpeakerName.setAttribute("fill", TEXT.title);
+      if (expertSpeakerName) expertSpeakerName.setAttribute("fill", TEXT.title);
+      // Host/expert labels
+      var hostLabel = speakerHostCard.querySelector(".speaker-card-label");
+      if (hostLabel) hostLabel.setAttribute("fill", TEXT.title);
+      var expertLabel = speakerExpertCard.querySelector(".speaker-card-label");
+      if (expertLabel) expertLabel.setAttribute("fill", TEXT.title);
+    }
+  }
 
   // CP9: Update speaker panel names from dialogue config
   if (DIALOGUE && DIALOGUE.speakers) {
@@ -193,6 +299,8 @@
       }
     }
   }
+
+  applyTheme();
 
   // ---------- helpers ----------
 
@@ -240,7 +348,7 @@
     el("line", {
       x1: edge.x1, y1: edge.y1,
       x2: edge.x2, y2: edge.y2,
-      stroke: "#f8f8f2",
+      stroke: EDGE.stroke,
       "stroke-width": 3,
       "marker-end": "url(#arrowhead)",
     }, g);
@@ -252,7 +360,7 @@
         x: midX,
         y: midY - 8,
         "text-anchor": "middle",
-        fill: "#f8f8f2",
+        fill: EDGE.label,
         "font-family": "Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif",
         "font-size": 14,
         opacity: 0.85,
@@ -271,24 +379,24 @@
     el("rect", {
       x: node.x, y: node.y, width: node.w, height: node.h,
       rx: 10, ry: 10,
-      fill: "#fff8dc",
-      stroke: "#f0d77b",
+      fill: NODE.fill,
+      stroke: NODE.stroke,
       "stroke-width": 3,
       filter: "url(#cardShadow)",
     }, g);
 
-    // Index badge (1-based)
+    // Index badge (1-based) - use background color for contrast
     const idx = (RENDER_IR.nodes.indexOf(node) + 1).toString();
     el("circle", {
       cx: node.x + 22, cy: node.y + 22, r: 16,
-      fill: "#143b2e",
-      stroke: "#f0d77b",
+      fill: BG.color,
+      stroke: NODE.stroke,
       "stroke-width": 2,
     }, g);
     el("text", {
       x: node.x + 22, y: node.y + 28,
       "text-anchor": "middle",
-      fill: "#f8f8f2",
+      fill: TEXT.title,
       "font-family": "Arial, sans-serif",
       "font-size": 18,
       "font-weight": "bold",
@@ -303,7 +411,7 @@
         x: node.cx,
         y: baseY + i * 24,
         "text-anchor": "middle",
-        fill: "#2c3e50",
+        fill: NODE.text,
         "font-family": "'Comic Sans MS', 'Chalkboard SE', cursive, sans-serif",
         "font-size": 18,
         "font-weight": "bold",
@@ -320,7 +428,7 @@
           x: node.cx,
           y: subY,
           "text-anchor": "middle",
-          fill: "#5d6d7e",
+          fill: TEXT.body,
           "font-family": "Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif",
           "font-size": 13,
         }, g);
@@ -336,19 +444,19 @@
       "data-callout-id": callout.id,
     }, calloutsGroup);
 
-    // Color by tone
-    let fill = "#ffe066";
-    let stroke = "#b58900";
-    let text = "#5d4037";
-    if (callout.tone === "alert")   { fill = "#ff8a65"; stroke = "#bf360c"; text = "#ffffff"; }
-    if (callout.tone === "positive"){ fill = "#a5d6a7"; stroke = "#2e7d32"; text = "#1b5e20"; }
+    // Color by tone (CP10: use THEME.callout)
+    var cfill = CALLOUT.info.fill;
+    var cstroke = CALLOUT.info.stroke;
+    var ctext = CALLOUT.info.text;
+    if (callout.tone === "alert")   { cfill = CALLOUT.alert.fill; cstroke = CALLOUT.alert.stroke; ctext = CALLOUT.alert.text; }
+    if (callout.tone === "positive"){ cfill = CALLOUT.positive.fill; cstroke = CALLOUT.positive.stroke; ctext = CALLOUT.positive.text; }
 
     el("rect", {
       x: callout.x, y: callout.y,
       width: callout.w, height: callout.h,
       rx: 8, ry: 8,
-      fill: fill,
-      stroke: stroke,
+      fill: cfill,
+      stroke: cstroke,
       "stroke-width": 2,
       filter: "url(#cardShadow)",
     }, g);
@@ -361,7 +469,7 @@
         y1: callout.y + callout.h,
         x2: callout.x + callout.w / 2,
         y2: target.y - 2,
-        stroke: stroke,
+        stroke: cstroke,
         "stroke-width": 2,
         "stroke-dasharray": "4 4",
       }, g);
@@ -375,7 +483,7 @@
         x: callout.x + callout.w / 2,
         y: cy + offset,
         "text-anchor": "middle",
-        fill: text,
+        fill: ctext,
         "font-family": "Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif",
         "font-size": 14,
         "font-weight": "bold",

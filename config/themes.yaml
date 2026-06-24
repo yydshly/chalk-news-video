@@ -1,0 +1,150 @@
+# Theme System V1 (CP10)
+# Each theme defines the visual tokens for the renderer.
+# Themes only affect visual expression, not business contracts.
+
+default_theme: chalkboard
+
+themes:
+  chalkboard:
+    name: "绿色黑板"
+    background:
+      type: grid
+      color: "#143b2e"
+      grid_color: "#1f523e"
+    text:
+      title: "#f8f8f2"
+      body: "#d8e6d4"
+      subtitle: "#ffffff"
+    node:
+      fill: "#fff8dc"
+      stroke: "#f0d77b"
+      text: "#1d1d1d"
+    edge:
+      stroke: "#f8f8f2"
+      label: "#f8f8f2"
+    callout:
+      info_fill: "#ffe066"
+      info_stroke: "#b58900"
+      info_text: "#5d4037"
+      alert_fill: "#ff8a65"
+      alert_stroke: "#bf360c"
+      alert_text: "#ffffff"
+      positive_fill: "#a5d6a7"
+      positive_stroke: "#2e7d32"
+      positive_text: "#1b5e20"
+    dialogue:
+      host_accent: "#4db6ac"
+      expert_accent: "#f0d77b"
+      host_indicator: "#4db6ac"
+      expert_indicator: "#f0d77b"
+      panel_fill: "rgba(20,59,46,0.85)"
+      panel_stroke: "#4db6ac"
+      subtitle_fill: "rgba(0,0,0,0.75)"
+
+  podcast:
+    name: "双人播客"
+    background:
+      type: solid
+      color: "#0b1020"
+      grid_color: "#1f2a44"
+    text:
+      title: "#f8fafc"
+      body: "#cbd5e1"
+      subtitle: "#f8fafc"
+    node:
+      fill: "#111827"
+      stroke: "#38bdf8"
+      text: "#f8fafc"
+    edge:
+      stroke: "#94a3b8"
+      label: "#e2e8f0"
+    callout:
+      info_fill: "#38bdf8"
+      info_stroke: "#0284c7"
+      info_text: "#f8fafc"
+      alert_fill: "#fb923c"
+      alert_stroke: "#ea580c"
+      alert_text: "#f8fafc"
+      positive_fill: "#22c55e"
+      positive_stroke: "#16a34a"
+      positive_text: "#f8fafc"
+    dialogue:
+      host_accent: "#38bdf8"
+      expert_accent: "#facc15"
+      host_indicator: "#38bdf8"
+      expert_indicator: "#facc15"
+      panel_fill: "rgba(15,23,42,0.92)"
+      panel_stroke: "#38bdf8"
+      subtitle_fill: "rgba(15,23,42,0.86)"
+
+  research_desk:
+    name: "深夜研究室"
+    background:
+      type: solid
+      color: "#101820"
+      grid_color: "#263442"
+    text:
+      title: "#f5e6c8"
+      body: "#d9c7a3"
+      subtitle: "#fff7ed"
+    node:
+      fill: "#2a2420"
+      stroke: "#d6a85c"
+      text: "#fff7ed"
+    edge:
+      stroke: "#c4a56a"
+      label: "#f5e6c8"
+    callout:
+      info_fill: "#7dd3fc"
+      info_stroke: "#0284c7"
+      info_text: "#0c1a2a"
+      alert_fill: "#f59e0b"
+      alert_stroke: "#d97706"
+      alert_text: "#0c1a2a"
+      positive_fill: "#86efac"
+      positive_stroke: "#22c55e"
+      positive_text: "#0c1a2a"
+    dialogue:
+      host_accent: "#7dd3fc"
+      expert_accent: "#f59e0b"
+      host_indicator: "#7dd3fc"
+      expert_indicator: "#f59e0b"
+      panel_fill: "rgba(42,36,32,0.9)"
+      panel_stroke: "#d6a85c"
+      subtitle_fill: "rgba(18,24,32,0.86)"
+
+  notebook:
+    name: "手写笔记"
+    background:
+      type: solid
+      color: "#f4ead7"
+      grid_color: "#e7d8bd"
+    text:
+      title: "#2f2a24"
+      body: "#5c5142"
+      subtitle: "#2f2a24"
+    node:
+      fill: "#fffaf0"
+      stroke: "#d8b56d"
+      text: "#2f2a24"
+    edge:
+      stroke: "#7c6f5b"
+      label: "#4b4032"
+    callout:
+      info_fill: "#3b82f6"
+      info_stroke: "#2563eb"
+      info_text: "#f8fafc"
+      alert_fill: "#f97316"
+      alert_stroke: "#ea580c"
+      alert_text: "#f8fafc"
+      positive_fill: "#16a34a"
+      positive_stroke: "#15803d"
+      positive_text: "#f8fafc"
+    dialogue:
+      host_accent: "#3b82f6"
+      expert_accent: "#d97706"
+      host_indicator: "#3b82f6"
+      expert_indicator: "#d97706"
+      panel_fill: "rgba(255,250,240,0.92)"
+      panel_stroke: "#d8b56d"
+      subtitle_fill: "rgba(255,250,240,0.86)"

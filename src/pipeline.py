@@ -30,6 +30,7 @@ from . import export_video, fetch_news, layout, render_html, validate_ir
 from .dialogue_visual import apply_dialogue_visual_cues
 from .narration import generate_narration
 from .narration_timing import apply_narration_timing
+from .theme import apply_theme
 from .utils import PROJECT_ROOT, load_json, save_json
 
 
@@ -270,6 +271,11 @@ def run_auto_pipeline(args):
             print(f"[auto:layout] applying dialogue visual cues (CP9)")
             render_ir = apply_dialogue_visual_cues(render_ir, dialogue_manifest, dialogue_script)
 
+    # ---- Stage 4d: apply theme (CP10) ----
+    theme_name = getattr(args, "theme", None) or "chalkboard"
+    print(f"[auto:layout] applying theme: {theme_name}")
+    render_ir = apply_theme(render_ir, theme_name)
+
     # Save render_ir BEFORE render_html so timing is committed
     render_ir_path = save_json(render_ir, OUTPUT_DIR / "render_ir.json")
     print(f"[auto:layout] wrote {render_ir_path}")
@@ -322,6 +328,7 @@ def run_auto_pipeline(args):
     print(f"  fps:             {fps}")
     print(f"  canvas:          {width}x{height}")
     print(f"  tts_enabled:     {args.tts}")
+    print(f"  theme:          {theme_name}")
     if args.dialogue:
         if args.dialogue_profile:
             print(f"  dialogue_mode:   True (dialogue_profile={args.dialogue_profile})")
@@ -409,6 +416,10 @@ def main(argv=None):
     auto_group.add_argument(
         "--no-export", action="store_true",
         help="Skip video export (output.mp4). Useful for fast iteration.",
+    )
+    auto_group.add_argument(
+        "--theme", type=str, default="chalkboard",
+        help="Theme name: chalkboard (default), podcast, research_desk, notebook. (CP10)",
     )
 
     # TTS group
