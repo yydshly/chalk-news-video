@@ -524,9 +524,9 @@
       return best;
     }, null);
 
-    const items = episodeItemList.map(function (item) {
+    const items = episodeItemList.map(function (item, index) {
       return {
-        order: item.order,
+        order: index + 1,
         id: item.id,
         title: item.title,
         url: item.url,

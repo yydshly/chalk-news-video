@@ -243,3 +243,59 @@ Existing validations (order sequential, id exists, etc.) remain unchanged.
 | `validateEpisodePlan()` returns errors if role rules violated | ✓ |
 | No real LLM / TTS / MP4 / job creation | ✓ |
 | No API key / voice_id exposure | ✓ |
+
+---
+
+## CP24.2: Episode Plan Order Regression Fix
+
+**Branch:** `fix/cp24.2-episode-plan-order-regression`
+**Date:** 2026-06-24
+
+### Problem
+
+CP24.1 introduced a regression when fixing the role assignment logic. The change from:
+
+```javascript
+const items = episodeItemList.map(function (item, index) {
+  return {
+    order: index + 1,  // correct
+```
+
+to:
+
+```javascript
+const items = episodeItemList.map(function (item) {
+  return {
+    order: item.order,  // WRONG — episodeItemList items have no order field
+```
+
+This caused `episode_plan.items[].order` to become `undefined`, triggering `validateEpisodePlan()` order sequential error.
+
+### Fix
+
+Restored `order: index + 1` and added back the `index` parameter:
+
+```javascript
+const items = episodeItemList.map(function (item, index) {
+  return {
+    order: index + 1,
+```
+
+### Order is a Derived Field
+
+- `order` is computed from the current position in `episodeItemList`
+- It is NOT stored in `episodeItemList` state
+- When user reorders the playlist, `order` is recalculated on next `buildEpisodePlan()` call
+
+### Lightweight Verification Results
+
+| Test | Result |
+|------|--------|
+| `items[0].order === 1`, `items[1].order === 2` | ✓ |
+| `validateEpisodePlan()` no longer reports order error | ✓ |
+| Reordering playlist → order recalculated | ✓ |
+| Highest score item is still lead | ✓ |
+| `closing.focus_news_id` still matches lead item id | ✓ |
+| Only 1 lead | ✓ |
+| No real LLM / TTS / MP4 / job creation | ✓ |
+| No API key / voice_id exposure | ✓ |
