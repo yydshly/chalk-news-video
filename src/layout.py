@@ -33,6 +33,7 @@ SUBTITLE_TEXT_Y = 664
 
 
 def _empty_render_ir(semantic_ir):
+    meta = semantic_ir.get("meta", {})
     return {
         "canvas": {"width": CANVAS_W, "height": CANVAS_H},
         "fps": FPS,
@@ -46,6 +47,13 @@ def _empty_render_ir(semantic_ir):
             "text": semantic_ir.get("summary", ""),
             "x": CANVAS_W // 2,
             "y": SUMMARY_Y,
+        },
+        # CP18.4: Propagate news metadata so server.py meta writer can read it
+        "news": {
+            "title": semantic_ir.get("title") or meta.get("source_title", ""),
+            "summary": semantic_ir.get("summary", ""),
+            "url": meta.get("source_url", ""),
+            "source": meta.get("source_name", ""),
         },
         "nodes": [],
         "edges": [],
@@ -170,6 +178,13 @@ def layout_causal_chain(semantic_ir):
             "text": semantic_ir.get("summary", ""),
             "x": CANVAS_W // 2,
             "y": SUMMARY_Y,
+        },
+        # CP18.4: Propagate news metadata so server.py meta writer can read it
+        "news": {
+            "title": semantic_ir.get("title") or semantic_ir.get("meta", {}).get("source_title", ""),
+            "summary": semantic_ir.get("summary", ""),
+            "url": semantic_ir.get("meta", {}).get("source_url", ""),
+            "source": semantic_ir.get("meta", {}).get("source_name", ""),
         },
         "nodes": positioned_nodes,
         "edges": positioned_edges,
