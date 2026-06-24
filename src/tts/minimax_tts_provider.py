@@ -113,18 +113,55 @@ class MiniMaxTTSProvider(TTSProvider):
             )
         except requests.exceptions.RequestException as e:
             raise RuntimeError(
-                f"[minimax_tts] HTTP request to {self.endpoint} failed: {e}"
+                f"[minimax_tts] HTTP request failed: {e}"
             ) from e
 
         if resp.status_code != 200:
+            # Don't include response body in error - could contain sensitive info
             raise RuntimeError(
-                f"[minimax_tts] HTTP {resp.status_code}: {resp.text[:500]}"
+                f"[minimax_tts] HTTP {resp.status_code} from {self.endpoint}"
             )
 
-        output_path.write_bytes(resp.content)
+        # Parse JSON response - MiniMax returns hex-encoded audio in data.audio
+        try:
+            data = resp.json()
+        except Exception as e:
+            raise RuntimeError(
+                f"[minimax_tts] failed to parse JSON response: {e}"
+            ) from e
 
-        # Estimate duration from file size (rough)
-        duration = max(1.0, len(resp.content) / (self.sample_rate * 2))
+        # Check API-level error via base_resp.status_code
+        base_resp = data.get("base_resp", {})
+        status_code = base_resp.get("status_code")
+        if status_code != 0:
+            status_msg = base_resp.get("status_msg", "unknown error")
+            raise RuntimeError(
+                f"[minimax_tts] API error {status_code}: {status_msg}"
+            )
+
+        # Extract hex-encoded audio
+        audio_hex = data.get("data", {}).get("audio")
+        if not audio_hex:
+            raise RuntimeError("[minimax_tts] response missing data.audio")
+
+        try:
+            audio_bytes = bytes.fromhex(audio_hex)
+        except Exception as e:
+            raise RuntimeError(f"[minimax_tts] failed to decode audio hex: {e}") from e
+
+        output_path.write_bytes(audio_bytes)
+
+        # Get duration from extra_info.audio_length (milliseconds) if available
+        extra = data.get("extra_info", {})
+        audio_length_ms = extra.get("audio_length")
+        if audio_length_ms is not None:
+            duration = audio_length_ms / 1000.0
+        else:
+            # Fallback: estimate from file size
+            duration = max(1.0, len(audio_bytes) / (self.sample_rate * 2))
+
+        # Get sample rate from response if available
+        audio_sample_rate = extra.get("audio_sample_rate", self.sample_rate)
 
         return {
             "text": text,
@@ -133,4 +170,5 @@ class MiniMaxTTSProvider(TTSProvider):
             "provider": "minimax",
             "voice": effective_voice,
             "format": format,
+            "sample_rate": audio_sample_rate,
         }
