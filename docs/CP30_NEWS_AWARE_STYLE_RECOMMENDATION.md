@@ -202,6 +202,68 @@ Note: theme card clicks and hot news card recommendation tag clicks both go thro
 | Clicking another tag → old active removed, new active set | ✓ |
 | Gen plan panel recommendation active state syncs | ✓ |
 | Clicking theme card → news card tag active state syncs | ✓ |
+
+---
+
+## CP30.2: Unified Style Recommendation Active Sync
+
+**Branch:** `fix/cp30.2-unified-style-active-sync`
+**Commit:** `fix(cp30.2): sync all style recommendation active states`
+**Date:** 2026-06-24
+
+### Problem
+
+CP30.1 fixed active state syncing for `.style-recommend-tag` in hot news cards, but `.gen-plan-recommend-tag` in the gen plan panel only refreshed when `updateStyleRecommendations()` rebuilt its tag list. When the theme changed from other entry points (e.g., theme showcase cards), the gen plan panel tags would not update their `.active` class.
+
+### Solution: `updateStyleRecommendationActiveStates()`
+
+A single function that syncs `.active` on **both** tag types in one pass:
+
+```javascript
+function updateStyleRecommendationActiveStates() {
+  var currentTheme = selectTheme.value;
+  // Hot news card tags
+  if (hotNewsList) {
+    var cardTags = hotNewsList.querySelectorAll(".style-recommend-tag");
+    cardTags.forEach(function (tag) {
+      tag.classList.toggle("active", tag.getAttribute("data-theme-id") === currentTheme);
+    });
+  }
+  // Gen plan panel tags
+  if (genPlanRecommend) {
+    var planTags = genPlanRecommend.querySelectorAll(".gen-plan-recommend-tag");
+    planTags.forEach(function (tag) {
+      tag.classList.toggle("active", tag.getAttribute("data-theme-id") === currentTheme);
+    });
+  }
+}
+```
+
+Old function `updateHotNewsRecommendationActiveStates()` is kept as a wrapper calling the unified function for backward compatibility.
+
+### Active State Sync Call Sites
+
+| Location | Function Called |
+|----------|----------------|
+| `selectTheme` "change" event | `updateStyleRecommendationActiveStates()` |
+| `updateStyleRecommendations()` after building gen plan tags | `updateStyleRecommendationActiveStates()` |
+| `renderHotNews()` → `updateStyleRecommendations()` | → `updateStyleRecommendationActiveStates()` |
+| `selectHotNewsItem()` → `updateStyleRecommendations()` | → `updateStyleRecommendationActiveStates()` |
+
+### Lightweight Verification Results
+
+| Test | Result |
+|------|--------|
+| Gen plan panel shows recommendations when news selected | ✓ |
+| Clicking gen plan tag → that tag becomes active | ✓ |
+| Clicking news card tag → that tag becomes active | ✓ |
+| Clicking theme card → all matching recommendation tags become active | ✓ |
+| Switching theme → old active removed, new active set on both tag groups | ✓ |
+| Fallback still returns at least 2 recommendations | ✓ |
+| No `/api/jobs` called | ✓ |
+| No real LLM / TTS / MP4 | ✓ |
+| No API key / voice_id leakage | ✓ |
+
 | No `/api/jobs` called | ✓ |
 | No real LLM / TTS / MP4 | ✓ |
 | No API key / voice_id leakage | ✓ |

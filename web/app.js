@@ -530,20 +530,30 @@
     return unique.slice(0, 3);
   }
 
-  // CP30.1: Sync active state of recommendation tags in hot news cards
-  // Does NOT re-render cards — only toggles .active class on existing .style-recommend-tag buttons.
-  function updateHotNewsRecommendationActiveStates() {
-    if (!hotNewsList) return;
+  // CP30.2: Unified active state sync for all style recommendation tags
+  // Covers both hot-news card tags (.style-recommend-tag) and gen-plan tags (.gen-plan-recommend-tag).
+  // Does NOT re-render any DOM — only toggles .active class.
+  function updateStyleRecommendationActiveStates() {
     var currentTheme = selectTheme.value;
-    var tags = hotNewsList.querySelectorAll(".style-recommend-tag");
-    tags.forEach(function (tag) {
-      var tagThemeId = tag.getAttribute("data-theme-id");
-      if (tagThemeId === currentTheme) {
-        tag.classList.add("active");
-      } else {
-        tag.classList.remove("active");
-      }
-    });
+    // Hot news card tags
+    if (hotNewsList) {
+      var cardTags = hotNewsList.querySelectorAll(".style-recommend-tag");
+      cardTags.forEach(function (tag) {
+        tag.classList.toggle("active", tag.getAttribute("data-theme-id") === currentTheme);
+      });
+    }
+    // Gen plan panel tags
+    if (genPlanRecommend) {
+      var planTags = genPlanRecommend.querySelectorAll(".gen-plan-recommend-tag");
+      planTags.forEach(function (tag) {
+        tag.classList.toggle("active", tag.getAttribute("data-theme-id") === currentTheme);
+      });
+    }
+  }
+
+  // CP30.1: Keep old name as wrapper for backward compatibility
+  function updateHotNewsRecommendationActiveStates() {
+    updateStyleRecommendationActiveStates();
   }
 
   // CP30: Update UI with current style recommendations
@@ -572,13 +582,15 @@
             var t = THEME_SHOWCASES[rec.theme_id];
             if (t) {
               ensureThemeOption(t);
-              renderThemeShowcase();
+              // renderThemeShowcase + updateStyleRecommendationActiveStates fired by selectTheme "change" listener
               updateStyleRecommendations();
               updateGenerationPlan();
             }
           });
           genPlanRecommend.appendChild(btn);
         });
+        // CP30.2: Sync active states after building new tags
+        updateStyleRecommendationActiveStates();
       }
     }
   }
