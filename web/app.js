@@ -83,6 +83,7 @@
   let latestEpisodePlan = null;    // CP24: most recent episode plan
   let latestEpisodeScript = null;  // CP25: most recent episode script
   let latestEpisodeAudioManifest = null;  // CP26: most recent audio manifest
+  let latestEpisodeRenderIr = null;        // CP27: most recent render IR
 
   // CP20: Theme showcase data
   const THEME_SHOWCASES = {
@@ -1066,6 +1067,279 @@
     }
   }
 
+  // CP27: Build episode render IR from plan/script/audio manifest (mock, no real render)
+  function buildEpisodeRenderIrFromContracts(plan, script, audioManifest) {
+    if (!plan || !script || !audioManifest) {
+      return null;
+    }
+
+    var sections = [];
+    var segIdx = 0;
+
+    // Opening section
+    var openingClip = null;
+    if (audioManifest.clips) {
+      audioManifest.clips.forEach(function (clip) {
+        if (clip.section === "opening") openingClip = clip;
+      });
+    }
+    sections.push({
+      section_id: "opening",
+      type: "opening",
+      start_order: 1,
+      duration_hint_sec: openingClip ? openingClip.duration_hint_sec : 12,
+      audio_clip_ids: ["opening_001"],
+      visual: {
+        layout: "title_card",
+        title: plan.title || "今日 AI 前沿速览",
+        subtitle: plan.subtitle || "多条热门 AI 新闻合集",
+      },
+    });
+
+    // News segment sections
+    var segOrder = 1;
+    if (script.segments) {
+      script.segments.forEach(function (seg) {
+        var isLead = seg.role === "lead";
+        var segPrefix = "seg_" + String(segOrder).padStart(3, "0");
+        var audioClipIds = [];
+        if (audioManifest.clips) {
+          audioManifest.clips.forEach(function (clip) {
+            if (clip.section === "segment" && clip.segment_order === seg.order) {
+              audioClipIds.push(clip.clip_id);
+            }
+          });
+        }
+        var durHint = 0;
+        if (audioManifest.clips) {
+          audioManifest.clips.forEach(function (clip) {
+            if (clip.section === "segment" && clip.segment_order === seg.order) {
+              durHint += clip.duration_hint_sec || 0;
+            }
+          });
+        }
+
+        // Layout based on theme
+        var themeId = plan.theme || "news_card_v1";
+        var layout = "news_card_stack";
+        if (themeId === "research_desk" || themeId === "research_desk_v2") {
+          layout = "research_desk_panel";
+        } else if (themeId === "causal_map" || themeId === "causal_map_v1") {
+          layout = "causal_chain_panel";
+        }
+
+        sections.push({
+          section_id: "segment_" + String(segOrder).padStart(3, "0"),
+          type: "news_segment",
+          news_id: seg.news_id,
+          order: seg.order,
+          role: seg.role,
+          duration_hint_sec: durHint || 32,
+          audio_clip_ids: audioClipIds,
+          visual: {
+            layout: layout,
+            headline: seg.headline,
+            source: seg.news_id,
+            badges: isLead ? ["Lead", "Hot AI"] : ["AI News"],
+            emphasis: isLead ? "primary" : "secondary",
+          },
+        });
+
+        // Transition section after this segment (if not last)
+        if (segOrder < script.segments.length) {
+          sections.push({
+            section_id: "transition_after_" + String(segOrder).padStart(3, "0"),
+            type: "transition",
+            duration_hint_sec: 4,
+            audio_clip_ids: ["transition_after_" + String(segOrder).padStart(3, "0")],
+            visual: {
+              layout: "simple_transition",
+              text: "接着看下一条。",
+            },
+          });
+        }
+
+        segOrder++;
+      });
+    }
+
+    // Closing section
+    sections.push({
+      section_id: "closing",
+      type: "closing",
+      duration_hint_sec: 12,
+      audio_clip_ids: ["closing_001"],
+      visual: {
+        layout: "summary_card",
+        focus_news_id: script.closing ? script.closing.focus_news_id : null,
+        title: "今天最值得关注的是...",
+      },
+    });
+
+    var totalDuration = sections.reduce(function (sum, s) {
+      return sum + (s.duration_hint_sec || 0);
+    }, 0);
+
+    var renderIr = {
+      version: "episode_render_ir_v1",
+      episode_title: plan.title || "今日 AI 前沿速览",
+      theme: plan.theme || "news_card_v1",
+      canvas: {
+        width: 1280,
+        height: 720,
+        fps: 30,
+        background: "dark_newsroom",
+      },
+      timeline: {
+        estimated_duration_sec: totalDuration,
+        sections: sections,
+      },
+      style: {
+        theme_id: plan.theme || "news_card_v1",
+        motion: "subtle",
+        density: "medium",
+      },
+      constraints: {
+        no_real_render: true,
+        no_export: true,
+        render_paths_are_placeholders: true,
+      },
+    };
+
+    return renderIr;
+  }
+
+  // CP27: Validate episode render IR
+  function validateEpisodeRenderIr(renderIr) {
+    var warnings = [];
+    var errors = [];
+
+    if (!renderIr) {
+      errors.push("renderIr 为空");
+      return { ok: false, warnings: warnings, errors: errors };
+    }
+
+    if (renderIr.version !== "episode_render_ir_v1") {
+      errors.push("version 必须为 episode_render_ir_v1");
+    }
+
+    if (!renderIr.canvas || !renderIr.canvas.width || !renderIr.canvas.height || !renderIr.canvas.fps) {
+      errors.push("canvas.width/height/fps 必须合法");
+    }
+
+    if (!renderIr.timeline || !renderIr.timeline.sections || renderIr.timeline.sections.length < 1) {
+      errors.push("至少需要 1 个 section");
+    }
+
+    var sectionIds = {};
+    var hasOpening = false;
+    var hasClosing = false;
+    var hasNewsSegment = false;
+
+    renderIr.timeline && renderIr.timeline.sections && renderIr.timeline.sections.forEach(function (sec, i) {
+      if (!sec.section_id) {
+        errors.push("第 " + (i + 1) + " 个 section 缺少 section_id");
+      } else if (sectionIds[sec.section_id]) {
+        errors.push("section_id 必须唯一，当前重复：" + sec.section_id);
+      } else {
+        sectionIds[sec.section_id] = true;
+      }
+
+      if (!sec.type) errors.push("第 " + (i + 1) + " 个 section 缺少 type");
+      if (!sec.duration_hint_sec || sec.duration_hint_sec <= 0) {
+        errors.push("第 " + (i + 1) + " 个 section 的 duration_hint_sec 必须大于 0");
+      }
+      if (!sec.audio_clip_ids || sec.audio_clip_ids.length === 0) {
+        errors.push("第 " + (i + 1) + " 个 section 的 audio_clip_ids 不能为空");
+      }
+      if (!sec.visual) errors.push("第 " + (i + 1) + " 个 section 缺少 visual");
+
+      if (sec.type === "opening") hasOpening = true;
+      if (sec.type === "closing") hasClosing = true;
+      if (sec.type === "news_segment") hasNewsSegment = true;
+    });
+
+    if (!hasOpening) errors.push("必须包含 opening section");
+    if (!hasClosing) errors.push("必须包含 closing section");
+    if (!hasNewsSegment) errors.push("必须至少包含 1 个 news_segment section");
+
+    if (!renderIr.constraints || renderIr.constraints.no_real_render !== true) {
+      errors.push("constraints.no_real_render 必须为 true");
+    }
+    if (!renderIr.constraints || renderIr.constraints.no_export !== true) {
+      errors.push("constraints.no_export 必须为 true");
+    }
+
+    // No API key / voice_id leakage
+    var irStr = JSON.stringify(renderIr);
+    if (/api[_-]?key/i.test(irStr) || /voice[_-]?id/i.test(irStr)) {
+      errors.push("renderIr 中不允许出现 API key 或 voice_id");
+    }
+
+    return {
+      ok: errors.length === 0,
+      warnings: warnings,
+      errors: errors,
+    };
+  }
+
+  // CP27: Show episode render IR preview
+  function showEpisodeRenderIr() {
+    if (episodeItemList.length === 0) {
+      setStatus("请先加入新闻，再生成视觉计划", "error");
+      return;
+    }
+
+    var plan = buildEpisodePlan();
+    var planResult = validateEpisodePlan(plan);
+    if (!planResult.ok) {
+      setStatus("栏目计划有误：" + planResult.errors.join("；"), "error");
+      return;
+    }
+
+    var script = buildEpisodeScriptFromPlan(plan);
+    var scriptResult = validateEpisodeScript(script);
+    if (!scriptResult.ok) {
+      setStatus("栏目脚本有误：" + scriptResult.errors.join("；"), "error");
+      return;
+    }
+
+    var manifest = buildEpisodeAudioManifestFromScript(script);
+    var manifestResult = validateEpisodeAudioManifest(manifest);
+    if (!manifestResult.ok) {
+      setStatus("音频计划有误：" + manifestResult.errors.join("；"), "error");
+      return;
+    }
+
+    var renderIr = buildEpisodeRenderIrFromContracts(plan, script, manifest);
+    var renderIrResult = validateEpisodeRenderIr(renderIr);
+
+    // CP27: Save latest render IR
+    latestEpisodeRenderIr = renderIr;
+
+    // Switch to visual_plan tab
+    tabBtns.forEach(function (b) { b.classList.remove("active"); });
+    tabContents.forEach(function (c) { c.classList.remove("active"); });
+    var tabBtn = document.querySelector('[data-tab="visual_plan"]');
+    var tabContent = document.getElementById("tab-visual_plan");
+    if (tabBtn) tabBtn.classList.add("active");
+    if (tabContent) tabContent.classList.add("active");
+
+    var jsonEl = document.getElementById("json-visual_plan");
+    if (jsonEl) {
+      var output = JSON.stringify({ render_ir: renderIr, validation: renderIrResult }, null, 2);
+      jsonEl.textContent = output;
+    }
+
+    if (!renderIrResult.ok) {
+      setStatus("视觉计划有误：" + renderIrResult.errors.join("；"), "error");
+    } else if (renderIrResult.warnings.length > 0) {
+      setStatus("视觉计划已生成（" + renderIrResult.warnings.join("；") + "）", "info");
+    } else {
+      setStatus("视觉计划已生成", "success");
+    }
+  }
+
   // ---------- theme showcase (CP20) ----------
   function renderThemeShowcase() {
     if (!themeShowcaseList) return;
@@ -1247,6 +1521,14 @@
   if (btnViewAudioManifest) {
     btnViewAudioManifest.addEventListener("click", function () {
       showEpisodeAudioManifest();
+    });
+  }
+
+  // CP27: View visual plan button
+  var btnViewVisualPlan = document.getElementById("btn-view-visual-plan");
+  if (btnViewVisualPlan) {
+    btnViewVisualPlan.addEventListener("click", function () {
+      showEpisodeRenderIr();
     });
   }
 
