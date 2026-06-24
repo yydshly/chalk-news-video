@@ -735,6 +735,8 @@ def _run_pipeline(body: GenerateRequest, job_id: str, output_dir: Path) -> tuple
 
     if mode == "sample":
         news_path = str(EXAMPLES_DIR / "sample_news.json")
+    elif mode == "real_fixture":
+        news_path = str(EXAMPLES_DIR / "real_news_fixture.json")
     elif mode == "text":
         if not news_text.strip():
             return 1, "", "news_text is required when mode=text."
@@ -757,7 +759,7 @@ def _run_pipeline(body: GenerateRequest, job_id: str, output_dir: Path) -> tuple
         except Exception as e:
             return 1, "", f"Failed to write news file: {e}"
     else:
-        return 1, "", f"Invalid mode: {mode}. Use 'sample' or 'text'."
+        return 1, "", f"Invalid mode: {mode}. Use 'sample', 'real_fixture', or 'text'."
 
     cmd = _build_pipeline_cmd(body, news_path, output_dir)
 
@@ -857,6 +859,8 @@ def api_generate(body: GenerateRequest):
 
     if mode == "sample":
         news_path = str(EXAMPLES_DIR / "sample_news.json")
+    elif mode == "real_fixture":
+        news_path = str(EXAMPLES_DIR / "real_news_fixture.json")
     elif mode == "text":
         if not news_text.strip():
             return JSONResponse({"ok": False, "error": "news_text is required when mode=text."}, status_code=400)
@@ -876,7 +880,7 @@ def api_generate(body: GenerateRequest):
         with open(news_path, "w", encoding="utf-8") as f:
             json.dump(news_payload, f, ensure_ascii=False, indent=2)
     else:
-        return JSONResponse({"ok": False, "error": f"Invalid mode: {mode}."}, status_code=400)
+        return JSONResponse({"ok": False, "error": f"Invalid mode: {mode}. Use 'sample', 'real_fixture', or 'text'."}, status_code=400)
 
     cmd = [
         sys.executable, "-m", "src.pipeline",

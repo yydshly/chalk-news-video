@@ -590,6 +590,17 @@ python -m src.server --host 127.0.0.1 --port 8777
 - UNREVEALED_EDGE 自动修复： deterministic repair 后 validation 通过
 - 真实 LLM + mock TTS E2E job succeeded
 
+**Checkpoint 15.2.4 — 真实新闻样例 + real LLM E2E 通过（当前）**：
+
+- `examples/real_news_fixture.json`：真实新闻风格 fixture（AI 安全评测报告）
+- server.py：支持 `mode=real_fixture`，使用 `examples/real_news_fixture.json`
+- `src/llm/json_utils.py`：`extract_json_object` 增强容错，使用 brace counting 提取 JSON
+
+**CP15.2.4 验收**：
+- `mode=real_fixture` + minimax_m3_openai + mock_dialogue → job succeeded
+- semantic_ir / dialogue_script / dialogue_manifest / render_ir / animation.html 全部生成
+- `examples/sample_news.json` 仅作为字段结构示例，不用于真实 LLM 测试
+
 ## 项目定位
 
 V0.11: News → LLM → semantic_ir → dual-host dialogue → video（含双角色音频）。

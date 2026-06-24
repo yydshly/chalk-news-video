@@ -359,6 +359,14 @@
 - [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
 - [ ] 真实 LLM + mock TTS E2E 完整成功（留待验收）
 
+## Checkpoint 15.2.4 — 真实新闻样例 + real LLM E2E 通过
+
+- [x] `examples/real_news_fixture.json`：真实新闻风格 fixture
+- [x] server.py：支持 `mode=real_fixture`
+- [x] `src/llm/json_utils.py`：`extract_json_object` 增强容错（brace counting）
+- [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
+- [ ] real LLM + mock TTS E2E 完整成功
+
 ## Checkpoint 15.3 — 真实 MiniMax TTS E2E
 
 ## Checkpoint 14.2 — Job 删除 / 清理

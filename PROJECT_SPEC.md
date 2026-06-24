@@ -1099,7 +1099,7 @@ ALLOWED_ARTIFACTS = {
 - job.request 记录 provider id，不记录 secret
 - API response / meta.json / logs / command line 均不包含 API key / voice_id
 
-### GenerateRequest 扩展（CP15）
+### GenerateRequest 扩展（CP15 / CP15.2.4）
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
@@ -1107,8 +1107,12 @@ ALLOWED_ARTIFACTS = {
 | `tts_provider` | string\|null | mock/mock_dialogue/minimax_dialogue |
 | `repair` | bool | 失败时自动 LLM 修复 |
 | `repair_attempts` | int | 最大修复尝试次数 |
+| `mode` | string | sample/real_fixture/text（CP15.2.4 新增 real_fixture） |
 
 **兼容规则**：
+- `mode=sample`：使用 `examples/sample_news.json`（字段结构示例，不适合真实 LLM）
+- `mode=real_fixture`：使用 `examples/real_news_fixture.json`（真实新闻风格 fixture）
+- `mode=text`：使用 `body.news_text` 内容
 - `llm_provider` 未传：mock=true → mock，否则 → minimax_m3_openai
 - `tts_provider` 未传：dialogue=true → mock_dialogue，否则 → mock
 
@@ -1277,6 +1281,12 @@ pipeline.py generate_ir 失败时（CP15.2.2 / CP15.2.3）：
 - `prompts/news_to_semantic_ir.md`（明确 reveal 覆盖规则）
 - `prompts/repair_semantic_ir.md`（明确 reveal 约束）
 - README.md / PROJECT_SPEC.md / BACKLOG.md（CP15.2.3 更新）
+
+修改（CP15.2.4）：
+- `examples/real_news_fixture.json`（真实新闻风格 fixture）
+- `src/server.py`（支持 `mode=real_fixture`）
+- `src/llm/json_utils.py`（`extract_json_object` brace counting 容错）
+- README.md / PROJECT_SPEC.md / BACKLOG.md（CP15.2.4 更新）
 
 未修改：
 - `src/pace.py` / `src/render_html.py`
