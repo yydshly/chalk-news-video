@@ -857,6 +857,7 @@ FastAPI 后端，监听 `127.0.0.1:8777`。
 ```json
 {
   "ok": true,
+  "exported": true,
   "output_mp4": "/outputs/latest/output.mp4",
   "animation_html": "/outputs/latest/animation.html",
   "render_ir": "/api/artifacts/render_ir",
@@ -865,7 +866,21 @@ FastAPI 后端，监听 `127.0.0.1:8777`。
 }
 ```
 
-### 安全约束
+**GenerateResponse 契约（CP12.1 修订）**：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `ok` | bool | true=成功，false=失败 |
+| `exported` | bool | true=MP4 已导出；false=仅预览 animation.html |
+| `output_mp4` | string\|null | exported=true 时为 `/outputs/latest/output.mp4`；exported=false 时为 `null` |
+| `animation_html` | string | 始终为 `/outputs/latest/animation.html` |
+
+**前端预览行为**：
+- `exported=true` + `output_mp4` 存在：显示 iframe(animation.html) + video(output.mp4) + 下载链接
+- `exported=false`：显示 iframe(animation.html)，video src 清空，显示提示"本次未导出 MP4"
+- 前端不得用 `output_mp4.includes("no_export")` 判断（不可靠）
+
+**安全约束**
 
 - 只允许访问白名单内的 artifact 名称（semantic_ir / dialogue_script / dialogue_manifest / render_ir）
 - 只允许预览白名单内的文件（animation.html / output.mp4）

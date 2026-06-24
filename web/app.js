@@ -21,6 +21,7 @@
   const jsonRenderIr = document.getElementById("json-render_ir");
   const jsonSemanticIr = document.getElementById("json-semantic_ir");
   const jsonDialogueScript = document.getElementById("json-dialogue_script");
+  const exportHint = document.getElementById("export-hint");
 
   // ---------- state ----------
   let lastResult = null;
@@ -154,19 +155,36 @@
   function showPreview(result) {
     const ts = "t=" + Date.now();
 
-    // iframe
-    previewHtml.src = result.animation_html + "?" + ts;
-
-    // video (only if exported)
-    if (!result.output_mp4.includes("no_export")) {
-      previewVideo.src = result.output_mp4 + "?" + ts;
+    // iframe: always show animation.html
+    if (result.animation_html) {
+      previewHtml.src = result.animation_html + "?" + ts;
     }
 
-    // download links
-    downloadLinks.innerHTML = "";
-    addDownloadLink(result.animation_html, "📄 animation.html");
-    if (result.output_mp4) {
+    // Clear export hint
+    if (exportHint) {
+      exportHint.textContent = "";
+    }
+
+    // video and download links based on exported flag
+    if (result.exported === true && result.output_mp4) {
+      // MP4 was exported
+      previewVideo.src = result.output_mp4 + "?" + ts;
+      downloadLinks.innerHTML = "";
+      addDownloadLink(result.animation_html, "📄 animation.html");
       addDownloadLink(result.output_mp4, "🎬 output.mp4");
+      if (exportHint) {
+        exportHint.textContent = "已导出 MP4";
+      }
+    } else {
+      // No MP4 exported
+      previewVideo.src = "about:blank";
+      downloadLinks.innerHTML = "";
+      if (result.animation_html) {
+        addDownloadLink(result.animation_html, "📄 animation.html");
+      }
+      if (exportHint) {
+        exportHint.textContent = "本次未导出 MP4，仅生成 animation.html 预览";
+      }
     }
 
     // Switch to preview tab

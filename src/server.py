@@ -194,14 +194,46 @@ def api_generate(body: GenerateRequest):
             "error": f"Pipeline failed with exit code {result.returncode}.\n{result.stderr[-1000:]}",
         }, status_code=500)
 
-    return JSONResponse({
-        "ok": True,
-        "output_mp4": "/outputs/latest/output.mp4",
-        "animation_html": "/outputs/latest/animation.html",
-        "render_ir": "/api/artifacts/render_ir",
-        "semantic_ir": "/api/artifacts/semantic_ir",
-        "dialogue_script": "/api/artifacts/dialogue_script",
-    })
+    # Check animation.html exists (required)
+    animation_path = OUTPUT_DIR / "animation.html"
+    if not animation_path.exists():
+        return JSONResponse({
+            "ok": False,
+            "error": "animation.html was not generated. Pipeline may have failed.",
+        }, status_code=500)
+
+    # Build response based on no_export and output.mp4 existence
+    if no_export:
+        # no_export=true: preview only, no MP4
+        response = {
+            "ok": True,
+            "exported": False,
+            "output_mp4": None,
+            "animation_html": "/outputs/latest/animation.html",
+            "render_ir": "/api/artifacts/render_ir",
+            "semantic_ir": "/api/artifacts/semantic_ir",
+            "dialogue_script": "/api/artifacts/dialogue_script",
+        }
+    else:
+        # no_export=false: MP4 should exist
+        output_mp4_path = OUTPUT_DIR / "output.mp4"
+        if not output_mp4_path.exists():
+            return JSONResponse({
+                "ok": False,
+                "error": "output.mp4 was not generated. Check pipeline output.",
+            }, status_code=500)
+
+        response = {
+            "ok": True,
+            "exported": True,
+            "output_mp4": "/outputs/latest/output.mp4",
+            "animation_html": "/outputs/latest/animation.html",
+            "render_ir": "/api/artifacts/render_ir",
+            "semantic_ir": "/api/artifacts/semantic_ir",
+            "dialogue_script": "/api/artifacts/dialogue_script",
+        }
+
+    return JSONResponse(response)
 
 
 # ---------- artifacts ----------

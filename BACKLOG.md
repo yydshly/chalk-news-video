@@ -253,6 +253,16 @@
 - [x] animation.html / output.mp4 预览和下载
 - [x] README.md / BACKLOG.md 更新
 
+## Checkpoint 12.1 — Web Studio no_export 状态修复
+
+- [x] `src/server.py`：`/api/generate` 返回 `exported` 字段和 `output_mp4: null`（当 no_export=true）
+- [x] `src/server.py`：no_export=false 但 output.mp4 不存在时返回 `ok=false`
+- [x] `src/server.py`：animation.html 不存在时返回 `ok=false`
+- [x] `web/app.js`：`showPreview()` 用 `exported` 判断，不使用 `output_mp4.includes("no_export")`
+- [x] `web/index.html`：新增 `export-hint` 提示区域
+- [x] `web/style.css`：新增 `.hint` 样式
+- [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
+
 ## Checkpoint 13 — 异步任务 / Progress Stream
 
 - 异步任务队列

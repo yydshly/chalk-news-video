@@ -187,6 +187,37 @@ python -m src.server --host 127.0.0.1 --port 8777
 
 mode 也支持 `"text"`，此时需提供 `title` 和 `news_text`。
 
+**POST /api/generate 返回**：
+
+```json
+{
+  "ok": true,
+  "exported": true,
+  "output_mp4": "/outputs/latest/output.mp4",
+  "animation_html": "/outputs/latest/animation.html",
+  "render_ir": "/api/artifacts/render_ir",
+  "semantic_ir": "/api/artifacts/semantic_ir",
+  "dialogue_script": "/api/artifacts/dialogue_script"
+}
+```
+
+当 `no_export=true` 时：
+
+```json
+{
+  "ok": true,
+  "exported": false,
+  "output_mp4": null,
+  "animation_html": "/outputs/latest/animation.html",
+  ...
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `exported` | true = MP4 已导出；false = 仅预览 animation.html |
+| `output_mp4` | exported=true 时为 `/outputs/latest/output.mp4`；exported=false 时为 `null` |
+
 **CP12 限制（明确不做）**：
 - 不做登录 / 计费 / 云部署
 - 不做异步任务队列（CP13）
