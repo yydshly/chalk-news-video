@@ -10,7 +10,7 @@
 <div class="container">
   <header>
     <h1>🎬 Chalk News Video Studio</h1>
-    <p class="subtitle">CP14 — Local Web Studio V1</p>
+    <p class="subtitle">CP15 — Local Web Studio V1</p>
   </header>
 
   <main class="layout">
@@ -58,6 +58,31 @@
         <input type="checkbox" id="check-export" checked>
         导出 MP4 视频
       </label>
+
+      <!-- Provider Config (CP15) -->
+      <fieldset>
+        <legend>Provider 配置</legend>
+        <div class="provider-row">
+          <label for="select-llm-provider">LLM Provider</label>
+          <select id="select-llm-provider">
+            <option value="mock">加载中...</option>
+          </select>
+          <span id="llm-provider-status" class="provider-status"></span>
+        </div>
+        <div class="provider-row">
+          <label for="select-tts-provider">TTS Provider</label>
+          <select id="select-tts-provider">
+            <option value="mock_dialogue">加载中...</option>
+          </select>
+          <span id="tts-provider-status" class="provider-status"></span>
+        </div>
+        <div class="provider-row">
+          <label class="checkbox-label">
+            <input type="checkbox" id="check-repair" checked>
+            启用 Repair（真实 LLM 失败时自动修复）
+          </label>
+        </div>
+      </fieldset>
 
       <!-- Generate Button -->
       <button id="btn-generate" class="btn-primary">生成视频</button>
@@ -124,7 +149,7 @@
   </main>
 
   <footer>
-    <p>CP14 Local Web Studio · mock 模式 · 不上传任何数据</p>
+    <p>CP15 Local Web Studio · 不上传任何数据 · API Key 不暴露</p>
   </footer>
 </div>
 

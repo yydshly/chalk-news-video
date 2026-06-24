@@ -1060,6 +1060,69 @@ ALLOWED_ARTIFACTS = {
 - 支持预览 animation / MP4 / artifacts
 - 服务重启后可从 meta.json 恢复（CP14.1）
 
+## Checkpoint 15 — Real Provider Configuration
+
+### 职责边界
+
+- **做**：前端 Provider 配置区、/api/providers 状态查询、真实 provider pipeline command 构建
+- **不做**：真实 LLM/TTS E2E 验证（CP15.1）、云部署、多用户
+
+### /api/providers
+
+```json
+{
+  "ok": true,
+  "llm": [
+    {
+      "id": "mock",
+      "name": "Mock",
+      "ready": true,
+      "type": "mock",
+      "missing_env": []
+    },
+    {
+      "id": "minimax_m3_openai",
+      "name": "MiniMax M3 OpenAI",
+      "ready": false,
+      "type": "openai_compatible",
+      "missing_env": ["MINIMAX_API_KEY"]
+    }
+  ],
+  "tts": [...]
+}
+```
+
+**安全规则**：
+- 只返回 env var **名称**，不返回值
+- 不读取 .env 文件内容
+- 不返回 voice_id 值
+- job.request 记录 provider id，不记录 secret
+
+### GenerateRequest 扩展（CP15）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `llm_provider` | string\|null | mock/minimax_m3_openai/mimo_v25_pro_openai |
+| `tts_provider` | string\|null | mock/mock_dialogue/minimax_dialogue |
+| `repair` | bool | 失败时自动 LLM 修复 |
+| `repair_attempts` | int | 最大修复尝试次数 |
+
+**兼容规则**：
+- `llm_provider` 未传：mock=true → mock，否则 → minimax_m3_openai
+- `tts_provider` 未传：dialogue=true → mock_dialogue，否则 → mock
+
+### Pipeline Command 构建（CP15）
+
+| 场景 | 命令追加 |
+|------|---------|
+| mock LLM | `--mock` |
+| real LLM | `--profile <llm_provider> [--repair [--repair-attempts N]]` |
+| mock_dialogue TTS | `--tts --dialogue --dialogue-profile mock_dialogue` |
+| minimax_dialogue TTS | `--tts --dialogue --dialogue-profile minimax_dialogue` |
+| 非 dialogue TTS | `--tts --tts-profile <tts_provider>` |
+
+**API key 不作为命令行参数传递**，通过 config/llm.yaml + config/tts.yaml 读取环境变量。
+
 ## 文件清单（V0.11 新增 / 修改）
 
 新增（CP10）：
@@ -1115,6 +1178,16 @@ ALLOWED_ARTIFACTS = {
 - `src/export_video.py`（添加 mux 日志和 ffprobe 时长检查）
 - `src/tts/mock_tts_provider.py`（返回 sample_rate，不同 voice 不同频率）
 - `prompts/news_to_semantic_ir.md`（新增 speaker 字段说明）
+
+新增（CP15）：
+- 无新增文件（全部修改现有文件）
+
+修改（CP15）：
+- `src/server.py`（新增 /api/providers、GenerateRequest 新增字段、_build_pipeline_cmd 支持真实 provider）
+- `web/index.html`（新增 Provider 配置区）
+- `web/app.js`（loadProviders、provider select、payload 增加 llm_provider/tts_provider）
+- `web/style.css`（新增 provider-row、provider-status、status-ready、status-warning 样式）
+- `README.md` / `PROJECT_SPEC.md` / `BACKLOG.md`（CP15 更新）
 
 未修改：
 - `src/pace.py` / `src/render_html.py`

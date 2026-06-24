@@ -304,6 +304,24 @@
 - [x] `meta.json` 增强：artifacts 映射、duration、title、summary
 - [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
 
+## Checkpoint 15 — Real Provider Configuration
+
+- [x] `/api/providers` GET 端点：返回 llm/tts provider status（ready + missing_env）
+- [x] `_get_llm_provider_status()` / `_get_tts_provider_status()` helpers
+- [x] `_check_env_vars()`：返回缺失 env var 名称列表（不返回值）
+- [x] GenerateRequest 新增：`llm_provider` / `tts_provider` / `repair` / `repair_attempts`
+- [x] `_build_pipeline_cmd()` 支持真实 provider command 构建
+- [x] 前端 Provider 配置区：LLM/TTS select + ready/missing_env 提示
+- [x] 前端 payload 增加 llm_provider / tts_provider / repair
+- [x] history item 显示 llm_provider / tts_provider
+- [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
+
+## Checkpoint 15.1 — Real LLM/TTS E2E 验证
+
+- 真实 API key 配置后完整链路跑通
+- 验证 minimax_m3_openai + mock_dialogue
+- 验证 minimax_dialogue TTS
+
 ## Checkpoint 14.2 — Job 删除 / 清理
 
 - DELETE `/api/jobs/{job_id}` 删除 job 输出目录

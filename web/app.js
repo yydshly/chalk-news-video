@@ -1,4 +1,4 @@
-/* Chalk News Video Studio — CP14 app.js */
+/* Chalk News Video Studio — CP15 app.js */
 
 (function () {
   "use strict";
@@ -27,14 +27,25 @@
   const progressText = document.getElementById("progress-text");
   const jobLog = document.getElementById("job-log");
   const historyList = document.getElementById("history-list");
+  const selectLlmProvider = document.getElementById("select-llm-provider");
+  const selectTtsProvider = document.getElementById("select-tts-provider");
+  const llmProviderStatus = document.getElementById("llm-provider-status");
+  const ttsProviderStatus = document.getElementById("tts-provider-status");
+  const checkRepair = document.getElementById("check-repair");
 
   // ---------- state ----------
   let lastResult = null;
   let currentEventSource = null;
+  let llmProviders = [];
+  let ttsProviders = [];
 
   // ---------- init ----------
   async function init() {
     setStatus("加载主题列表...", "info");
+
+    // Load providers (CP15)
+    await loadProviders();
+
     try {
       const resp = await fetch("/api/themes");
       if (!resp.ok) throw new Error("Failed to load themes");
@@ -59,6 +70,82 @@
 
     // Load history on startup
     loadHistory();
+  }
+
+  // ---------- load providers (CP15) ----------
+  async function loadProviders() {
+    try {
+      const resp = await fetch("/api/providers");
+      if (!resp.ok) throw new Error("Failed to load providers");
+      const data = await resp.json();
+
+      llmProviders = data.llm || [];
+      ttsProviders = data.tts || [];
+
+      // Populate LLM provider select
+      selectLlmProvider.innerHTML = "";
+      llmProviders.forEach(function (p) {
+        const opt = document.createElement("option");
+        opt.value = p.id;
+        opt.textContent = p.name;
+        selectLlmProvider.appendChild(opt);
+      });
+
+      // Populate TTS provider select
+      selectTtsProvider.innerHTML = "";
+      ttsProviders.forEach(function (p) {
+        const opt = document.createElement("option");
+        opt.value = p.id;
+        opt.textContent = p.name;
+        selectTtsProvider.appendChild(opt);
+      });
+
+      // Set default: mock + mock_dialogue
+      selectLlmProvider.value = "mock";
+      selectTtsProvider.value = "mock_dialogue";
+      updateProviderStatus();
+
+    } catch (e) {
+      console.error("Failed to load providers:", e);
+    }
+  }
+
+  function updateProviderStatus() {
+    const llmId = selectLlmProvider.value;
+    const ttsId = selectTtsProvider.value;
+
+    const llm = llmProviders.find(function (p) { return p.id === llmId; });
+    const tts = ttsProviders.find(function (p) { return p.id === ttsId; });
+
+    if (llm) {
+      if (llm.ready) {
+        llmProviderStatus.textContent = "✓ Ready";
+        llmProviderStatus.className = "provider-status status-ready";
+      } else {
+        const missing = (llm.missing_env || []).join(", ");
+        llmProviderStatus.textContent = "⚠ Missing: " + missing;
+        llmProviderStatus.className = "provider-status status-warning";
+      }
+    }
+
+    if (tts) {
+      if (tts.ready) {
+        ttsProviderStatus.textContent = "✓ Ready";
+        ttsProviderStatus.className = "provider-status status-ready";
+      } else {
+        const missing = (tts.missing_env || []).join(", ");
+        ttsProviderStatus.textContent = "⚠ Missing: " + missing;
+        ttsProviderStatus.className = "provider-status status-warning";
+      }
+    }
+  }
+
+  // Provider select change handlers
+  if (selectLlmProvider) {
+    selectLlmProvider.addEventListener("change", updateProviderStatus);
+  }
+  if (selectTtsProvider) {
+    selectTtsProvider.addEventListener("change", updateProviderStatus);
   }
 
   // ---------- mode toggle ----------
@@ -119,8 +206,12 @@
       mode: mode,
       theme: theme,
       dialogue: dialogue,
-      mock: true,
+      mock: selectLlmProvider.value === "mock",
       no_export: noExport,
+      llm_provider: selectLlmProvider.value,
+      tts_provider: selectTtsProvider.value,
+      repair: checkRepair.checked,
+      repair_attempts: 2,
     };
 
     if (mode === "text") {
@@ -250,6 +341,8 @@
 
     const exportedLabel = job.exported ? "已导出" : "未导出";
     const dialogueLabel = job.dialogue ? "对话" : "单人";
+    const llmLabel = job.llm_provider || "mock";
+    const ttsLabel = job.tts_provider || "mock";
 
     const dateStr = job.created_at ? job.created_at.replace("T", " ").slice(0, 19) : "";
 
@@ -272,6 +365,8 @@
       '<div class="history-item-meta">' +
         '<span>主题: ' + (job.theme || "-") + '</span> ' +
         '<span>模式: ' + dialogueLabel + '</span> ' +
+        '<span>LLM: ' + llmLabel + '</span> ' +
+        '<span>TTS: ' + ttsLabel + '</span> ' +
         '<span>' + exportedLabel + '</span>' +
       '</div>' +
       '<div class="history-item-time">' + dateStr + '</div>' +

@@ -1,4 +1,4 @@
-/* Chalk News Video Studio — CP12 */
+/* Chalk News Video Studio — CP15 */
 
 * {
   box-sizing: border-box;
@@ -463,6 +463,42 @@ input[type="checkbox"] {
   max-height: 600px;
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+/* Provider Config (CP15) */
+.provider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.provider-row label {
+  width: 100px;
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.provider-row select {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.provider-status {
+  font-size: 0.75rem;
+  flex-shrink: 0;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-ready {
+  color: #4ade80;
+}
+
+.status-warning {
+  color: #fbbf24;
 }
 
 /* Footer */

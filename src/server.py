@@ -1,4 +1,4 @@
-"""Local Web Studio V1 (CP12-CP14).
+"""Local Web Studio V1 (CP12-CP15).
 
 Minimal web interface for chalk-news-video generation with async jobs.
 
@@ -29,7 +29,150 @@ from pydantic import BaseModel
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.config_loader import load_yaml
+from src.config_loader import load_yaml, load_llm_config
+
+
+# ---------- provider status helpers (CP15) ----------
+
+
+def _check_env_vars(required_env: list[str]) -> list[str]:
+    """Return list of missing env var names (not values)."""
+    missing = []
+    for var in required_env:
+        if var and not os.environ.get(var):
+            missing.append(var)
+    return missing
+
+
+def _get_llm_provider_status() -> list[dict]:
+    """Return LLM provider status list with readiness and missing env vars."""
+    try:
+        llm_config = load_llm_config()
+    except Exception:
+        llm_config = {}
+
+    profiles = llm_config.get("profiles", {})
+
+    # Known provider display names and types
+    provider_info = {
+        "mock": {"name": "Mock", "type": "mock"},
+        "minimax_m3_openai": {"name": "MiniMax M3 OpenAI", "type": "openai_compatible"},
+        "minimax_m27_highspeed_openai": {"name": "MiniMax M2.7-highspeed", "type": "openai_compatible"},
+        "minimax_m3_anthropic": {"name": "MiniMax M3 Anthropic", "type": "anthropic_messages"},
+        "mimo_v25_pro_openai": {"name": "MiMo v2.5 Pro", "type": "openai_compatible"},
+        "mimo_token_plan_v25_pro_openai": {"name": "MiMo Token Plan", "type": "openai_compatible"},
+    }
+
+    # Always include mock first
+    result = [
+        {
+            "id": "mock",
+            "name": "Mock",
+            "ready": True,
+            "type": "mock",
+            "missing_env": [],
+        }
+    ]
+
+    for pid, info in provider_info.items():
+        if pid == "mock":
+            continue
+        profile = profiles.get(pid, {})
+        # Collect required env vars from profile
+        required_env = []
+        for key in ("api_key_env", "base_url_env", "model_env"):
+            val = profile.get(key)
+            if val:
+                required_env.append(val)
+
+        missing = _check_env_vars(required_env)
+        result.append({
+            "id": pid,
+            "name": info["name"],
+            "ready": len(missing) == 0,
+            "type": info["type"],
+            "missing_env": missing,
+        })
+
+    return result
+
+
+def _get_tts_provider_status() -> list[dict]:
+    """Return TTS provider status list with readiness and missing env vars."""
+    try:
+        tts_config = load_yaml(PROJECT_ROOT / "config" / "tts.yaml")
+    except Exception:
+        tts_config = {}
+
+    profiles = tts_config.get("profiles", {})
+    dialogue_profiles = tts_config.get("dialogue_profiles", {})
+
+    provider_info = {
+        "mock": {"name": "Mock TTS", "type": "mock"},
+        "mock_dialogue": {"name": "Mock Dialogue", "type": "mock"},
+        "minimax_dialogue": {"name": "MiniMax Dialogue", "type": "minimax"},
+    }
+
+    result = []
+
+    # mock
+    result.append({
+        "id": "mock",
+        "name": "Mock TTS",
+        "ready": True,
+        "type": "mock",
+        "missing_env": [],
+    })
+
+    # mock_dialogue
+    result.append({
+        "id": "mock_dialogue",
+        "name": "Mock Dialogue",
+        "ready": True,
+        "type": "mock",
+        "missing_env": [],
+    })
+
+    # minimax_dialogue - requires MINIMAX_TTS_HOST_VOICE_ID, MINIMAX_TTS_EXPERT_VOICE_ID
+    min_diag_profile = dialogue_profiles.get("minimax_dialogue", {})
+    required_env = []
+    for speaker in ("host", "expert"):
+        sp_info = min_diag_profile.get(speaker, {})
+        voice_env = sp_info.get("voice_env")
+        if voice_env:
+            required_env.append(voice_env)
+        # Also check the minimax_speech profile api_key_env
+        sp_profile_name = sp_info.get("profile")
+        if sp_profile_name:
+            sp_profile = profiles.get(sp_profile_name, {})
+            for key in ("api_key_env", "base_url_env", "model_env", "voice_id_env"):
+                val = sp_profile.get(key)
+                if val:
+                    required_env.append(val)
+
+    missing = _check_env_vars(required_env)
+    result.append({
+        "id": "minimax_dialogue",
+        "name": "MiniMax Dialogue",
+        "ready": len(missing) == 0,
+        "type": "minimax",
+        "missing_env": missing,
+    })
+
+    return result
+
+
+@app.get("/api/providers")
+def api_providers():
+    """Return LLM and TTS provider status with readiness and missing env vars.
+
+    Does NOT expose API key values or voice_id values.
+    """
+    return JSONResponse({
+        "ok": True,
+        "llm": _get_llm_provider_status(),
+        "tts": _get_tts_provider_status(),
+    })
 
 
 class GenerateRequest(BaseModel):
@@ -40,6 +183,10 @@ class GenerateRequest(BaseModel):
     no_export: bool = False
     title: str = ""
     news_text: str = ""
+    llm_provider: Optional[str] = None  # "mock" | "minimax_m3_openai" | etc.
+    tts_provider: Optional[str] = None  # "mock" | "mock_dialogue" | "minimax_dialogue"
+    repair: bool = False
+    repair_attempts: int = 2
 
 
 app = FastAPI(title="Chalk News Video Studio")
@@ -87,21 +234,55 @@ STAGE_PATTERNS = [
 
 
 def _build_pipeline_cmd(body: GenerateRequest, news_path: str, output_dir: Path) -> list[str]:
-    """Build pipeline command from request."""
+    """Build pipeline command from request.
+
+    Handles both mock and real LLM/TTS providers.
+    API keys are NOT passed as command-line arguments — they are read from
+    environment variables via the config files.
+    """
+    # Determine provider
+    is_mock = body.mock
+    if not is_mock and not body.llm_provider:
+        # Default to minimax_m3_openai for real LLM
+        llm_provider = "minimax_m3_openai"
+    elif is_mock:
+        llm_provider = "mock"
+    else:
+        llm_provider = body.llm_provider or "minimax_m3_openai"
+
+    # TTS provider
+    if body.dialogue:
+        tts_provider = body.tts_provider or "mock_dialogue"
+    else:
+        tts_provider = body.tts_provider or "mock"
+
     cmd = [
         sys.executable, "-m", "src.pipeline",
         "--auto",
-        "--mock",
         "--news", news_path,
         "--theme", body.theme,
         "--output-dir", str(output_dir),
     ]
+
+    if is_mock or llm_provider == "mock":
+        cmd.append("--mock")
+    else:
+        cmd += ["--profile", llm_provider]
+        if body.repair:
+            cmd.append("--repair")
+            cmd += ["--repair-attempts", str(body.repair_attempts)]
+
+    # TTS
     if body.dialogue:
-        cmd += ["--tts", "--dialogue", "--dialogue-profile", "mock_dialogue"]
+        cmd += ["--tts", "--dialogue", "--dialogue-profile", tts_provider]
+    elif tts_provider != "mock":
+        cmd += ["--tts", "--tts-profile", tts_provider]
     else:
         cmd += ["--tts", "--tts-profile", "mock"]
+
     if body.no_export:
         cmd.append("--no-export")
+
     return cmd
 
 
@@ -696,6 +877,8 @@ def api_history():
             "theme": job.get("request", {}).get("theme", ""),
             "mode": job.get("request", {}).get("mode", "sample"),
             "dialogue": job.get("request", {}).get("dialogue", False),
+            "llm_provider": job.get("request", {}).get("llm_provider"),
+            "tts_provider": job.get("request", {}).get("tts_provider"),
             "exported": job.get("result", {}).get("exported", False) if job.get("result") else False,
             "error": job["error"],
         }

@@ -433,6 +433,87 @@ python -m src.pipeline --auto --mock --output-dir outputs/jobs/job_xxx
 - `/api/jobs/{job_id}/artifacts/meta` 返回完整 meta.json
 - invalid theme job 的 meta.json 正确记录 failed 状态
 
+**Checkpoint 15 — Real Provider 配置（当前）**：
+
+前端新增 Provider 配置区，支持选择 LLM 和 TTS provider。
+
+```bash
+python -m src.server --host 127.0.0.1 --port 8777
+```
+
+**新增 API 路由**：
+
+| 方法 | 路由 | 说明 |
+|---|---|---|
+| GET | `/api/providers` | 返回 LLM/TTS provider 状态（ready + missing_env） |
+
+**GET /api/providers 返回**：
+
+```json
+{
+  "ok": true,
+  "llm": [
+    {
+      "id": "mock",
+      "name": "Mock",
+      "ready": true,
+      "type": "mock",
+      "missing_env": []
+    },
+    {
+      "id": "minimax_m3_openai",
+      "name": "MiniMax M3 OpenAI",
+      "ready": false,
+      "type": "openai_compatible",
+      "missing_env": ["MINIMAX_API_KEY"]
+    }
+  ],
+  "tts": [
+    {
+      "id": "mock_dialogue",
+      "name": "Mock Dialogue",
+      "ready": true,
+      "type": "mock",
+      "missing_env": []
+    },
+    {
+      "id": "minimax_dialogue",
+      "name": "MiniMax Dialogue",
+      "ready": false,
+      "type": "minimax",
+      "missing_env": ["MINIMAX_TTS_HOST_VOICE_ID", "MINIMAX_TTS_EXPERT_VOICE_ID"]
+    }
+  ]
+}
+```
+
+**GenerateRequest 扩展**：
+
+```json
+{
+  "llm_provider": "mock" | "minimax_m3_openai" | "mimo_v25_pro_openai",
+  "tts_provider": "mock" | "mock_dialogue" | "minimax_dialogue",
+  "repair": true,
+  "repair_attempts": 2
+}
+```
+
+**兼容规则**：
+- `llm_provider` 未传时：mock=true 用 mock，否则默认 minimax_m3_openai
+- `tts_provider` 未传时：dialogue=true 用 mock_dialogue，否则用 mock
+- `mock` 字段可保留，新前端优先使用 `llm_provider`
+
+**安全保证**：
+- API key 值和 voice_id 值永不返回给前端
+- 只显示缺失的环境变量名
+- job request 记录 provider id，不记录 secret
+
+**CP15 验收**：
+- `/api/providers` 只显示 env var name，不显示 value
+- mock job 成功
+- real provider 缺配置时 failed job error 清晰但不泄露 secret
+- 前端 Provider 区显示 ready/missing_env 状态
+
 ## 项目定位
 
 V0.11: News → LLM → semantic_ir → dual-host dialogue → video（含双角色音频）。
