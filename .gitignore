@@ -28,6 +28,9 @@ outputs/jobs/*
 outputs/episode_previews/*.html
 !outputs/episode_previews/.gitkeep
 
+# Prototype / temp export artifacts (CP40.1)
+.tmp/
+
 # OS / editor noise
 .DS_Store
 Thumbs.db
