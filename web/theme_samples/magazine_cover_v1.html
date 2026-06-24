@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Theme Sample: magazine_cover_v1</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #1a0a00; overflow: hidden; }
+  .sample-label {
+    position: fixed; top: 12px; left: 12px; z-index: 100;
+    background: rgba(26,10,0,0.9); color: #fbbf24; font-size: 12px;
+    padding: 4px 10px; border-radius: 4px; font-family: serif;
+  }
+</style>
+</head>
+<body>
+<div class="sample-label">📰 主题样例 · 杂志封面风</div>
+<svg viewBox="0 0 1280 720" width="1280" height="720" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="coverGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a0a00"/>
+      <stop offset="100%" style="stop-color:#2d1810"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#coverGrad)"/>
+  <!-- Magazine header bar -->
+  <rect x="0" y="0" width="1280" height="60" fill="#000"/>
+  <text x="30" y="38" fill="#fbbf24" font-size="16" font-weight="bold" font-family="serif">AI WEEKLY</text>
+  <text x="1250" y="38" text-anchor="end" fill="#fbbf24" font-size="14" font-family="serif">VOL.42 · 2026-06-24</text>
+  <!-- Cover line -->
+  <rect x="0" y="60" width="1280" height="6" fill="#fbbf24"/>
+  <!-- Main headline -->
+  <text x="640" y="180" text-anchor="middle" fill="#fbbf24" font-size="64" font-weight="bold" font-family="serif">AI</text>
+  <text x="640" y="255" text-anchor="middle" fill="#ffffff" font-size="52" font-weight="bold" font-family="serif">REVOLUTION</text>
+  <text x="640" y="295" text-anchor="middle" fill="#fbbf24" font-size="20" font-family="serif">————————— 封面专题 —————————</text>
+  <!-- Sub-headline -->
+  <text x="640" y="340" text-anchor="middle" fill="#e2e8f0" font-size="16" font-family="serif">GPT-5 · Claude 4 · Gemini 2.0 · Llama 4</text>
+  <text x="640" y="370" text-anchor="middle" fill="#9ca3af" font-size="14" font-family="serif">四大模型同月发布，AI 竞争进入新阶段</text>
+  <!-- Divider -->
+  <line x1="300" y1="395" x2="980" y2="395" stroke="#fbbf24" stroke-width="1"/>
+  <!-- Summary points -->
+  <text x="640" y="430" text-anchor="middle" fill="#ffffff" font-size="14" font-family="serif">本期要点</text>
+  <text x="640" y="460" text-anchor="middle" fill="#9ca3af" font-size="13" font-family="serif">多模态竞争白热化 · 开源生态加速 · 监管框架成形</text>
+  <text x="640" y="485" text-anchor="middle" fill="#9ca3af" font-size="13" font-family="serif">AGI 时间表争议再起 · 开发者成本持续下降</text>
+  <!-- Date/price footer -->
+  <rect x="0" y="510" width="1280" height="80" fill="#000"/>
+  <text x="640" y="560" text-anchor="middle" fill="#fbbf24" font-size="28" font-weight="bold" font-family="serif">$6.99</text>
+  <text x="640" y="582" text-anchor="middle" fill="#6b7280" font-size="11" font-family="serif">AI WEEKLY · 国际版 · 2026年6月24日发行</text>
+  <!-- Decorative elements -->
+  <circle cx="80" cy="300" r="60" fill="none" stroke="#fbbf24" stroke-width="1" opacity="0.3"/>
+  <circle cx="1200" cy="250" r="80" fill="none" stroke="#fbbf24" stroke-width="1" opacity="0.3"/>
+</svg>
+</body>
+</html>

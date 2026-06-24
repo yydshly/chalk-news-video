@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Theme Sample: product_launch_v1</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #030712; overflow: hidden; }
+  .sample-label {
+    position: fixed; top: 12px; left: 12px; z-index: 100;
+    background: rgba(3,7,18,0.9); color: #a78bfa; font-size: 12px;
+    padding: 4px 10px; border-radius: 4px; font-family: sans-serif;
+  }
+</style>
+</head>
+<body>
+<div class="sample-label">🚀 主题样例 · 产品发布会</div>
+<svg viewBox="0 0 1280 720" width="1280" height="720" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1280" height="720" fill="#030712"/>
+  <!-- Stage lights effect -->
+  <ellipse cx="640" cy="200" rx="400" ry="150" fill="#1e1b4b" opacity="0.5"/>
+  <!-- Product name -->
+  <text x="640" y="120" text-anchor="middle" fill="#f8fafc" font-size="52" font-weight="bold" font-family="sans-serif">GPT-5</text>
+  <text x="640" y="165" text-anchor="middle" fill="#a78bfa" font-size="20" font-family="sans-serif">BY OPENAI · PRODUCT LAUNCH 2026</text>
+  <!-- Divider -->
+  <line x1="300" y1="200" x2="980" y2="200" stroke="#4c1d95" stroke-width="2"/>
+  <!-- Feature cards -->
+  <rect x="80" y="240" width="340" height="180" rx="12" fill="#0f0a2e" stroke="#6d28d9" stroke-width="1"/>
+  <text x="250" y="275" text-anchor="middle" fill="#a78bfa" font-size="14" font-weight="bold" font-family="sans-serif">多模态原生</text>
+  <text x="250" y="305" fill="#e2e8f0" font-size="13" font-family="sans-serif">文本、图像、视频、音频</text>
+  <text x="250" y="330" fill="#e2e8f0" font-size="13" font-family="sans-serif">统一原生处理</text>
+  <text x="250" y="360" fill="#6d28d9" font-size="11" font-family="sans-serif">新一代多模态架构</text>
+
+  <rect x="470" y="240" width="340" height="180" rx="12" fill="#0f0a2e" stroke="#6d28d9" stroke-width="1"/>
+  <text x="640" y="275" text-anchor="middle" fill="#a78bfa" font-size="14" font-weight="bold" font-family="sans-serif">100M Token 上下文</text>
+  <text x="640" y="305" fill="#e2e8f0" font-size="13" font-family="sans-serif">一次性处理整本词典</text>
+  <text x="640" y="330" fill="#e2e8f0" font-size="13" font-family="sans-serif">或完整代码库</text>
+  <text x="640" y="360" fill="#6d28d9" font-size="11" font-family="sans-serif">突破性长上下文</text>
+
+  <rect x="860" y="240" width="340" height="180" rx="12" fill="#0f0a2e" stroke="#6d28d9" stroke-width="1"/>
+  <text x="1030" y="275" text-anchor="middle" fill="#a78bfa" font-size="14" font-weight="bold" font-family="sans-serif">推理速度 +300%</text>
+  <text x="1030" y="305" fill="#e2e8f0" font-size="13" font-family="sans-serif">相同硬件下 3 倍加速</text>
+  <text x="1030" y="330" fill="#e2e8f0" font-size="13" font-family="sans-serif">成本降低 60%</text>
+  <text x="1030" y="360" fill="#6d28d9" font-size="11" font-family="sans-serif">效率大幅提升</text>
+
+  <!-- Price / availability -->
+  <rect x="80" y="450" width="1120" height="90" rx="8" fill="#1e0a4e"/>
+  <text x="640" y="485" text-anchor="middle" fill="#f8fafc" font-size="22" font-weight="bold" font-family="sans-serif">现已开放 API 申请 · 开发者预览版可用</text>
+  <text x="640" y="520" text-anchor="middle" fill="#a78bfa" font-size="13" font-family="sans-serif">官网：openai.com · 定价详情即将公布</text>
+
+  <!-- Speaker cards -->
+  <rect x="200" y="580" width="360" height="70" rx="8" fill="#0f0a2e" stroke="#6d28d9" opacity="0.8"/>
+  <text x="220" y="608" fill="#a78bfa" font-size="12" font-family="sans-serif">主播 A：这是今年最重磅发布...</text>
+  <rect x="720" y="580" width="360" height="70" rx="8" fill="#0f0a2e" stroke="#6d28d9" opacity="0.8"/>
+  <text x="740" y="608" fill="#f87171" font-size="12" font-family="sans-serif">主播 B：多模态能力令人惊艳...</text>
+</svg>
+</body>
+</html>

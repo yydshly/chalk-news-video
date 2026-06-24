@@ -86,31 +86,151 @@
   let latestEpisodeRenderIr = null;        // CP27: most recent render IR
   let latestEpisodePreviewUrl = null;      // CP28: Blob URL for mock HTML preview
 
-  // CP20: Theme showcase data
+  // CP20/CG29: Expanded theme showcase data — video style gallery
   const THEME_SHOWCASES = {
     news_card_v1: {
       id: "news_card_v1",
       name: "新闻卡片风",
+      category: "新闻快讯",
       desc: "适合快讯、产品发布、公司动态、热点新闻",
+      best_for: "快讯、产品发布、公司动态、热点新闻",
       tags: ["推荐", "新闻感强", "当前主推"],
       recommended: true,
+      visual_density: "high",
+      motion_level: "subtle",
       sample_url: "/examples/theme_samples/news_card_v1.html",
     },
     research_desk_v2: {
       id: "research_desk_v2",
       name: "AI 研究室风",
+      category: "技术解读",
       desc: "适合技术解读、研究报告、模型能力分析",
+      best_for: "技术解读、研究报告、模型能力分析",
       tags: ["深度解读", "技术感"],
       recommended: false,
+      visual_density: "medium",
+      motion_level: "subtle",
       sample_url: "/examples/theme_samples/research_desk_v2.html",
     },
     causal_map_v1: {
       id: "causal_map_v1",
       name: "因果链地图",
+      category: "逻辑分析",
       desc: "适合解释事件原因、影响链条、监管变化",
+      best_for: "事件原因、影响链条、监管变化",
       tags: ["逻辑分析", "结构化"],
       recommended: false,
+      visual_density: "medium",
+      motion_level: "subtle",
       sample_url: "/examples/theme_samples/causal_map_v1.html",
+    },
+    timeline_brief_v1: {
+      id: "timeline_brief_v1",
+      name: "时间线快报",
+      category: "多新闻日报",
+      desc: "适合多事件串联、日报、事件进展梳理",
+      best_for: "多事件串联、日报、事件进展",
+      tags: ["日报", "时间线", "多新闻"],
+      recommended: false,
+      visual_density: "high",
+      motion_level: "subtle",
+      sample_url: "/examples/theme_samples/timeline_brief_v1.html",
+    },
+    data_dashboard_v1: {
+      id: "data_dashboard_v1",
+      name: "数据仪表盘",
+      category: "数据图表",
+      desc: "适合融资、榜单、模型分数、用户量等数据展示",
+      best_for: "融资、榜单、模型分数、用户量",
+      tags: ["数据", "图表", "榜单"],
+      recommended: false,
+      visual_density: "high",
+      motion_level: "none",
+      sample_url: "/examples/theme_samples/data_dashboard_v1.html",
+    },
+    breaking_news_v1: {
+      id: "breaking_news_v1",
+      name: "突发新闻快讯",
+      category: "新闻快讯",
+      desc: "适合重大发布、政策变化、突发事件",
+      best_for: "重大发布、政策变化、突发事件",
+      tags: ["突发", "紧急", "重点标记"],
+      recommended: false,
+      visual_density: "high",
+      motion_level: "active",
+      sample_url: "/examples/theme_samples/breaking_news_v1.html",
+    },
+    product_launch_v1: {
+      id: "product_launch_v1",
+      name: "产品发布会",
+      category: "产品发布",
+      desc: "适合新产品、新模型、新功能发布的展示",
+      best_for: "新产品、新模型、新功能发布",
+      tags: ["产品", "发布", "新功能"],
+      recommended: false,
+      visual_density: "high",
+      motion_level: "active",
+      sample_url: "/examples/theme_samples/product_launch_v1.html",
+    },
+    paper_digest_v1: {
+      id: "paper_digest_v1",
+      name: "论文速读",
+      category: "技术解读",
+      desc: "适合 arXiv 论文、技术报告、学术解读",
+      best_for: "arXiv、论文、技术报告",
+      tags: ["论文", "学术", "arXiv"],
+      recommended: false,
+      visual_density: "medium",
+      motion_level: "subtle",
+      sample_url: "/examples/theme_samples/paper_digest_v1.html",
+    },
+    podcast_cards_v1: {
+      id: "podcast_cards_v1",
+      name: "双人观点卡",
+      category: "观点解读",
+      desc: "适合双人解读、争议话题、观点对照",
+      best_for: "双人解读、争议话题、观点对照",
+      tags: ["双人", "观点", "对照"],
+      recommended: false,
+      visual_density: "medium",
+      motion_level: "subtle",
+      sample_url: "/examples/theme_samples/podcast_cards_v1.html",
+    },
+    dev_terminal_v1: {
+      id: "dev_terminal_v1",
+      name: "开发者终端风",
+      category: "开发者技术",
+      desc: "适合 GitHub、开源项目、开发工具",
+      best_for: "GitHub、开源项目、开发工具",
+      tags: ["开发者", "终端", "代码感"],
+      recommended: false,
+      visual_density: "low",
+      motion_level: "none",
+      sample_url: "/examples/theme_samples/dev_terminal_v1.html",
+    },
+    magazine_cover_v1: {
+      id: "magazine_cover_v1",
+      name: "杂志封面风",
+      category: "专题封面",
+      desc: "适合日报封面、专题合集、强标题视觉",
+      best_for: "日报封面、专题合集、强标题视觉",
+      tags: ["封面", "专题", "视觉强"],
+      recommended: false,
+      visual_density: "high",
+      motion_level: "none",
+      sample_url: "/examples/theme_samples/magazine_cover_v1.html",
+    },
+    opinion_column_v1: {
+      id: "opinion_column_v1",
+      name: "观点评论风",
+      category: "观点解读",
+      desc: "适合事件评论、趋势判断、影响分析",
+      best_for: "事件评论、趋势判断、影响分析",
+      tags: ["评论", "观点", "分析"],
+      recommended: false,
+      visual_density: "medium",
+      motion_level: "subtle",
+      sample_url: "/examples/theme_samples/opinion_column_v1.html",
     },
   };
 
@@ -1127,6 +1247,24 @@
           layout = "research_desk_panel";
         } else if (themeId === "causal_map" || themeId === "causal_map_v1") {
           layout = "causal_chain_panel";
+        } else if (themeId === "timeline_brief_v1") {
+          layout = "timeline_panel";
+        } else if (themeId === "data_dashboard_v1") {
+          layout = "dashboard_panel";
+        } else if (themeId === "breaking_news_v1") {
+          layout = "breaking_news_panel";
+        } else if (themeId === "product_launch_v1") {
+          layout = "product_launch_panel";
+        } else if (themeId === "paper_digest_v1") {
+          layout = "paper_digest_panel";
+        } else if (themeId === "podcast_cards_v1") {
+          layout = "podcast_cards_panel";
+        } else if (themeId === "dev_terminal_v1") {
+          layout = "terminal_panel";
+        } else if (themeId === "magazine_cover_v1") {
+          layout = "magazine_cover_panel";
+        } else if (themeId === "opinion_column_v1") {
+          layout = "opinion_column_panel";
         }
 
         sections.push({
@@ -1531,8 +1669,10 @@
         '<div class="theme-showcase-header">' +
           '<span class="theme-showcase-name">' + escapeHtml(theme.name) + '</span>' +
           (theme.recommended ? '<span class="theme-showcase-recommended">★ 推荐</span>' : '') +
+          (theme.category ? '<span class="theme-showcase-category">' + escapeHtml(theme.category) + '</span>' : '') +
         '</div>' +
         '<div class="theme-showcase-desc">' + escapeHtml(theme.desc) + '</div>' +
+        (theme.best_for ? '<div class="theme-showcase-bestfor">适用：' + escapeHtml(theme.best_for) + '</div>' : '') +
         '<div class="theme-showcase-tags">' + tagsHtml + '</div>' +
         '<button class="theme-showcase-sample-btn" type="button">查看样例</button>';
 

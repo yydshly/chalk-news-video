@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Theme Sample: breaking_news_v1</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #0f0000; overflow: hidden; }
+  .sample-label {
+    position: fixed; top: 12px; left: 12px; z-index: 100;
+    background: rgba(127,29,29,0.95); color: #fca5a5; font-size: 12px;
+    padding: 4px 10px; border-radius: 4px; font-family: sans-serif;
+  }
+</style>
+</head>
+<body>
+<div class="sample-label">🚨 主题样例 · 突发新闻快讯</div>
+<svg viewBox="0 0 1280 720" width="1280" height="720" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1280" height="720" fill="#0f0000"/>
+  <!-- Breaking news banner -->
+  <rect x="0" y="0" width="1280" height="80" fill="#dc2626"/>
+  <text x="640" y="50" text-anchor="middle" fill="#ffffff" font-size="36" font-weight="bold" font-family="sans-serif">BREAKING NEWS</text>
+  <!-- Main headline -->
+  <text x="640" y="140" text-anchor="middle" fill="#f8fafc" font-size="42" font-weight="bold" font-family="sans-serif">GPT-5 正式发布</text>
+  <text x="640" y="180" text-anchor="middle" fill="#94a3b8" font-size="16" font-family="sans-serif">OpenAI 官方公告 · 2026-06-24 08:00</text>
+  <!-- Alert strip -->
+  <rect x="0" y="200" width="1280" height="50" fill="#7f1d1d"/>
+  <text x="640" y="232" text-anchor="middle" fill="#fca5a5" font-size="14" font-weight="bold" font-family="sans-serif">⚠ 重大发布 · 多模态能力大幅提升 · 支持 100M token 上下文</text>
+  <!-- Content card -->
+  <rect x="100" y="270" width="1080" height="260" rx="8" fill="#1e0505" stroke="#dc2626" stroke-width="2"/>
+  <text x="130" y="310" fill="#dc2626" font-size="13" font-weight="bold" font-family="sans-serif">事件概要</text>
+  <text x="130" y="345" fill="#f8fafc" font-size="15" font-family="sans-serif">OpenAI 于今日凌晨发布 GPT-5，官方表示这是迄今为止最强大的 AI 模型。</text>
+  <text x="130" y="375" fill="#94a3b8" font-size="13" font-family="sans-serif">• 支持真正的原生多模态输入</text>
+  <text x="130" y="400" fill="#94a3b8" font-size="13" font-family="sans-serif">• 上下文窗口扩展至 100M tokens</text>
+  <text x="130" y="425" fill="#94a3b8" font-size="13" font-family="sans-serif">• 推理速度提升 300%</text>
+  <text x="130" y="450" fill="#94a3b8" font-size="13" font-family="sans-serif">• API 价格下调 60%</text>
+  <text x="130" y="490" fill="#f59e0b" font-size="13" font-family="sans-serif">热度：★ 9.8 · 512 评论 · 关注度：极高</text>
+  <!-- Summary -->
+  <rect x="100" y="560" width="1080" height="80" rx="8" fill="#1e0505"/>
+  <text x="640" y="595" text-anchor="middle" fill="#f8fafc" font-size="15" font-weight="bold" font-family="sans-serif">后续报道持续更新中，请关注本频道</text>
+  <text x="640" y="620" text-anchor="middle" fill="#64748b" font-size="12" font-family="sans-serif">展示：突发新闻快讯 · breaking_news_v1</text>
+</svg>
+</body>
+</html>

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Theme Sample: podcast_cards_v1</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #0f172a; overflow: hidden; }
+  .sample-label {
+    position: fixed; top: 12px; left: 12px; z-index: 100;
+    background: rgba(15,23,42,0.9); color: #f9fafb; font-size: 12px;
+    padding: 4px 10px; border-radius: 4px; font-family: sans-serif;
+  }
+</style>
+</head>
+<body>
+<div class="sample-label">🎙️ 主题样例 · 双人观点卡</div>
+<svg viewBox="0 0 1280 720" width="1280" height="720" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1280" height="720" fill="#0f172a"/>
+  <!-- Header -->
+  <text x="640" y="55" text-anchor="middle" fill="#f9fafb" font-size="26" font-weight="bold" font-family="sans-serif">双人观点：GPT-5 发布的影响</text>
+  <text x="640" y="82" text-anchor="middle" fill="#64748b" font-size="13" font-family="sans-serif">观点对照 · 2026-06-24</text>
+  <!-- Left card (host A) -->
+  <rect x="60" y="110" width="560" height="420" rx="12" fill="#0f1e3a" stroke="#38bdf8" stroke-width="2"/>
+  <rect x="60" y="110" width="560" height="50" rx="12" fill="#1e3a5f"/>
+  <text x="340" y="142" text-anchor="middle" fill="#38bdf8" font-size="16" font-weight="bold" font-family="sans-serif">🤖 主播 A · 乐观派</text>
+  <text x="100" y="195" fill="#f9fafb" font-size="15" font-weight="bold" font-family="sans-serif">GPT-5 将加速 AGI 进程</text>
+  <text x="100" y="225" fill="#94a3b8" font-size="13" font-family="sans-serif">• 多模态原生融合是最大突破</text>
+  <text x="100" y="250" fill="#94a3b8" font-size="13" font-family="sans-serif">• 100M token 上下文将改变行业</text>
+  <text x="100" y="275" fill="#94a3b8" font-size="13" font-family="sans-serif">• 价格下调使开发者受益</text>
+  <rect x="100" y="300" width="480" height="60" rx="6" fill="#1e3a5f"/>
+  <text x="340" y="335" text-anchor="middle" fill="#38bdf8" font-size="13" font-family="sans-serif">"这不仅是技术进步，更是生态革命的开始"</text>
+  <text x="340" y="480" fill="#38bdf8" font-size="12" font-family="sans-serif">立场：积极拥抱变化</text>
+
+  <!-- Right card (host B) -->
+  <rect x="660" y="110" width="560" height="420" rx="12" fill="#1e0a14" stroke="#f87171" stroke-width="2"/>
+  <rect x="660" y="110" width="560" height="50" rx="12" fill="#3d0a1e"/>
+  <text x="940" y="142" text-anchor="middle" fill="#f87171" font-size="16" font-weight="bold" font-family="sans-serif">🎯 主播 B · 谨慎派</text>
+  <text x="700" y="195" fill="#f9fafb" font-size="15" font-weight="bold" font-family="sans-serif">安全和治理风险不容忽视</text>
+  <text x="700" y="225" fill="#94a3b8" font-size="13" font-family="sans-serif">• 开源版本的潜在滥用风险</text>
+  <text x="700" y="250" fill="#94a3b8" font-size="13" font-family="sans-serif">• 对现有行业就业的冲击</text>
+  <text x="700" y="275" fill="#94a3b8" font-size="13" font-family="sans-serif">• 需要更完善的监管框架</text>
+  <rect x="700" y="300" width="480" height="60" rx="6" fill="#3d0a1e"/>
+  <text x="940" y="335" text-anchor="middle" fill="#f87171" font-size="13" font-family="sans-serif">"技术突破固然可喜，但风险管理同样重要"</text>
+  <text x="940" y="480" fill="#f87171" font-size="12" font-family="sans-serif">立场：需要审慎推进</text>
+
+  <!-- VS divider -->
+  <circle cx="640" cy="320" r="30" fill="#0f172a" stroke="#4b5563" stroke-width="2"/>
+  <text x="640" y="327" text-anchor="middle" fill="#4b5563" font-size="16" font-weight="bold" font-family="sans-serif">VS</text>
+
+  <!-- Bottom summary -->
+  <rect x="60" y="560" width="1160" height="80" rx="8" fill="#1e293b"/>
+  <text x="640" y="598" text-anchor="middle" fill="#f9fafb" font-size="15" font-weight="bold" font-family="sans-serif">两种视角都有价值：技术乐观与风险审慎并行</text>
+  <text x="640" y="622" text-anchor="middle" fill="#64748b" font-size="12" font-family="sans-serif">展示：双人观点卡 · podcast_cards_v1</text>
+</svg>
+</body>
+</html>

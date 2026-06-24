@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Theme Sample: timeline_brief_v1</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #0f172a; overflow: hidden; }
+  .sample-label {
+    position: fixed; top: 12px; left: 12px; z-index: 100;
+    background: rgba(15,23,42,0.9); color: #38bdf8; font-size: 12px;
+    padding: 4px 10px; border-radius: 4px; font-family: sans-serif;
+  }
+  svg.board { display: block; background: #0f172a; }
+</style>
+</head>
+<body>
+<div class="sample-label">📅 主题样例 · 时间线快报</div>
+<svg class="board" viewBox="0 0 1280 720" width="1280" height="720" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#38bdf8"/>
+    </marker>
+  </defs>
+  <!-- Header -->
+  <text x="640" y="50" text-anchor="middle" fill="#f8fafc" font-size="28" font-weight="bold" font-family="sans-serif">AI 行业今日动态</text>
+  <text x="640" y="80" text-anchor="middle" fill="#64748b" font-size="13" font-family="sans-serif">时间线 · 2026-06-24</text>
+  <!-- Timeline line -->
+  <line x1="100" y1="400" x2="1180" y2="400" stroke="#2d3748" stroke-width="3"/>
+  <!-- Timeline events -->
+  <!-- Event 1 -->
+  <circle cx="180" cy="400" r="12" fill="#38bdf8"/>
+  <text x="180" y="180" text-anchor="middle" fill="#f8fafc" font-size="13" font-weight="bold" font-family="sans-serif">08:00</text>
+  <rect x="80" y="200" width="200" height="120" rx="6" fill="#1e293b" stroke="#38bdf8" stroke-width="1"/>
+  <text x="180" y="230" text-anchor="middle" fill="#38bdf8" font-size="12" font-family="sans-serif">事件一</text>
+  <text x="180" y="258" text-anchor="middle" fill="#f8fafc" font-size="13" font-family="sans-serif">GPT-5 发布</text>
+  <text x="180" y="280" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="sans-serif">OpenAI 重磅更新</text>
+  <!-- Event 2 -->
+  <circle cx="440" cy="400" r="12" fill="#f59e0b"/>
+  <text x="440" y="180" text-anchor="middle" fill="#f8fafc" font-size="13" font-weight="bold" font-family="sans-serif">10:30</text>
+  <rect x="340" y="200" width="200" height="120" rx="6" fill="#1e293b" stroke="#f59e0b" stroke-width="1"/>
+  <text x="440" y="230" text-anchor="middle" fill="#f59e0b" font-size="12" font-family="sans-serif">事件二</text>
+  <text x="440" y="258" text-anchor="middle" fill="#f8fafc" font-size="13" font-family="sans-serif">Claude 4 解读</text>
+  <text x="440" y="280" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="sans-serif">Anthropic 技术分析</text>
+  <!-- Event 3 -->
+  <circle cx="700" cy="400" r="12" fill="#4ade80"/>
+  <text x="700" y="180" text-anchor="middle" fill="#f8fafc" font-size="13" font-weight="bold" font-family="sans-serif">14:00</text>
+  <rect x="600" y="200" width="200" height="120" rx="6" fill="#1e293b" stroke="#4ade80" stroke-width="1"/>
+  <text x="700" y="230" text-anchor="middle" fill="#4ade80" font-size="12" font-family="sans-serif">事件三</text>
+  <text x="700" y="258" text-anchor="middle" fill="#f8fafc" font-size="13" font-family="sans-serif">Gemini 2.0 登场</text>
+  <text x="700" y="280" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="sans-serif">Google 端侧突破</text>
+  <!-- Event 4 -->
+  <circle cx="960" cy="400" r="12" fill="#a78bfa"/>
+  <text x="960" y="180" text-anchor="middle" fill="#f8fafc" font-size="13" font-weight="bold" font-family="sans-serif">16:30</text>
+  <rect x="860" y="200" width="200" height="120" rx="6" fill="#1e293b" stroke="#a78bfa" stroke-width="1"/>
+  <text x="960" y="230" text-anchor="middle" fill="#a78bfa" font-size="12" font-family="sans-serif">事件四</text>
+  <text x="960" y="258" text-anchor="middle" fill="#f8fafc" font-size="13" font-family="sans-serif">Llama 4 开源</text>
+  <text x="960" y="280" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="sans-serif">Meta 开放生态</text>
+  <!-- Summary -->
+  <rect x="100" y="480" width="1080" height="120" rx="8" fill="#1e293b"/>
+  <text x="640" y="510" text-anchor="middle" fill="#f8fafc" font-size="16" font-weight="bold" font-family="sans-serif">今日要点：4 条重要动态，多模态与端侧成为竞争焦点</text>
+  <text x="640" y="540" text-anchor="middle" fill="#64748b" font-size="12" font-family="sans-serif">展示：时间线快报 · timeline_brief_v1</text>
+  <!-- Speaker cards -->
+  <rect x="200" y="640" width="360" height="60" rx="8" fill="#1e293b" stroke="#2d3748" stroke-width="1" opacity="0.8"/>
+  <text x="220" y="668" fill="#38bdf8" font-size="12" font-family="sans-serif">主播 A：今天时间线紧凑...</text>
+  <rect x="720" y="640" width="360" height="60" rx="8" fill="#1e293b" stroke="#2d3748" stroke-width="1" opacity="0.8"/>
+  <text x="740" y="668" fill="#f87171" font-size="12" font-family="sans-serif">主播 B：端侧是最大看点...</text>
+</svg>
+</body>
+</html>

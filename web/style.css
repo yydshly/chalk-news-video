@@ -935,6 +935,21 @@ footer {
   font-weight: 600;
 }
 
+.theme-showcase-category {
+  font-size: 0.625rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #1e3a5f;
+  color: #93c5fd;
+}
+
+.theme-showcase-bestfor {
+  font-size: 0.6875rem;
+  color: #6b7280;
+  margin-bottom: 4px;
+  margin-top: 2px;
+}
+
 .theme-showcase-desc {
   font-size: 0.75rem;
   color: #94a3b8;

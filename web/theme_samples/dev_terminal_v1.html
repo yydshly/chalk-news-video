@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Theme Sample: dev_terminal_v1</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #000; overflow: hidden; }
+  .sample-label {
+    position: fixed; top: 12px; left: 12px; z-index: 100;
+    background: rgba(0,0,0,0.9); color: #4ade80; font-size: 12px;
+    padding: 4px 10px; border-radius: 4px; font-family: monospace;
+  }
+</style>
+</head>
+<body>
+<div class="sample-label">💻 主题样例 · 开发者终端风</div>
+<svg viewBox="0 0 1280 720" width="1280" height="720" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1280" height="720" fill="#0a0a0a"/>
+  <!-- Terminal window chrome -->
+  <rect x="60" y="60" width="1160" height="600" rx="8" fill="#111111" stroke="#222222" stroke-width="1"/>
+  <!-- Title bar -->
+  <rect x="60" y="60" width="1160" height="35" rx="8" fill="#1a1a1a"/>
+  <circle cx="85" cy="77" r="7" fill="#ff5f57"/>
+  <circle cx="110" cy="77" r="7" fill="#ffbd2e"/>
+  <circle cx="135" cy="77" r="7" fill="#28c840"/>
+  <text x="640" y="83" text-anchor="middle" fill="#666666" font-size="12" font-family="monospace">bash — ai-news-digest — 80×24</text>
+  <!-- Terminal content -->
+  <text x="90" y="130" fill="#4ade80" font-size="14" font-family="monospace">$ ai-news --source=github --topic=ai --limit=5</text>
+  <text x="90" y="160" fill="#ffffff" font-size="14" font-family="monospace">Fetching latest AI news from GitHub trending...</text>
+  <text x="90" y="185" fill="#ffffff" font-size="14" font-family="monospace">✓ Found 3 repositories</text>
+  <text x="90" y="215" fill="#4ade80" font-size="14" font-family="monospace">$ cat summary.txt</text>
+  <rect x="90" y="230" width="700" height="3" fill="#333333"/>
+  <text x="90" y="260" fill="#e2e8f0" font-size="14" font-family="monospace">REPO: microsoft/autonomous-gpt-agent</text>
+  <text x="90" y="285" fill="#94a3b8" font-size="13" font-family="monospace">  ⭐ 12.4k · ⌚ 2h ago · 🔧 Python</text>
+  <text x="90" y="305" fill="#e2e8f0" font-size="14" font-family="monospace">REPO: openai/gpt-5-sdk</text>
+  <text x="90" y="330" fill="#94a3b8" font-size="13" font-family="monospace">  ⭐ 8.7k · ⌚ 5h ago · 🔧 TypeScript</text>
+  <text x="90" y="355" fill="#e2e8f0" font-size="14" font-family="monospace">REPO: anthropic/claude-4-api</text>
+  <text x="90" y="380" fill="#94a3b8" font-size="13" font-family="monospace">  ⭐ 6.2k · ⌚ 8h ago · 🔧 Go</text>
+  <text x="90" y="420" fill="#4ade80" font-size="14" font-family="monospace">$ python digest.py --format=newsletter</text>
+  <text x="90" y="450" fill="#ffffff" font-size="14" font-family="monospace">Generating newsletter HTML...</text>
+  <text x="90" y="475" fill="#4ade80" font-size="14" font-family="monospace">✓ Done: output/newsletter_20260624.html</text>
+  <text x="90" y="510" fill="#6b7280" font-size="14" font-family="monospace">$ _</text>
+  <!-- Cursor -->
+  <rect x="90" y="515" width="10" height="18" fill="#4ade80"/>
+  <!-- GitHub badge -->
+  <rect x="900" y="230" width="280" height="260" rx="6" fill="#111111" stroke="#222222"/>
+  <text x="920" y="260" fill="#4ade80" font-size="12" font-family="monospace">GitHub Trending</text>
+  <text x="920" y="285" fill="#e2e8f0" font-size="12" font-family="monospace">1. autonomous-gpt-agent</text>
+  <text x="920" y="305" fill="#6b7280" font-size="11" font-family="monospace">   microsoft · 12.4k ⭐</text>
+  <text x="920" y="330" fill="#e2e8f0" font-size="12" font-family="monospace">2. gpt-5-sdk</text>
+  <text x="920" y="350" fill="#6b7280" font-size="11" font-family="monospace">   openai · 8.7k ⭐</text>
+  <text x="920" y="375" fill="#e2e8f0" font-size="12" font-family="monospace">3. claude-4-api</text>
+  <text x="920" y="395" fill="#6b7280" font-size="11" font-family="monospace">   anthropic · 6.2k ⭐</text>
+  <text x="920" y="430" fill="#4ade80" font-size="11" font-family="monospace">Updated: 2026-06-24 14:00 UTC</text>
+  <!-- Bottom -->
+  <text x="640" y="680" text-anchor="middle" fill="#333333" font-size="11" font-family="monospace">展示：开发者终端风 · dev_terminal_v1</text>
+</svg>
+</body>
+</html>

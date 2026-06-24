@@ -986,11 +986,20 @@ def serve_style_css():
     return FileResponse(str(WEB_DIR / "style.css"))
 
 
-# ---------- theme sample whitelist (CP22) ----------
+# ---------- theme sample whitelist (CP22/CP29) ----------
 _THEME_SAMPLES = frozenset([
     "news_card_v1.html",
     "research_desk_v2.html",
     "causal_map_v1.html",
+    "timeline_brief_v1.html",
+    "data_dashboard_v1.html",
+    "breaking_news_v1.html",
+    "product_launch_v1.html",
+    "paper_digest_v1.html",
+    "podcast_cards_v1.html",
+    "dev_terminal_v1.html",
+    "magazine_cover_v1.html",
+    "opinion_column_v1.html",
 ])
 
 
