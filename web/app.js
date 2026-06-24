@@ -51,6 +51,10 @@
   const selectedNewsTitleEl = document.getElementById("selected-news-title");
   const btnRefreshHotNews = document.getElementById("btn-refresh-hot-news");
 
+  // CP20: Theme showcase DOM refs
+  const themeShowcaseSection = document.getElementById("theme-showcase-section");
+  const themeShowcaseList = document.getElementById("theme-showcase-list");
+
   // ---------- state ----------
   let lastResult = null;
   let currentEventSource = null;
@@ -59,6 +63,31 @@
   let latestSucceededJob = null;
   let selectedNews = null;       // CP19: user-selected hot news item
   let hotNewsItems = [];         // CP19: list of hot news candidates
+
+  // CP20: Theme showcase data
+  const THEME_SHOWCASES = {
+    news_card_v1: {
+      id: "news_card_v1",
+      name: "新闻卡片风",
+      desc: "适合快讯、产品发布、公司动态、热点新闻",
+      tags: ["推荐", "新闻感强", "当前主推"],
+      recommended: true,
+    },
+    research_desk_v2: {
+      id: "research_desk_v2",
+      name: "AI 研究室风",
+      desc: "适合技术解读、研究报告、模型能力分析",
+      tags: ["深度解读", "技术感"],
+      recommended: false,
+    },
+    causal_map_v1: {
+      id: "causal_map_v1",
+      name: "因果链地图",
+      desc: "适合解释事件原因、影响链条、监管变化",
+      tags: ["逻辑分析", "结构化"],
+      recommended: false,
+    },
+  };
 
   // ---------- init ----------
   async function init() {
@@ -84,9 +113,20 @@
         selectTheme.value = data.default_theme;
       }
 
+      // CP20: Force default to news_card_v1 if available in the list
+      const themeOptions = Array.from(selectTheme.querySelectorAll("option")).map(function (o) { return o.value; });
+      if (themeOptions.includes("news_card_v1")) {
+        selectTheme.value = "news_card_v1";
+      }
+
+      // CP20: Render theme showcase cards
+      renderThemeShowcase();
+
       setStatus("就绪", "success");
     } catch (e) {
       setStatus("加载主题失败: " + e.message, "error");
+      // Still render showcase even if API fails
+      renderThemeShowcase();
     }
 
     // CP18.5: Initialize generation mode UI
@@ -175,13 +215,16 @@
     const llm = llmProviders.find(function (p) { return p.id === llmId; });
     const tts = ttsProviders.find(function (p) { return p.id === ttsId; });
 
+    const themeId = selectTheme.value;
+    const themeName = (THEME_SHOWCASES[themeId] && THEME_SHOWCASES[themeId].name) ? THEME_SHOWCASES[themeId].name : themeId;
+
     let cfgText = "";
     if (llmId === "mock") {
-      cfgText = "示例新闻 + mock LLM + mock_dialogue（本地无需 API key）";
+      cfgText = "示例新闻 + " + themeName + " + mock LLM + mock_dialogue（本地无需 API key）";
     } else if (llm && llm.name) {
-      cfgText = "热门 AI 新闻 + research_desk_v2 + " + llm.name + " + mock_dialogue + 不导出 MP4";
+      cfgText = "热门 AI 新闻 + " + themeName + " + " + llm.name + " + mock_dialogue + 不导出 MP4";
     } else {
-      cfgText = "热门 AI 新闻 + research_desk_v2 + " + llmId + " + mock_dialogue + 不导出 MP4";
+      cfgText = "热门 AI 新闻 + " + themeName + " + " + llmId + " + mock_dialogue + 不导出 MP4";
     }
     recommendedConfigText.textContent = cfgText;
 
@@ -308,6 +351,48 @@
 
     // Update generate button text
     updateGenModeUI();
+  }
+
+  // ---------- theme showcase (CP20) ----------
+  function renderThemeShowcase() {
+    if (!themeShowcaseList) return;
+    themeShowcaseList.innerHTML = "";
+
+    Object.values(THEME_SHOWCASES).forEach(function (theme) {
+      const isSelected = selectTheme.value === theme.id;
+      const div = document.createElement("div");
+      div.className = "theme-showcase-card" + (isSelected ? " selected" : "");
+      div.setAttribute("data-theme-id", theme.id);
+
+      let tagsHtml = theme.tags.map(function (tag) {
+        const isRecommend = tag === "推荐";
+        return '<span class="theme-showcase-tag' + (isRecommend ? " tag-recommend" : "") + '">' + escapeHtml(tag) + '</span>';
+      }).join("");
+
+      div.innerHTML =
+        '<div class="theme-showcase-header">' +
+          '<span class="theme-showcase-name">' + escapeHtml(theme.name) + '</span>' +
+          (theme.recommended ? '<span class="theme-showcase-recommended">★ 推荐</span>' : '') +
+        '</div>' +
+        '<div class="theme-showcase-desc">' + escapeHtml(theme.desc) + '</div>' +
+        '<div class="theme-showcase-tags">' + tagsHtml + '</div>';
+
+      div.addEventListener("click", function () {
+        selectTheme.value = theme.id;
+        selectTheme.dispatchEvent(new Event("change"));
+        renderThemeShowcase();
+        updateRecommendedHint();
+      });
+
+      themeShowcaseList.appendChild(div);
+    });
+  }
+
+  // Sync theme showcase selection when selectTheme changes programmatically
+  if (selectTheme) {
+    selectTheme.addEventListener("change", function () {
+      renderThemeShowcase();
+    });
   }
 
   // Load hot news when switching to hot_ai mode
