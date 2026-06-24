@@ -1,4 +1,4 @@
-# Theme validation test file (CP10.1)
+# Theme validation test file (CP10.1 / CP11)
 # This file is used for manual verification:
 #   python -m src.theme --theme broken --config examples/invalid.themes.yaml
 # Expected: exit non-0 with validation errors.
@@ -29,3 +29,34 @@ themes:
     edge:
       stroke: "#f8f8f2"
       label: "#f8f8f2"
+
+  broken_layout:
+    # Invalid layout.variant
+    background:
+      type: solid
+      color: "#0b1020"
+    text:
+      title: "#f8fafc"
+      body: "#cbd5e1"
+      subtitle: "#f8fafc"
+    node:
+      fill: "#111827"
+      stroke: "#38bdf8"
+      text: "#f8fafc"
+    edge:
+      stroke: "#94a3b8"
+      label: "#e2e8f0"
+    callout:
+      info_fill: "#38bdf8"
+      info_stroke: "#0284c7"
+      info_text: "#f8fafc"
+    dialogue:
+      host_accent: "#38bdf8"
+      expert_accent: "#facc15"
+      panel_fill: "rgba(15,23,42,0.92)"
+      subtitle_fill: "rgba(15,23,42,0.86)"
+    layout:
+      variant: invalid_variant
+      dialogue:
+        panel_w: -10
+        panel_h: 90

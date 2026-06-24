@@ -41,6 +41,16 @@
     0%, 100% { opacity: 1; }
     50% { opacity: 0.3; }
   }
+
+  /* CP11: Node style variants */
+  /* chalk_card: default chalkboard feel */
+  .node-card { rx: 10; ry: 10; }
+  /* modern_panel: sleeker, less rounded */
+  .node-modern { rx: 8; ry: 8; }
+  /* research_card: tighter corners */
+  .node-research { rx: 6; ry: 6; }
+  /* paper_note: soft, paper-like */
+  .node-paper { rx: 12; ry: 12; }
 </style>
 </head>
 <body>
@@ -96,7 +106,7 @@
     <text id="subtitle-text" x="{{ render_ir.subtitles.text_x }}" y="{{ render_ir.subtitles.text_y }}"
           text-anchor="middle" fill="#ffffff"
           font-family="Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif"
-          font-size="22"></text>
+          font-size="{{ render_ir.subtitles.font_size|default(22) }}"></text>
   </g>
 
   <!-- CP9: Dialogue speaker panels (hidden unless RENDER_IR.dialogue is set) -->
@@ -152,6 +162,13 @@
     text: THEME.node ? THEME.node.text : "#1d1d1d",
     badge_fill: (THEME.node && THEME.node.badge_fill) || BG.color,
     badge_text: (THEME.node && THEME.node.badge_text) || TEXT.title,
+  };
+  // CP11: Node layout style
+  const NODE_LAYOUT = {
+    style: (THEME.layout && THEME.layout.nodes && THEME.layout.nodes.style) || "chalk_card",
+    radius: (THEME.layout && THEME.layout.nodes && THEME.layout.nodes.radius) || 10,
+    shadow: (THEME.layout && THEME.layout.nodes && THEME.layout.nodes.shadow) !== false,
+    stroke_width: (THEME.layout && THEME.layout.nodes && THEME.layout.nodes.stroke_width) || 3,
   };
   const EDGE = {
     stroke: THEME.edge ? THEME.edge.stroke : "#f8f8f2",
@@ -380,13 +397,14 @@
       "data-node-id": node.id,
     }, nodesGroup);
 
+    // CP11: Use NODE_LAYOUT for radius, stroke-width, shadow
     el("rect", {
       x: node.x, y: node.y, width: node.w, height: node.h,
-      rx: 10, ry: 10,
+      rx: NODE_LAYOUT.radius, ry: NODE_LAYOUT.radius,
       fill: NODE.fill,
       stroke: NODE.stroke,
-      "stroke-width": 3,
-      filter: "url(#cardShadow)",
+      "stroke-width": NODE_LAYOUT.stroke_width,
+      filter: NODE_LAYOUT.shadow ? "url(#cardShadow)" : null,
     }, g);
 
     // Index badge (1-based) - CP10.1: use NODE.badge_fill / badge_text for contrast

@@ -229,7 +229,18 @@
 - [x] pipeline 拒绝无效 theme name 和 invalid theme token
 - [x] README.md / BACKLOG.md 更新
 
-## Checkpoint 11 — Remotion / 视觉升级
+## Checkpoint 11 — Theme Layout System V1
+
+- [x] `config/themes.yaml`：新增 `layout` 段（variant / canvas / title / nodes / dialogue）
+- [x] `src/theme.py`：新增 layout 校验（variant 枚举、panel 正数）；新增 `apply_theme_layout()`
+- [x] `src/pipeline.py`：新增 `apply_theme_layout` 调用
+- [x] `renderer/template.html`：JS 读取 `NODE_LAYOUT` 控制 node 圆角/阴影/线宽；subtitle font-size 动态
+- [x] 4 个主题 panel_position 布局（side / bottom_corner / desk_cards）
+- [x] subtitle bar 高/位置/字号随 layout 变化
+- [x] `examples/invalid.themes.yaml`：新增 `broken_layout` invalid layout 测试
+- [x] README.md / BACKLOG.md 更新
+
+## Checkpoint 12 — Remotion / 视觉升级
 
 - Remotion 数字人
 - 前端 UI（网页端配置和播放）
@@ -237,7 +248,7 @@
 
 ## 不做（Out of Scope）
 
-- Remotion（CP11+）
-- 数字人（CP11+）
+- Remotion（CP12+）
+- 数字人（CP12+）
 - lip-sync（CP9+）
 - 自动选题 / 多新闻合并

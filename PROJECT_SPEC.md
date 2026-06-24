@@ -735,7 +735,82 @@ python -m src.theme --theme podcast --json   # JSON 输出完整 theme
 用于人工验收 invalid theme 失败路径：
 - `broken`：background.type=unknown，background.color="not-a-color"
 - `broken_missing_sections`：缺少 callout/dialogue section
+- `broken_layout`（CP11 新增）：layout.variant=invalid_variant，panel_w=-10
 
+## Checkpoint 11 — Theme Layout System V1
+
+### render_ir.theme.layout 契约
+
+```json
+{
+  "layout": {
+    "variant": "podcast_v1",
+    "canvas": { "safe_margin": 48 },
+    "title": { "y": 70, "font_size": 36 },
+    "nodes": {
+      "style": "modern_panel",
+      "radius": 8,
+      "shadow": true,
+      "stroke_width": 2
+    },
+    "dialogue": {
+      "panel_position": "side",
+      "panel_y": 120,
+      "panel_w": 220,
+      "panel_h": 110,
+      "subtitle_h": 78,
+      "subtitle_font_size": 24
+    }
+  }
+}
+```
+
+### layout.variant 枚举
+
+| variant | 主题 |
+|---|---|
+| `chalkboard_v1` | chalkboard |
+| `podcast_v1` | podcast |
+| `research_desk_v1` | research_desk |
+| `notebook_v1` | notebook |
+
+### layout.dialogue.panel_position 布局规则
+
+| panel_position | host x | expert x | y |
+|---|---|---|---|
+| `side` | safe_margin | canvas_w - safe_margin - panel_w | panel_y |
+| `bottom_corner` | safe_margin | canvas_w - safe_margin - panel_w | canvas_h - panel_h - 20 |
+| `desk_cards` | safe_margin + 20 | canvas_w - safe_margin - panel_w - 20 | panel_y |
+
+### apply_theme_layout
+
+`src/theme.apply_theme_layout(render_ir)`：
+1. 读取 `render_ir.theme.layout.dialogue`
+2. 根据 `panel_position` 计算 host/expert panel x/y/w/h
+3. 写回 `render_ir.dialogue.speakers.host.panel` 和 `render_ir.dialogue.speakers.expert.panel`
+4. 更新 `render_ir.subtitles.bar.h / bar.y / text_y / font_size`
+5. 无 dialogue 时直接返回（不报错）
+
+### Pipeline 顺序（CP11）
+
+```
+generate_ir → validate_ir
+→ (auto-generate dialogue_script.json if missing)
+→ narration (dialogue_audio) → layout → apply_narration_timing
+→ apply_dialogue_visual_cues
+→ apply_theme (CP10)
+→ apply_theme_layout (CP11 新增)
+→ save render_ir.json → render_html → export_video
+```
+
+### template.html 主题应用（CP11）
+
+JS 读取 `THEME.layout.nodes`：
+- `radius`：node rect 圆角
+- `stroke_width`：node rect 边框宽度
+- `shadow`：node rect filter（false 时不应用 cardShadow）
+
+subtitle text font-size 从 `RENDER_IR.subtitles.font_size` 读取（CP11 新增）。
 
 ## 文件清单（V0.11 新增 / 修改）
 
@@ -766,6 +841,16 @@ python -m src.theme --theme podcast --json   # JSON 输出完整 theme
 - `src/pipeline.py`（theme 解析失败 → ValueError → exit 1）
 - `renderer/template.html`（board-bg id 选择，solid/grid 分支，badge_fill/badge_text）
 - `README.md` / `PROJECT_SPEC.md` / `BACKLOG.md`（CP10.1 更新）
+
+新增（CP11）：
+- `examples/invalid.themes.yaml`（新增 `broken_layout` invalid layout 测试）
+
+修改（CP11）：
+- `config/themes.yaml`（新增 layout 段：variant/canvas/title/nodes/dialogue）
+- `src/theme.py`（新增 layout 校验 + apply_theme_layout()）
+- `src/pipeline.py`（新增 apply_theme_layout 调用）
+- `renderer/template.html`（JS 读取 NODE_LAYOUT 控制 node 样式；subtitle font-size 动态）
+- `README.md` / `PROJECT_SPEC.md` / `BACKLOG.md`（CP11 更新）
 
 修改（历史）：
 - `src/generate_dialogue.py`（CP8：repair 流程 + debug 输出）

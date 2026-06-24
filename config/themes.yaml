@@ -1,5 +1,5 @@
-# Theme System V1 (CP10)
-# Each theme defines the visual tokens for the renderer.
+# Theme System V1 (CP10) + Theme Layout System V1 (CP11)
+# Each theme defines the visual tokens and layout tokens for the renderer.
 # Themes only affect visual expression, not business contracts.
 
 default_theme: chalkboard
@@ -42,6 +42,25 @@ themes:
       panel_fill: "rgba(20,59,46,0.85)"
       panel_stroke: "#4db6ac"
       subtitle_fill: "rgba(0,0,0,0.75)"
+    layout:
+      variant: chalkboard_v1
+      canvas:
+        safe_margin: 48
+      title:
+        y: 70
+        font_size: 36
+      nodes:
+        style: chalk_card
+        radius: 10
+        shadow: true
+        stroke_width: 3
+      dialogue:
+        panel_position: side
+        panel_y: 160
+        panel_w: 180
+        panel_h: 90
+        subtitle_h: 64
+        subtitle_font_size: 22
 
   podcast:
     name: "双人播客"
@@ -80,6 +99,25 @@ themes:
       panel_fill: "rgba(15,23,42,0.92)"
       panel_stroke: "#38bdf8"
       subtitle_fill: "rgba(15,23,42,0.86)"
+    layout:
+      variant: podcast_v1
+      canvas:
+        safe_margin: 48
+      title:
+        y: 70
+        font_size: 36
+      nodes:
+        style: modern_panel
+        radius: 8
+        shadow: true
+        stroke_width: 2
+      dialogue:
+        panel_position: side
+        panel_y: 120
+        panel_w: 220
+        panel_h: 110
+        subtitle_h: 78
+        subtitle_font_size: 24
 
   research_desk:
     name: "深夜研究室"
@@ -118,6 +156,25 @@ themes:
       panel_fill: "rgba(42,36,32,0.9)"
       panel_stroke: "#d6a85c"
       subtitle_fill: "rgba(18,24,32,0.86)"
+    layout:
+      variant: research_desk_v1
+      canvas:
+        safe_margin: 48
+      title:
+        y: 70
+        font_size: 36
+      nodes:
+        style: research_card
+        radius: 6
+        shadow: true
+        stroke_width: 2
+      dialogue:
+        panel_position: desk_cards
+        panel_y: 110
+        panel_w: 210
+        panel_h: 96
+        subtitle_h: 72
+        subtitle_font_size: 22
 
   notebook:
     name: "手写笔记"
@@ -156,3 +213,22 @@ themes:
       panel_fill: "rgba(255,250,240,0.92)"
       panel_stroke: "#d8b56d"
       subtitle_fill: "rgba(255,250,240,0.86)"
+    layout:
+      variant: notebook_v1
+      canvas:
+        safe_margin: 48
+      title:
+        y: 70
+        font_size: 36
+      nodes:
+        style: paper_note
+        radius: 12
+        shadow: false
+        stroke_width: 2
+      dialogue:
+        panel_position: bottom_corner
+        panel_y: 135
+        panel_w: 190
+        panel_h: 86
+        subtitle_h: 70
+        subtitle_font_size: 22

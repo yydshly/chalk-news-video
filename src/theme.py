@@ -2,13 +2,15 @@
 
 Checkpoint 10: Theme System V1.
 Checkpoint 10.1: Theme validation and solid-background hardening.
+Checkpoint 11: Theme Layout System V1.
 
 Themes only affect visual expression (colors, fills, strokes) in the renderer.
 They do NOT modify business contracts: semantic_ir, dialogue_script, dialogue_manifest.
 
 Usage:
-    from src.theme import load_themes, resolve_theme, apply_theme
+    from src.theme import load_themes, resolve_theme, apply_theme, apply_theme_layout
     render_ir = apply_theme(render_ir, theme_name="podcast")
+    render_ir = apply_theme_layout(render_ir)
 
     # CLI:
     python -m src.theme --theme podcast
@@ -31,6 +33,17 @@ DEFAULT_THEMES_PATH = PROJECT_ROOT / "config" / "themes.yaml"
 _COLOR_PATTERN = re.compile(
     r"^(#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})|rgba\(\d+,\s*\d+,\s*\d+,\s*[\d.]+\)|transparent)$"
 )
+
+# Valid layout variants (CP11)
+_VALID_LAYOUT_VARIANTS = (
+    "chalkboard_v1",
+    "podcast_v1",
+    "research_desk_v1",
+    "notebook_v1",
+)
+
+# Valid panel positions (CP11)
+_VALID_PANEL_POSITIONS = ("side", "bottom_corner", "desk_cards")
 
 
 def _is_valid_color(color: str) -> bool:
@@ -101,7 +114,40 @@ def validate_theme(theme: dict, theme_id: str) -> list[str]:
         elif not _is_valid_color(dialogue[field]):
             err(f"dialogue.{field} is not a valid color: '{dialogue[field]}'")
 
+    # 7. layout is optional, but if present must be valid (CP11)
+    layout = theme.get("layout")
+    if layout is not None:
+        _validate_layout(layout, theme_id, err, errors)
+
     return errors
+
+
+def _validate_layout(layout: dict, theme_id: str, err, errors: list):
+    """Validate layout section of a theme."""
+    # layout.variant is required
+    variant = layout.get("variant")
+    if variant is None:
+        err("layout.variant is required")
+    elif variant not in _VALID_LAYOUT_VARIANTS:
+        err(f"layout.variant must be one of {_VALID_LAYOUT_VARIANTS}, got '{variant}'")
+
+    # dialogue section: panel_w, panel_h, panel_y, subtitle_h, subtitle_font_size
+    dialogue_layout = layout.get("dialogue", {})
+    for field in ("panel_w", "panel_h", "panel_y"):
+        if field in dialogue_layout:
+            val = dialogue_layout[field]
+            if not isinstance(val, (int, float)) or val <= 0:
+                err(f"layout.dialogue.{field} must be a positive number, got '{val}'")
+
+    for field in ("subtitle_h", "subtitle_font_size"):
+        if field in dialogue_layout:
+            val = dialogue_layout[field]
+            if not isinstance(val, (int, float)) or val <= 0:
+                err(f"layout.dialogue.{field} must be a positive number, got '{val}'")
+
+    panel_position = dialogue_layout.get("panel_position")
+    if panel_position is not None and panel_position not in _VALID_PANEL_POSITIONS:
+        err(f"layout.dialogue.panel_position must be one of {_VALID_PANEL_POSITIONS}, got '{panel_position}'")
 
 
 def load_themes(config_path: Path | str | None = None) -> dict:
@@ -186,6 +232,111 @@ def apply_theme(
         "id": theme_id,
         **theme,
     }
+
+    return render_ir
+
+
+def apply_theme_layout(render_ir: dict) -> dict:
+    """Apply theme layout tokens to render_ir dialogue panels and subtitle.
+
+    CP11: Theme Layout System V1.
+
+    Reads render_ir.theme.layout.dialogue to compute:
+    - render_ir.dialogue.speakers.host.panel {x, y, w, h}
+    - render_ir.dialogue.speakers.expert.panel {x, y, w, h}
+    - render_ir.subtitles.bar {h, y}
+    - render_ir.subtitles.text_y
+
+    Panel positions:
+    - side: host on left (safe_margin), expert on right (canvas_w - margin - panel_w)
+    - bottom_corner: both panels near bottom
+    - desk_cards: host slightly inset left, expert slightly inset right
+
+    Args:
+        render_ir: render_ir with render_ir.theme already set
+
+    Returns:
+        render_ir with updated dialogue panels and subtitle layout
+    """
+    render_ir = dict(render_ir)
+
+    theme = render_ir.get("theme", {})
+    layout = theme.get("layout")
+    dialogue_cfg = render_ir.get("dialogue")
+
+    # No layout token or no dialogue → nothing to do
+    if layout is None or dialogue_cfg is None:
+        return render_ir
+
+    dialogue_layout = layout.get("dialogue", {})
+    panel_position = dialogue_layout.get("panel_position", "side")
+    safe_margin = layout.get("canvas", {}).get("safe_margin", 48)
+    panel_w = dialogue_layout.get("panel_w", 180)
+    panel_h = dialogue_layout.get("panel_h", 90)
+    panel_y = dialogue_layout.get("panel_y", 160)
+    subtitle_h = dialogue_layout.get("subtitle_h", 64)
+
+    canvas_w = render_ir.get("canvas", {}).get("width", 1280)
+    canvas_h = render_ir.get("canvas", {}).get("height", 720)
+
+    # Compute panel positions based on panel_position
+    if panel_position == "side":
+        host_x = safe_margin
+        expert_x = canvas_w - safe_margin - panel_w
+        host_y = panel_y
+        expert_y = panel_y
+    elif panel_position == "bottom_corner":
+        host_x = safe_margin
+        expert_x = canvas_w - safe_margin - panel_w
+        host_y = canvas_h - panel_h - 20
+        expert_y = canvas_h - panel_h - 20
+    elif panel_position == "desk_cards":
+        host_x = safe_margin + 20
+        expert_x = canvas_w - safe_margin - panel_w - 20
+        host_y = panel_y
+        expert_y = panel_y
+    else:
+        # Default to side
+        host_x = safe_margin
+        expert_x = canvas_w - safe_margin - panel_w
+        host_y = panel_y
+        expert_y = panel_y
+
+    # Update dialogue speakers panels
+    if "speakers" in dialogue_cfg:
+        speakers = dict(dialogue_cfg["speakers"])
+        if "host" in speakers:
+            speakers["host"] = dict(speakers["host"])
+            speakers["host"]["panel"] = dict(speakers["host"].get("panel", {}))
+            speakers["host"]["panel"]["x"] = host_x
+            speakers["host"]["panel"]["y"] = host_y
+            speakers["host"]["panel"]["w"] = panel_w
+            speakers["host"]["panel"]["h"] = panel_h
+        if "expert" in speakers:
+            speakers["expert"] = dict(speakers["expert"])
+            speakers["expert"]["panel"] = dict(speakers["expert"].get("panel", {}))
+            speakers["expert"]["panel"]["x"] = expert_x
+            speakers["expert"]["panel"]["y"] = expert_y
+            speakers["expert"]["panel"]["w"] = panel_w
+            speakers["expert"]["panel"]["h"] = panel_h
+        dialogue_cfg = dict(dialogue_cfg)
+        dialogue_cfg["speakers"] = speakers
+
+    # Update subtitle bar
+    subtitles = dict(render_ir.get("subtitles", {}))
+    bar = dict(subtitles.get("bar", {}))
+    bar_h = subtitle_h
+    bar_y = canvas_h - bar_h - 12
+    bar["h"] = bar_h
+    bar["y"] = bar_y
+    subtitles["bar"] = bar
+    subtitles["text_y"] = bar_y + bar_h // 2 + 6
+    # subtitle_font_size from layout (optional, default 22)
+    subtitle_font_size = dialogue_layout.get("subtitle_font_size", 22)
+    subtitles["font_size"] = subtitle_font_size
+
+    render_ir["dialogue"] = dialogue_cfg
+    render_ir["subtitles"] = subtitles
 
     return render_ir
 

@@ -30,7 +30,7 @@ from . import export_video, fetch_news, layout, render_html, validate_ir
 from .dialogue_visual import apply_dialogue_visual_cues
 from .narration import generate_narration
 from .narration_timing import apply_narration_timing
-from .theme import apply_theme
+from .theme import apply_theme, apply_theme_layout
 from .utils import PROJECT_ROOT, load_json, save_json
 
 
@@ -279,6 +279,10 @@ def run_auto_pipeline(args):
     except ValueError as exc:
         print(f"[auto:layout] THEME ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
+
+    # ---- Stage 4e: apply theme layout (CP11) ----
+    print(f"[auto:layout] applying theme layout")
+    render_ir = apply_theme_layout(render_ir)
 
     # Save render_ir BEFORE render_html so timing is committed
     render_ir_path = save_json(render_ir, OUTPUT_DIR / "render_ir.json")

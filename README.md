@@ -118,6 +118,38 @@ python -m src.theme --theme broken --config examples/invalid.themes.yaml
 python -m src.pipeline --auto --mock --theme not_exist --no-export
 ```
 
+**Checkpoint 11 — Theme Layout System V1（当前）**：
+
+- `config/themes.yaml`：新增 `layout` 段（variant / canvas.safe_margin / title.y / nodes.style/radius/shadow/stroke_width / dialogue.panel_position/w/h/y/subtitle_h/font_size）
+- `src/theme.py`：`layout` 校验（variant 枚举、panel 正数）；新增 `apply_theme_layout()` 计算 speaker panel 位置和 subtitle 布局
+- `src/pipeline.py`：新增 `apply_theme_layout` 调用（apply_theme 之后）
+- `renderer/template.html`：JS 读取 `NODE_LAYOUT` 控制 node 圆角/阴影/线宽；subtitle font-size 从 `render_ir.subtitles.font_size` 读取
+
+**panel_position 布局规则**：
+
+| panel_position | host | expert |
+|---|---|---|
+| `side` | x=safe_margin, y=panel_y | x=canvas_w-margin-panel_w, y=panel_y |
+| `bottom_corner` | x=safe_margin, y=canvas_h-panel_h-20 | x=canvas_w-margin-panel_w, y=canvas_h-panel_h-20 |
+| `desk_cards` | x=safe_margin+20, y=panel_y | x=canvas_w-margin-panel_w-20, y=panel_y |
+
+```bash
+# podcast 主题（side 布局，panel 更大）
+python -m src.pipeline --auto --mock --tts --dialogue --dialogue-profile mock_dialogue --theme podcast
+
+# research_desk（desk_cards 布局）
+python -m src.pipeline --auto --mock --tts --dialogue --dialogue-profile mock_dialogue --theme research_desk
+
+# notebook（bottom_corner 布局）
+python -m src.pipeline --auto --mock --tts --dialogue --dialogue-profile mock_dialogue --theme notebook
+```
+
+**CP11 限制（明确不做）**：
+- 不是 Remotion（CP12+）
+- 不是数字人（CP12+）
+- 不做 lip-sync
+- 不改 semantic_ir / dialogue_script / dialogue_manifest schema
+
 ## 项目定位
 
 V0.11: News → LLM → semantic_ir → dual-host dialogue → video（含双角色音频）。
