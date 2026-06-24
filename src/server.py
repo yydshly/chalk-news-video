@@ -258,6 +258,11 @@ class GenerateRequest(BaseModel):
     # CP15.4: dialogue duration control
     target_duration_sec: Optional[int] = 60
     max_turns: Optional[int] = 14
+    # CP19: user-selected hot AI news
+    selected_news_id: Optional[str] = None
+    selected_news_title: Optional[str] = None
+    selected_news_url: Optional[str] = None
+    selected_news_source: Optional[str] = None
 
 
 def _get_provider_status_by_id(kind: str, provider_id: str) -> Optional[dict]:
@@ -331,6 +336,73 @@ def api_providers():
         "llm": _get_llm_provider_status(),
         "tts": _get_tts_provider_status(),
     })
+
+
+@app.get("/api/hot-ai-news")
+def api_hot_ai_news():
+    """CP19: Return hot AI news candidates for user selection.
+
+    Returns up to 10 candidates without saving files.
+    Does NOT expose API keys or fetch full article text.
+    """
+    import tempfile
+    import uuid
+
+    try:
+        from .fetch_hot_ai_news import fetch_hot_ai_news
+
+        # Use dry_run=True to get candidates without saving files
+        candidates_output_path = Path(tempfile.gettempdir()) / f"hot_ai_candidates_{uuid.uuid4().hex[:8]}.json"
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_output = Path(tmpdir) / "latest_news.json"
+            fetch_hot_ai_news(
+                source="hn",
+                hours=72,
+                limit=10,
+                output_path=tmp_output,
+                candidates_output_path=candidates_output_path,
+                dry_run=False,
+            )
+
+        # Read candidates
+        if not candidates_output_path.exists():
+            return JSONResponse({
+                "ok": False,
+                "error": "Failed to fetch hot AI news candidates.",
+            }, status_code=500)
+
+        with open(candidates_output_path, "r", encoding="utf-8") as f:
+            candidates_data = json.load(f)
+
+        items = candidates_data.get("items", [])
+
+        # Return simplified structure for UI
+        return JSONResponse({
+            "ok": True,
+            "count": len(items),
+            "items": [
+                {
+                    "id": item.get("id"),
+                    "title": item.get("title"),
+                    "url": item.get("url"),
+                    "source": item.get("source_name", "Hacker News"),
+                    "points": item.get("points", 0),
+                    "comments": item.get("comments", 0),
+                    "final_score": item.get("final_score", 0),
+                    "rank_reason": item.get("rank_reason", ""),
+                    "summary": item.get("summary", ""),
+                }
+                for item in items
+            ],
+        })
+
+    except Exception as e:
+        redacted = _redact_secret_text(str(e))
+        return JSONResponse({
+            "ok": False,
+            "error": f"Failed to fetch hot AI news: {redacted}",
+        }, status_code=500)
 
 
 # Paths
@@ -788,26 +860,50 @@ def _run_pipeline(body: GenerateRequest, job_id: str, output_dir: Path) -> tuple
         news_path = str(EXAMPLES_DIR / "real_news_fixture.json")
     elif mode == "hot_ai":
         # CP15.2.5: Fetch hot AI news from Hacker News into job output_dir
+        # CP19: If user selected a news item, use it directly instead of auto-selecting
         latest_news_path = output_dir / "latest_news.json"
         candidates_path = output_dir / "hot_ai_candidates.json"
-        try:
-            from .fetch_hot_ai_news import fetch_hot_ai_news
-            _emit_job_event(job_id, "progress", {
-                "status": "running",
-                "stage": "preparing_input",
-                "message": "正在抓取热门 AI 新闻",
-                "progress": 5,
-            })
-            fetch_hot_ai_news(
-                source="hn",
-                hours=72,
-                limit=20,
-                output_path=latest_news_path,
-                candidates_output_path=candidates_path,
-            )
-        except Exception as e:
-            redacted = _redact_secret_text(str(e))
-            return 1, "", f"fetch_hot_ai_news failed: {redacted}"
+
+        if body.selected_news_id:
+            # CP19: Use user-selected news — write directly to latest_news.json
+            selected_news_payload = {
+                "id": body.selected_news_id or f"selected_{uuid.uuid4().hex[:8]}",
+                "title": body.selected_news_title or "Selected News",
+                "url": body.selected_news_url or "",
+                "source_id": "user_selected",
+                "source_name": body.selected_news_source or "User Selected",
+                "published_at": datetime.now().strftime("%a, %d %b %Y %H:%M:%S +0000"),
+                "summary": "",
+                "content": f"User selected news: {body.selected_news_title}",
+                "content_source": "user_selected",
+                "fetched_at": datetime.now().isoformat() + "+00:00",
+            }
+            try:
+                with open(latest_news_path, "w", encoding="utf-8") as f:
+                    json.dump(selected_news_payload, f, ensure_ascii=False, indent=2)
+                print(f"[api/jobs] CP19: using user-selected news: {body.selected_news_title}")
+            except Exception as e:
+                return 1, "", f"Failed to write selected news: {e}"
+        else:
+            # Fallback: auto-select top candidate (log it)
+            try:
+                from .fetch_hot_ai_news import fetch_hot_ai_news
+                _emit_job_event(job_id, "progress", {
+                    "status": "running",
+                    "stage": "preparing_input",
+                    "message": "正在抓取热门 AI 新闻",
+                    "progress": 5,
+                })
+                fetch_hot_ai_news(
+                    source="hn",
+                    hours=72,
+                    limit=20,
+                    output_path=latest_news_path,
+                    candidates_output_path=candidates_path,
+                )
+            except Exception as e:
+                redacted = _redact_secret_text(str(e))
+                return 1, "", f"fetch_hot_ai_news failed: {redacted}"
         news_path = str(latest_news_path)
     elif mode == "text":
         if not news_text.strip():

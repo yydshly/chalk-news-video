@@ -112,7 +112,19 @@
       <button id="btn-generate" class="btn-primary">生成快速预览</button>
       <p id="status-msg" class="status-msg"></p>
 
-      <!-- Recommended Config Hint (CP15.6) -->
+      <!-- CP19: Hot AI News Candidate Board -->
+      <div id="hot-news-section" class="hot-news-section">
+        <div class="hot-news-header">
+          <span class="hot-news-title">🔥 今日热门 AI 新闻</span>
+          <button id="btn-refresh-hot-news" class="btn-small" type="button">刷新</button>
+        </div>
+        <div id="hot-news-loading" class="hot-news-loading">加载中...</div>
+        <div id="hot-news-error" class="hot-news-error" style="display:none"></div>
+        <div id="hot-news-list" class="hot-news-list"></div>
+        <div id="hot-news-selected" class="hot-news-selected" style="display:none">
+          已选择：<span id="selected-news-title"></span>
+        </div>
+      </div>
       <div id="recommended-hint" class="recommended-hint">
         <div class="hint-title">💡 推荐体验配置</div>
         <div class="hint-text" id="recommended-config-text">
@@ -196,7 +208,7 @@
   </main>
 
   <footer>
-    <p>CP18.5 Local Web Studio · 不上传任何数据 · API Key 不暴露</p>
+    <p>CP19 Local Web Studio · 不上传任何数据 · API Key 不暴露</p>
   </footer>
 </div>
 

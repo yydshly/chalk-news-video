@@ -42,6 +42,14 @@
   const audioPlayerWrap = document.getElementById("audio-player-wrap");
   const previewAudio = document.getElementById("preview-audio");
   const btnPlayAudio = document.getElementById("btn-play-audio");
+  // CP19: Hot news DOM refs
+  const hotNewsSection = document.getElementById("hot-news-section");
+  const hotNewsLoading = document.getElementById("hot-news-loading");
+  const hotNewsError = document.getElementById("hot-news-error");
+  const hotNewsList = document.getElementById("hot-news-list");
+  const hotNewsSelected = document.getElementById("hot-news-selected");
+  const selectedNewsTitleEl = document.getElementById("selected-news-title");
+  const btnRefreshHotNews = document.getElementById("btn-refresh-hot-news");
 
   // ---------- state ----------
   let lastResult = null;
@@ -49,6 +57,8 @@
   let llmProviders = [];
   let ttsProviders = [];
   let latestSucceededJob = null;
+  let selectedNews = null;       // CP19: user-selected hot news item
+  let hotNewsItems = [];         // CP19: list of hot news candidates
 
   // ---------- init ----------
   async function init() {
@@ -81,6 +91,9 @@
 
     // CP18.5: Initialize generation mode UI
     updateGenModeUI();
+
+    // CP19: Auto-load hot news if mode is hot_ai
+    tryAutoLoadHotNews();
 
     // Load history on startup and auto-preview latest succeeded
     await loadHistoryAndAutoPreview();
@@ -211,25 +224,133 @@
     });
   });
 
+  // ---------- hot news board (CP19) ----------
+  async function loadHotNews() {
+    hotNewsLoading.style.display = "block";
+    hotNewsError.style.display = "none";
+    hotNewsList.innerHTML = "";
+    hotNewsSelected.style.display = "none";
+    selectedNews = null;
+
+    try {
+      const resp = await fetch("/api/hot-ai-news");
+      const data = await resp.json();
+
+      if (!data.ok) {
+        throw new Error(data.error || "加载失败");
+      }
+
+      hotNewsItems = data.items || [];
+      renderHotNews();
+    } catch (e) {
+      hotNewsError.style.display = "block";
+      hotNewsError.textContent = "新闻加载失败，请重试";
+      hotNewsLoading.style.display = "none";
+    }
+  }
+
+  function renderHotNews() {
+    hotNewsLoading.style.display = "none";
+
+    if (hotNewsItems.length === 0) {
+      hotNewsError.style.display = "block";
+      hotNewsError.textContent = "暂无合适新闻";
+      return;
+    }
+
+    hotNewsList.innerHTML = "";
+    hotNewsItems.forEach(function (item, index) {
+      const div = document.createElement("div");
+      div.className = "hot-news-item";
+      div.setAttribute("data-index", index);
+
+      div.innerHTML =
+        '<span class="hot-news-item-rank">#' + (index + 1) + '</span>' +
+        '<div class="hot-news-item-title">' + escapeHtml(item.title || "") + '</div>' +
+        '<div class="hot-news-item-meta">' +
+          '<span>' + escapeHtml(item.source || "") + '</span> ' +
+          '<span class="hot-news-item-score">★ ' + (item.final_score || 0).toFixed(1) + '</span> ' +
+          '<span>' + (item.points || 0) + ' pts</span> ' +
+          '<span>' + (item.comments || 0) + ' comments</span>' +
+        '</div>' +
+        '<button class="hot-news-item-select-btn" type="button">选择这条</button>';
+
+      div.querySelector(".hot-news-item-select-btn").addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        selectHotNewsItem(index);
+      });
+
+      div.addEventListener("click", function () {
+        selectHotNewsItem(index);
+      });
+
+      hotNewsList.appendChild(div);
+    });
+  }
+
+  function selectHotNewsItem(index) {
+    const item = hotNewsItems[index];
+    if (!item) return;
+
+    selectedNews = item;
+
+    // Highlight selected item
+    hotNewsList.querySelectorAll(".hot-news-item").forEach(function (el, i) {
+      el.classList.toggle("selected", i === index);
+    });
+
+    // Show selected banner
+    hotNewsSelected.style.display = "block";
+    selectedNewsTitleEl.textContent = item.title || "";
+
+    // Update generate button text
+    updateGenModeUI();
+  }
+
+  // Load hot news when switching to hot_ai mode
+  modeRadios.forEach(function (radio) {
+    radio.addEventListener("change", function () {
+      if (radio.value === "hot_ai") {
+        loadHotNews();
+      }
+    });
+  });
+
+  // Refresh button
+  if (btnRefreshHotNews) {
+    btnRefreshHotNews.addEventListener("click", function () {
+      loadHotNews();
+    });
+  }
+
+  // Auto-load hot news on init if mode is hot_ai
+  function tryAutoLoadHotNews() {
+    const checkedMode = document.querySelector('input[name="mode"]:checked');
+    if (checkedMode && checkedMode.value === "hot_ai") {
+      loadHotNews();
+    }
+  }
+
   function updateGenModeUI() {
     const genMode = document.querySelector('input[name="gen_mode"]:checked').value;
+    const hasSelectedNews = selectedNews && selectedNews.title;
 
     // Update hint text
     if (genMode === "fast") {
       genModeHint.textContent = "最快，只生成动画预览，不调用真实 TTS，不导出 MP4。";
       checkExport.checked = false;
       labelCheckExport.classList.remove("checkbox-export-hidden");
-      btnGenerate.textContent = "生成快速预览";
+      btnGenerate.textContent = hasSelectedNews ? "生成所选新闻快速预览" : "生成快速预览";
     } else if (genMode === "voice") {
       genModeHint.textContent = "生成真实双人语音，但不导出 MP4。";
       checkExport.checked = false;
       labelCheckExport.classList.remove("checkbox-export-hidden");
-      btnGenerate.textContent = "生成语音预览";
+      btnGenerate.textContent = hasSelectedNews ? "生成所选新闻语音预览" : "生成语音预览";
     } else {
       genModeHint.textContent = "生成完整 MP4，耗时较长，请耐心等待。";
       checkExport.checked = true;
       labelCheckExport.classList.remove("checkbox-export-hidden");
-      btnGenerate.textContent = "导出 MP4 成片";
+      btnGenerate.textContent = hasSelectedNews ? "导出所选新闻 MP4 成片" : "导出 MP4 成片";
     }
   }
 
@@ -295,6 +416,11 @@
       repair: checkRepair.checked,
       repair_attempts: 2,
       target_duration_sec: 45,
+      // CP19: user-selected hot news
+      selected_news_id: selectedNews ? (selectedNews.id || null) : null,
+      selected_news_title: selectedNews ? (selectedNews.title || null) : null,
+      selected_news_url: selectedNews ? (selectedNews.url || null) : null,
+      selected_news_source: selectedNews ? (selectedNews.source || null) : null,
       max_turns: 10,
     };
 
