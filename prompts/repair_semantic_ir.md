@@ -46,6 +46,7 @@
 11. **如果有 callout，每个 callout.id 至少被一个 beat.reveal 一次**。
 12. **node 数量 2~5，edge 数量 ≥ nodes-1，callout 数量 0~3，beat 数量 6~10**。
 13. **meta.lang 必须是 `"zh"`**。
+14. **reveal 字段是字符串，不是数组**。
 
 # Strategy
 

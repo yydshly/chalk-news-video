@@ -6,14 +6,14 @@ Checkpoint 3 (V0.8) adds:
   --no-save-invalid : refuse to write an invalid semantic_ir.json (default).
   --save-invalid    : allow writing an invalid result to .invalid.json.
 
-NOT in this checkpoint:
-- TTS / Remotion / video export (Checkpoint 4+)
-- generate_ir is NOT wired into `src.pipeline` default flow.
+CP15.2.3 adds:
+  - Debug files written to args.output's parent directory (job-scoped).
+  - Deterministic repairs for UNREVEALED_EDGE / UNREVEALED_NODE issues.
 """
-
 
 import argparse
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,12 +26,6 @@ from .utils import PROJECT_ROOT, load_json, save_json
 
 OUTPUT_DIR = PROJECT_ROOT / "outputs" / "latest"
 DEFAULT_OUTPUT_PATH = OUTPUT_DIR / "semantic_ir.json"
-INVALID_OUTPUT_PATH = OUTPUT_DIR / "semantic_ir.invalid.json"
-DEFAULT_DEBUG_PROMPT_PATH = OUTPUT_DIR / "debug_llm_prompt.txt"
-DEFAULT_DEBUG_RESPONSE_PATH = OUTPUT_DIR / "debug_llm_response.txt"
-DEFAULT_DEBUG_VALIDATION_PATH = OUTPUT_DIR / "debug_validation_issues.json"
-DEFAULT_DEBUG_REPAIR_PROMPT_PATH = OUTPUT_DIR / "debug_repair_prompt.txt"
-DEFAULT_DEBUG_REPAIR_RESPONSE_PATH = OUTPUT_DIR / "debug_repair_response.txt"
 DEFAULT_NEWS_PATH = OUTPUT_DIR / "latest_news.json"
 DEFAULT_PROMPT_PATH = PROJECT_ROOT / "prompts" / "news_to_semantic_ir.md"
 DEFAULT_REPAIR_PROMPT_PATH = PROJECT_ROOT / "prompts" / "repair_semantic_ir.md"
@@ -164,6 +158,124 @@ def _format_issues(issues):
     )
 
 
+# ---------- deterministic repair ----------
+
+def _apply_deterministic_repairs(semantic_ir: dict, issues: list) -> tuple[dict, list[str]]:
+    """Apply deterministic repairs for coverage issues (UNREVEALED_EDGE, UNREVEALED_NODE).
+
+    Returns (modified_semantic_ir, applied_repairs_list).
+    """
+    applied = []
+
+    # Collect all revealed ids
+    revealed = set()
+    for beat in semantic_ir.get("beats", []):
+        rev = beat.get("reveal", "")
+        if rev and isinstance(rev, str):
+            revealed.add(rev)
+
+    # Get all declared ids
+    node_ids = {n["id"] for n in semantic_ir.get("nodes", [])}
+    edge_ids = {e["id"] for e in semantic_ir.get("edges", [])}
+    callout_ids = {c["id"] for c in semantic_ir.get("callouts", [])}
+
+    # Existing beat ids
+    existing_beat_ids = {b["id"] for b in semantic_ir.get("beats", [])}
+
+    def make_unique_beat_id(base: str) -> str:
+        """Generate a unique beat id like b_auto_edge_e1_2."""
+        if base not in existing_beat_ids:
+            existing_beat_ids.add(base)
+            return base
+        idx = 2
+        while f"{base}_{idx}" in existing_beat_ids:
+            idx += 1
+        result = f"{base}_{idx}"
+        existing_beat_ids.add(result)
+        return result
+
+    # Handle UNREVEALED_EDGE
+    unrevealed_edges = set()
+    for issue in issues:
+        if issue.code == "UNREVEALED_EDGE":
+            # Parse edge ids from message like "Edge(s) never revealed: ['e1', 'e2']"
+            msg = issue.message
+            match = re.search(r"\['([^']+)'\]", msg)
+            if match:
+                for eid in match.group(1).split(","):
+                    eid = eid.strip().strip("'\"")
+                    if eid in edge_ids:
+                        unrevealed_edges.add(eid)
+
+    for eid in sorted(unrevealed_edges):
+        if eid in revealed:
+            continue
+        beat_id = make_unique_beat_id(f"b_auto_edge_{eid}")
+        new_beat = {
+            "id": beat_id,
+            "reveal": eid,
+            "speaker": "expert",
+            "narration": "这条关系解释了事件之间的关键连接。",
+        }
+        semantic_ir["beats"].append(new_beat)
+        revealed.add(eid)
+        applied.append(f"added beat {beat_id} revealing edge {eid}")
+
+    # Handle UNREVEALED_NODE
+    unrevealed_nodes = set()
+    for issue in issues:
+        if issue.code == "UNREVEALED_NODE":
+            msg = issue.message
+            match = re.search(r"\['([^']+)'\]", msg)
+            if match:
+                for nid in match.group(1).split(","):
+                    nid = nid.strip().strip("'\"")
+                    if nid in node_ids:
+                        unrevealed_nodes.add(nid)
+
+    for nid in sorted(unrevealed_nodes):
+        if nid in revealed:
+            continue
+        beat_id = make_unique_beat_id(f"b_auto_node_{nid}")
+        new_beat = {
+            "id": beat_id,
+            "reveal": nid,
+            "speaker": "expert",
+            "narration": "这个要点值得深入分析。",
+        }
+        semantic_ir["beats"].append(new_beat)
+        revealed.add(nid)
+        applied.append(f"added beat {beat_id} revealing node {nid}")
+
+    # Handle UNREVEALED_CALLOUT (less common)
+    unrevealed_callouts = set()
+    for issue in issues:
+        if issue.code == "UNREVEALED_CALLOUT":
+            msg = issue.message
+            match = re.search(r"\['([^']+)'\]", msg)
+            if match:
+                for cid in match.group(1).split(","):
+                    cid = cid.strip().strip("'\"")
+                    if cid in callout_ids:
+                        unrevealed_callouts.add(cid)
+
+    for cid in sorted(unrevealed_callouts):
+        if cid in revealed:
+            continue
+        beat_id = make_unique_beat_id(f"b_auto_callout_{cid}")
+        new_beat = {
+            "id": beat_id,
+            "reveal": cid,
+            "speaker": "host",
+            "narration": "这一点需要特别注意。",
+        }
+        semantic_ir["beats"].append(new_beat)
+        revealed.add(cid)
+        applied.append(f"added beat {beat_id} revealing callout {cid}")
+
+    return semantic_ir, applied
+
+
 # ---------- CLI ----------
 
 def main(argv=None):
@@ -198,6 +310,18 @@ def main(argv=None):
                         help="Path to .env file. Defaults to <project root>/.env.")
     args = parser.parse_args(argv)
 
+    # Compute debug paths based on output directory (job-scoped, CP15.2.3)
+    output_path = Path(args.output)
+    debug_dir = output_path.parent
+
+    debug_prompt_path = debug_dir / "debug_llm_prompt.txt"
+    debug_response_path = debug_dir / "debug_llm_response.txt"
+    debug_validation_path = debug_dir / "debug_validation_issues.json"
+    debug_repair_prompt_path = debug_dir / "debug_repair_prompt.txt"
+    debug_repair_response_path = debug_dir / "debug_repair_response.txt"
+    debug_deterministic_path = debug_dir / "debug_deterministic_repairs.json"
+    invalid_output_path = debug_dir / "semantic_ir.invalid.json"
+
     news_path = Path(args.news)
     if not news_path.exists():
         print(f"Error: news file not found at {news_path}", file=sys.stderr)
@@ -224,10 +348,10 @@ def main(argv=None):
         "\n## SYSTEM PROMPT\n\n" + system_prompt +
         "\n\n## USER PROMPT\n\n" + user_prompt + "\n"
     )
-    _save_text(debug_prompt_text, DEFAULT_DEBUG_PROMPT_PATH)
+    _save_text(debug_prompt_text, debug_prompt_path)
 
     if args.dry_run:
-        print(f"[generate_ir] dry-run: wrote {DEFAULT_DEBUG_PROMPT_PATH}")
+        print(f"[generate_ir] dry-run: wrote {debug_prompt_path}")
         return 0
 
     # --- acquire raw response ---
@@ -247,7 +371,6 @@ def main(argv=None):
                 print(f"Error: failed to build LLM client: {e}", file=sys.stderr)
                 return 2
         else:
-            # Try to create the client even for non-repair; user might still want --validate
             try:
                 llm = llm_client.create_llm_client(
                     profile_name=args.profile,
@@ -266,7 +389,7 @@ def main(argv=None):
         debug_meta = f"# Profile: {args.profile or '(default_profile)'}\n"
 
     debug_resp_text = f"# Generated at {timestamp}\n{debug_meta}\n{raw_response}"
-    _save_text(debug_resp_text, DEFAULT_DEBUG_RESPONSE_PATH)
+    _save_text(debug_resp_text, debug_response_path)
 
     # --- extract JSON ---
     try:
@@ -285,9 +408,28 @@ def main(argv=None):
     # --- full validation ---
     issues = validate_ir.validate_semantic_ir(semantic_ir, DEFAULT_SCHEMA_PATH)
     if issues:
-        save_json({"issues": [i.to_dict() for i in issues]}, DEFAULT_DEBUG_VALIDATION_PATH)
-        print(f"[generate_ir] validation issues ({len(issues)}) written to {DEFAULT_DEBUG_VALIDATION_PATH}")
+        save_json({"issues": [i.to_dict() for i in issues]}, debug_validation_path)
+        print(f"[generate_ir] validation issues ({len(issues)}) written to {debug_validation_path}")
         print(f"[generate_ir] validation FAILED:\n{_format_issues(issues)}", file=sys.stderr)
+
+        # CP15.2.3: Try deterministic repairs first
+        if issues:
+            semantic_ir, det_repairs = _apply_deterministic_repairs(semantic_ir, issues)
+            if det_repairs:
+                save_json({"repairs": det_repairs}, debug_deterministic_path)
+                print(f"[generate_ir] deterministic repairs applied: {det_repairs}", file=sys.stderr)
+                # Re-validate after deterministic repair
+                issues = validate_ir.validate_semantic_ir(semantic_ir, DEFAULT_SCHEMA_PATH)
+                save_json({"issues": [i.to_dict() for i in issues]}, debug_validation_path)
+                if not issues:
+                    print(f"[generate_ir] deterministic repair resolved all issues.")
+                    save_json(semantic_ir, output_path)
+                    print(
+                        f"[generate_ir] wrote {output_path} "
+                        f"(nodes={len(semantic_ir.get('nodes', []))}, "
+                        f"beats={len(semantic_ir.get('beats', []))})"
+                    )
+                    return 0
 
         if args.repair and not args.mock:
             repair_template = Path(args.repair_prompt).read_text(encoding="utf-8")
@@ -299,7 +441,7 @@ def main(argv=None):
                 _save_text(
                     f"# Repair attempt {attempt} at {datetime.now(timezone.utc).isoformat(timespec='seconds')}\n"
                     f"# Issues: {len(issues)}\n\n## SYSTEM\n\n{repair_sys}\n\n## USER\n\n{repair_usr}\n",
-                    DEFAULT_DEBUG_REPAIR_PROMPT_PATH,
+                    debug_repair_prompt_path,
                 )
                 try:
                     repair_raw = llm.generate_text(repair_sys, repair_usr)
@@ -308,7 +450,7 @@ def main(argv=None):
                     break
                 _save_text(
                     f"# Repair attempt {attempt} response:\n{repair_raw}\n",
-                    DEFAULT_DEBUG_REPAIR_RESPONSE_PATH,
+                    debug_repair_response_path,
                 )
                 try:
                     semantic_ir = extract_json_object(repair_raw)
@@ -319,37 +461,47 @@ def main(argv=None):
                     continue
 
                 issues = validate_ir.validate_semantic_ir(semantic_ir, DEFAULT_SCHEMA_PATH)
+                save_json({"issues": [i.to_dict() for i in issues]}, debug_validation_path)
                 if not issues:
                     print(f"[generate_ir] repair attempt {attempt} succeeded.")
                     break
-                save_json({"issues": [i.to_dict() for i in issues]}, DEFAULT_DEBUG_VALIDATION_PATH)
+
+                # Try deterministic repair after LLM repair too
+                semantic_ir, det_repairs = _apply_deterministic_repairs(semantic_ir, issues)
+                if det_repairs:
+                    save_json({"repairs": det_repairs}, debug_deterministic_path)
+                    print(f"[generate_ir] deterministic repairs after LLM repair: {det_repairs}", file=sys.stderr)
+                    issues = validate_ir.validate_semantic_ir(semantic_ir, DEFAULT_SCHEMA_PATH)
+                    save_json({"issues": [i.to_dict() for i in issues]}, debug_validation_path)
+                    if not issues:
+                        print(f"[generate_ir] deterministic repair resolved all issues after LLM repair.")
+                        break
+
                 print(f"[generate_ir] repair attempt {attempt} still has issues:\n{_format_issues(issues)}", file=sys.stderr)
             else:
                 print(f"[generate_ir] all {args.repair_attempts} repair attempts exhausted.", file=sys.stderr)
                 if not args.save_invalid:
                     print("[generate_ir] NOT saving invalid semantic_ir (override with --save-invalid).", file=sys.stderr)
                     return 5
-                out_path = Path(args.output).parent / "semantic_ir.invalid.json"
-                save_json(semantic_ir, out_path)
-                print(f"[generate_ir] wrote invalid result to {out_path} (--save-invalid)")
+                save_json(semantic_ir, invalid_output_path)
+                print(f"[generate_ir] wrote invalid result to {invalid_output_path} (--save-invalid)")
                 return 5
 
         # Not repairing or repair not requested
         if not args.save_invalid:
             print("[generate_ir] NOT saving invalid semantic_ir.json (override with --save-invalid).", file=sys.stderr)
             return 5
-        out_path = Path(args.output).parent / "semantic_ir.invalid.json"
-        save_json(semantic_ir, out_path)
-        print(f"[generate_ir] wrote invalid result to {out_path} (--save-invalid)")
+        save_json(semantic_ir, invalid_output_path)
+        print(f"[generate_ir] wrote invalid result to {invalid_output_path} (--save-invalid)")
         return 5
 
     # --- valid ---
     if args.validate:
         print("[generate_ir] validation PASSED.")
 
-    save_json(semantic_ir, Path(args.output))
+    save_json(semantic_ir, output_path)
     print(
-        f"[generate_ir] wrote {args.output} "
+        f"[generate_ir] wrote {output_path} "
         f"(nodes={len(semantic_ir.get('nodes', []))}, "
         f"beats={len(semantic_ir.get('beats', []))})"
     )

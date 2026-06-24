@@ -1143,7 +1143,7 @@ def api_job_artifact(job_id: str, name: str):
         raise HTTPException(status_code=500, detail=f"Invalid JSON in {filename}")
 
 
-# ---------- job debug info (CP15.2.2) ----------
+# ---------- job debug info (CP15.2.2 / CP15.2.3) ----------
 
 
 @app.get("/api/jobs/{job_id}/debug")
@@ -1152,16 +1152,16 @@ def api_job_debug(job_id: str):
 
     Returns validation issues and debug file presence without exposing secrets.
     This endpoint is for local debugging only.
+    Debug files are read from job output_dir (job-scoped, CP15.2.3).
     """
     output_dir = _resolve_job_output_dir(job_id)
 
     debug_files = {}
     validation_issues = []
+    deterministic_repairs = []
 
-    # Check for debug files in outputs/latest (where generate_ir writes them)
-    latest_dir = PROJECT_ROOT / "outputs" / "latest"
-
-    debug_issues_path = latest_dir / "debug_validation_issues.json"
+    # Read debug files from job output_dir (CP15.2.3: job-scoped)
+    debug_issues_path = output_dir / "debug_validation_issues.json"
     if debug_issues_path.exists():
         debug_files["debug_validation_issues"] = True
         try:
@@ -1180,12 +1180,34 @@ def api_job_debug(job_id: str):
     else:
         debug_files["debug_validation_issues"] = False
 
+    # Check for deterministic repairs (CP15.2.3)
+    det_repairs_path = output_dir / "debug_deterministic_repairs.json"
+    if det_repairs_path.exists():
+        debug_files["debug_deterministic_repairs"] = True
+        try:
+            data = json.loads(det_repairs_path.read_text(encoding="utf-8"))
+            deterministic_repairs = data.get("repairs", [])
+        except Exception:
+            pass
+    else:
+        debug_files["debug_deterministic_repairs"] = False
+
     # Check for invalid semantic_ir in job output_dir
     invalid_path = output_dir / "semantic_ir.invalid.json"
     debug_files["semantic_ir_invalid"] = invalid_path.exists()
 
-    # Check for repair response (outputs/latest)
-    repair_resp_path = latest_dir / "debug_repair_response.txt"
+    # Check for LLM prompt/response (CP15.2.3: job-scoped)
+    llm_prompt_path = output_dir / "debug_llm_prompt.txt"
+    debug_files["debug_llm_prompt"] = llm_prompt_path.exists()
+
+    llm_response_path = output_dir / "debug_llm_response.txt"
+    debug_files["debug_llm_response"] = llm_response_path.exists()
+
+    # Check for repair response (CP15.2.3: job-scoped)
+    repair_prompt_path = output_dir / "debug_repair_prompt.txt"
+    debug_files["debug_repair_prompt"] = repair_prompt_path.exists()
+
+    repair_resp_path = output_dir / "debug_repair_response.txt"
     debug_files["debug_repair_response"] = repair_resp_path.exists()
 
     return JSONResponse({
@@ -1193,6 +1215,7 @@ def api_job_debug(job_id: str):
         "job_id": job_id,
         "debug_files": debug_files,
         "validation_issues": validation_issues,
+        "deterministic_repairs": deterministic_repairs,
     })
 
 

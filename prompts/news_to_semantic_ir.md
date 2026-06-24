@@ -105,6 +105,11 @@ fetched_at         拉取时间（ISO 8601）
   - `"host"`：主持人/主播，适合引导语、过渡语、总结
   - `"expert"`：专家/评论员，适合分析、解读、观点
   - 建议：标题句、过渡句用 host；分析句、解读句用 expert
+- **reveal 覆盖规则**：
+  - 每个 edge 的 `id`（如 `e1`、`e2`）**必须至少在一个 beat 的 `reveal` 字段中出现一次**。否则视频无法显示因果连线。
+  - 每个 node 的 `id`（如 `n1`、`n2`）**必须至少在一个 beat 的 `reveal` 字段中出现一次**。
+  - 每个 callout 的 `id`（如 `c1`）**建议至少在一个 beat 的 `reveal` 字段中出现一次**。
+  - `beats[].reveal` 是**字符串**，不是数组。
 - 节奏建议：先标题 → 主要节点 → 主要 callout → 边连接 → 中间节点 → 收尾节点。
 - `nodes` / `edges` / `callouts` 不再含 `narration` 字段。
 

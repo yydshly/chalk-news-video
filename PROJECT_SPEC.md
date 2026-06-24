@@ -1150,7 +1150,7 @@ ALLOWED_ARTIFACTS = {
 - `/api/jobs/{job_id}/artifacts/meta` 可读
 - error message 只含 env var name，不含 value
 
-### Real Provider Diagnostics（CP15.2.2）
+### Real Provider Diagnostics（CP15.2.2 / CP15.2.3）
 
 `_redact_secret_text(text)` 脱敏规则：
 - `sk-<token>` → `[REDACTED]`
@@ -1159,14 +1159,36 @@ ALLOWED_ARTIFACTS = {
 - `MINIMAX_TTS_*_VOICE_ID=<value>` → `MINIMAX_TTS_*_VOICE_ID=[REDACTED]`
 
 `GET /api/jobs/{job_id}/debug` 返回：
-- `debug_files`: 各 debug 文件是否存在
+- `debug_files`: 各 debug 文件是否存在（job-scoped）
 - `validation_issues`: 前 10 条 validation issues 摘要（severity / code / path / message）
+- `deterministic_repairs`: 已应用的确定性修复列表
 - 不返回完整 prompt / raw LLM response / API key
 
-pipeline.py generate_ir 失败时：
+Debug 文件 job-scoped（CP15.2.3）：
+- 所有 debug 文件写入 `args.output` 的父目录（job output_dir）
+- 不再写入 `outputs/latest`
+- 文件包括：`debug_llm_prompt.txt`、`debug_llm_response.txt`、`debug_validation_issues.json`、`debug_repair_prompt.txt`、`debug_repair_response.txt`、`debug_deterministic_repairs.json`
+
+pipeline.py generate_ir 失败时（CP15.2.2 / CP15.2.3）：
 - 打印 `debug_validation_issues.json` 路径和前 5 条 issues 到 stderr
 - 打印 `semantic_ir.invalid.json` 路径（如果存在）
+- 打印 `debug_deterministic_repairs.json` 路径（如果存在）
 - 打印 `debug_repair_response.txt` 路径（如果存在）
+
+### Deterministic Semantic Repair（CP15.2.3）
+
+`_apply_deterministic_repairs(semantic_ir, issues)`：
+- 识别 `UNREVEALED_EDGE`：自动为每个未 reveal 的 edge id 追加一个 `beat{ "id": "b_auto_edge_<eid>", "reveal": "<eid>", ... }`
+- 识别 `UNREVEALED_NODE`：自动为每个未 reveal 的 node id 追加一个 beat
+- 识别 `UNREVEALED_CALLOUT`：自动为每个未 reveal 的 callout id 追加一个 beat
+- 不修改 nodes / edges / callouts
+- 不写入坐标
+- 修复后重新 validate，通过则保存
+
+调用时机：
+- LLM 初次生成后 validation 失败时，先尝试 deterministic repair
+- LLM repair 每次失败后，再尝试 deterministic repair
+- `debug_deterministic_repairs.json` 记录已应用的修复
 
 ## 文件清单（V0.11 新增 / 修改）
 
@@ -1247,6 +1269,14 @@ pipeline.py generate_ir 失败时：
 - `src/pipeline.py`（generate_ir 失败时打印 validation issues 摘要和 debug 文件路径）
 - `src/server.py`（`_redact_secret_text` helper、`_run_job` 错误提取改进、`/api/jobs/{job_id}/debug` 端点）
 - README.md / PROJECT_SPEC.md / BACKLOG.md（CP15.2.2 更新）
+
+修改（CP15.2.3）：
+- `src/generate_ir.py`（debug 文件路径 job-scoped、`_apply_deterministic_repairs`）
+- `src/pipeline.py`（从 output_dir 读取 debug 文件）
+- `src/server.py`（`/api/jobs/{job_id}/debug` 从 job output_dir 读取）
+- `prompts/news_to_semantic_ir.md`（明确 reveal 覆盖规则）
+- `prompts/repair_semantic_ir.md`（明确 reveal 约束）
+- README.md / PROJECT_SPEC.md / BACKLOG.md（CP15.2.3 更新）
 
 未修改：
 - `src/pace.py` / `src/render_html.py`

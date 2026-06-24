@@ -139,8 +139,8 @@ def run_auto_pipeline(args):
     if result.returncode != 0:
         if result.returncode == 5:
             print(f"[auto:generate_ir] validation/repair failed", file=sys.stderr)
-            # Try to read and display validation issues from outputs/latest
-            debug_issues_path = OUTPUT_DIR / "debug_validation_issues.json"
+            # Read validation issues from output_dir (job-scoped, CP15.2.3)
+            debug_issues_path = output_dir / "debug_validation_issues.json"
             if debug_issues_path.exists():
                 import json as _json
                 try:
@@ -160,7 +160,10 @@ def run_auto_pipeline(args):
             invalid_path = output_dir / "semantic_ir.invalid.json"
             if invalid_path.exists():
                 print(f"[auto:generate_ir] invalid_json: {invalid_path}", file=sys.stderr)
-            repair_resp_path = OUTPUT_DIR / "debug_repair_response.txt"
+            det_repairs_path = output_dir / "debug_deterministic_repairs.json"
+            if det_repairs_path.exists():
+                print(f"[auto:generate_ir] deterministic_repairs: {det_repairs_path}", file=sys.stderr)
+            repair_resp_path = output_dir / "debug_repair_response.txt"
             if repair_resp_path.exists():
                 print(f"[auto:generate_ir] repair_response: {repair_resp_path}", file=sys.stderr)
             print(f"[auto:generate_ir] invalid output is only for debugging, not used by pipeline", file=sys.stderr)

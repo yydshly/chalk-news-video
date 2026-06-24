@@ -351,8 +351,13 @@
 
 ## Checkpoint 15.2.3 — 真实 LLM E2E 成功收敛
 
-- 真实 LLM + mock TTS E2E 完整成功
-- semantic_ir / dialogue_script / dialogue_manifest / render_ir / animation.html 全部生成
+- [x] generate_ir debug 文件写入 job output_dir（不再是 outputs/latest）
+- [x] pipeline.py 从 output_dir 读取 debug 文件
+- [x] server.py /api/jobs/{id}/debug 从 job output_dir 读取
+- [x] `_apply_deterministic_repairs()`：自动修复 UNREVEALED_EDGE / UNREVEALED_NODE
+- [x] prompts 更新：明确 reveal 覆盖规则
+- [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
+- [ ] 真实 LLM + mock TTS E2E 完整成功（留待验收）
 
 ## Checkpoint 15.3 — 真实 MiniMax TTS E2E
 

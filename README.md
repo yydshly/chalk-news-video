@@ -575,6 +575,21 @@ python -m src.server --host 127.0.0.1 --port 8777
 - error 文本中 API key 已脱敏（`sk-` → `[REDACTED]`，`MINIMAX_API_KEY=...` → `MINIMAX_API_KEY=[REDACTED]`）
 - debug 文件不通过普通 artifact API 暴露
 
+**Checkpoint 15.2.3 — 真实 LLM semantic_ir 收敛与 job-scoped debug（当前）**：
+
+- generate_ir debug 文件写入 job output_dir（不再是 `outputs/latest`）
+- pipeline.py 从 job output_dir 读取 debug_validation_issues.json
+- server.py `GET /api/jobs/{job_id}/debug` 从 job output_dir 读取
+- `_apply_deterministic_repairs()`：自动为 UNREVEALED_EDGE / UNREVEALED_NODE 补齐 beats
+- prompts 更新：明确所有 edge/node/callout id 必须在 beats[].reveal 中出现
+- prompts 强调 `beats[].reveal` 是字符串不是数组
+
+**CP15.2.3 验收**：
+- debug 文件出现在 `outputs/jobs/{job_id}/`（不是 outputs/latest）
+- `GET /api/jobs/{job_id}/debug` 返回 debug_files 和 validation_issues 摘要
+- UNREVEALED_EDGE 自动修复： deterministic repair 后 validation 通过
+- 真实 LLM + mock TTS E2E job succeeded
+
 ## 项目定位
 
 V0.11: News → LLM → semantic_ir → dual-host dialogue → video（含双角色音频）。
