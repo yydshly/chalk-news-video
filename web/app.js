@@ -2061,7 +2061,7 @@
     if (!contract) return "";
     var templateId = contract.template_id || "timeline_daily_v1";
     var st = getEpisodeStyleTheme(templateId);
-    if (templateId === "breaking_news_v1") return renderBreakingNewsEpisodeHtml(contract, st);
+    if (templateId === "breaking_news_v1") return renderBreakingNewsStageEpisodeHtml(contract, st);
     if (templateId === "data_dashboard_v1") return renderDataDashboardEpisodeHtml(contract, st);
     if (templateId === "research_briefing_v1") return renderResearchBriefingEpisodeHtml(contract, st);
     if (templateId === "podcast_cards_v1") return renderPodcastCardsEpisodeHtml(contract, st);
@@ -2272,6 +2272,168 @@
       '<div style="color:#f9fafb;font-size:14px;font-weight:600;margin-bottom:4px;">' + escapeHtml(sections.closing.title) + '</div>' +
       (sections.closing.focus_news_id ? '<div style="color:' + st.metaText + ';font-size:11px;">📋 主线新闻 ID: ' + escapeHtml(sections.closing.focus_news_id) + '</div>' : '') + '</div>\n' +
       '</div>\n<div class="footer-bar"><span>Mock Timeline Preview · ' + escapeHtml(themeName) + ' · no real render</span><span>' + escapeHtml(episode.title) + '</span></div>\n</body>\n</html>';
+  }
+
+  // CP36: Layout 2 — breaking_news_v1 fixed video stage (9:16 vertical video canvas)
+  function renderBreakingNewsStageEpisodeHtml(contract, st) {
+    var episode = contract.episode;
+    var timeline = contract.timeline;
+    var sections = contract.sections;
+    var totalTimeStr = formatTimecode(episode.estimated_duration_sec);
+    var themeName = episode.theme_name || "";
+
+    var leadCard = null;
+    var supportCards = [];
+    sections.news_cards.forEach(function (card) {
+      if (card.is_lead && !leadCard) leadCard = card;
+      else supportCards.push(card);
+    });
+    if (!leadCard && sections.news_cards.length > 0) {
+      leadCard = sections.news_cards[0];
+      supportCards = sections.news_cards.slice(1);
+    }
+
+    // Stage CSS — 9:16 fixed canvas, no scrolling, video-like layers
+    var stageCss = '<style>\n' +
+      '.video-stage-shell{width:100%;min-height:100vh;display:flex;align-items:center;justify-content:center;' +
+      'background:#050505;padding:24px;}\n' +
+      '.video-stage{position:relative;width:min(420px,92vw);aspect-ratio:9/16;overflow:hidden;' +
+      'border-radius:24px;background:#0a0000;box-shadow:0 24px 80px rgba(0,0,0,.55);}\n' +
+      '.stage-bg{position:absolute;inset:0;background:linear-gradient(160deg,#1a0000 0%,#0a0000 40%,#120000 100%);' +
+      'animation:stageBgPulse 6s ease-in-out infinite;}\n' +
+      '@keyframes stageBgPulse{0%,100%{opacity:1;}50%{opacity:.85;}}\n' +
+      '.stage-topbar{position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;' +
+      'justify-content:space-between;padding:10px 16px;background:linear-gradient(180deg,rgba(0,0,0,.7) 0%,transparent 100%);}\n' +
+      '.stage-breaking-badge{background:#dc2626;color:#fff;font-size:10px;font-weight:900;' +
+      'letter-spacing:2px;padding:3px 10px;border-radius:4px;animation:breakingBlink 2s ease-in-out infinite;}\n' +
+      '@keyframes breakingBlink{0%,100%{opacity:1;}50%{opacity:.7;}}\n' +
+      '.stage-meta{color:#f87171;font-size:9px;font-family:monospace;}\n' +
+      '.stage-title-area{position:absolute;top:44px;left:0;right:0;z-index:15;padding:0 16px 12px;' +
+      'background:linear-gradient(180deg,transparent 0%,rgba(0,0,0,.3) 100%);}\n' +
+      '.stage-episode-title{color:#fff;font-size:14px;font-weight:800;line-height:1.3;' +
+      'text-shadow:0 2px 8px rgba(0,0,0,.8);margin-bottom:4px;}\n' +
+      '.stage-episode-subtitle{color:#fca5a5;font-size:10px;opacity:.9;line-height:1.3;}\n' +
+      '.stage-main-card{position:absolute;top:120px;left:14px;right:14px;z-index:12;' +
+      'background:rgba(20,0,0,.88);border:1px solid #dc2626;border-radius:14px;' +
+      'padding:16px;animation:cardEnter 0.5s ease-out both;}\n' +
+      '@keyframes cardEnter{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}\n' +
+      '.stage-lead-badge{display:inline-block;background:#dc2626;color:#fff;font-size:9px;font-weight:900;' +
+      'letter-spacing:1px;padding:2px 8px;border-radius:3px;margin-bottom:8px;}\n' +
+      '.stage-lead-headline{color:#fff;font-size:15px;font-weight:800;line-height:1.35;' +
+      'margin-bottom:8px;text-shadow:0 1px 4px rgba(0,0,0,.6);}\n' +
+      '.stage-lead-meta{display:flex;gap:8px;font-size:9px;color:#fca5a5;font-family:monospace;}\n' +
+      '.stage-supporting{position:absolute;bottom:120px;right:14px;z-index:12;width:130px;' +
+      'display:flex;flex-direction:column;gap:6px;animation:cardEnter 0.5s 0.25s ease-out both;}\n' +
+      '.stage-support-card{background:rgba(15,0,0,.82);border:1px solid #7f1d1d;' +
+      'border-radius:8px;padding:8px 10px;}\n' +
+      '.stage-support-headline{color:#fecaca;font-size:10px;font-weight:600;line-height:1.3;' +
+      'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}\n' +
+      '.stage-support-meta{color:#f87171;font-size:8px;font-family:monospace;margin-top:4px;}\n' +
+      '.stage-subtitle-bar{position:absolute;bottom:70px;left:14px;right:14px;z-index:14;' +
+      'background:rgba(0,0,0,.75);border-radius:8px;padding:8px 12px;' +
+      'animation:subtitleSlideUp 0.5s 0.4s ease-out both;}\n' +
+      '@keyframes subtitleSlideUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}\n' +
+      '.stage-subtitle-text{color:#f9f9f9;font-size:11px;line-height:1.4;' +
+      'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}\n' +
+      '.stage-timeline{position:absolute;bottom:0;left:0;right:0;z-index:20;' +
+      'padding:10px 16px;background:linear-gradient(0deg,rgba(0,0,0,.8) 0%,transparent 100%);}\n' +
+      '.tl-rail{padding:0;}\n' +
+      '.tl-track{min-width:0;position:relative;}\n' +
+      '.tl-track::before{background:#4a0000;}\n' +
+      '.tl-dot{width:8px;height:8px;border-radius:50%;border:2px solid #dc2626;background:#0a0000;}\n' +
+      '.tl-dot-opening{background:#dc2626;border-color:#dc2626;}\n' +
+      '.tl-dot-lead{background:#dc2626;border-color:#dc2626;box-shadow:0 0 6px #dc262680;}\n' +
+      '.tl-dot-supporting{background:#7f1d1d;border-color:#dc2626;}\n' +
+      '.tl-dot-closing{background:#f87171;border-color:#f87171;animation:pulseLine 2s infinite;}\n' +
+      '@keyframes pulseLine{0%,100%{opacity:1;}50%{opacity:.5;}}\n' +
+      '.tl-marker{flex:.5;min-width:30px;}\n' +
+      '.tl-label{text-align:center;margin-top:2px;}\n' +
+      '.tl-time{color:#fca5a5;font-size:8px;font-family:monospace;display:block;}\n' +
+      '.tl-name{color:#f87171;font-size:8px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40px;}\n' +
+      '.stage-recap{position:absolute;top:44px;right:14px;z-index:18;' +
+      'background:rgba(220,38,38,.85);border-radius:6px;padding:3px 8px;' +
+      'font-size:9px;color:#fff;font-weight:700;}\n' +
+      '.stage-opening-label{position:absolute;top:44px;left:14px;z-index:18;' +
+      'color:#fca5a5;font-size:9px;font-weight:700;letter-spacing:1px;}\n' +
+      '.stage-closing-chip{position:absolute;bottom:96px;left:14px;z-index:15;' +
+      'display:flex;align-items:center;gap:6px;font-size:9px;color:#fca5a5;}\n' +
+      '.stage-closing-dot{width:6px;height:6px;border-radius:50%;background:#dc2626;}\n' +
+      '</style>\n';
+
+    // Build lead card HTML
+    var leadHtml = "";
+    if (leadCard) {
+      leadHtml = '<div class="mock-news-card mock-news-card-lead" data-section-type="news_segment" style="display:none"></div>' +
+        '<div class="stage-main-card mock-news-card mock-news-card-lead" data-section-type="news_segment">' +
+        '<div class="stage-lead-badge">★ 主线</div>' +
+        '<div class="stage-lead-headline">' + escapeHtml(leadCard.headline) + '</div>' +
+        '<div class="stage-lead-meta">' +
+        '<span>' + leadCard.time_range + '</span>' +
+        '<span>' + leadCard.duration_hint_sec + 's</span>' +
+        '<span>' + escapeHtml(leadCard.layout) + '</span></div></div>';
+    }
+
+    // Build supporting cards (compact stacked on right side)
+    var supportHtml = "";
+    supportCards.slice(0, 3).forEach(function (card, i) {
+      supportHtml += '<div class="stage-support-card mock-news-card" data-section-type="news_segment">' +
+        '<div class="stage-support-headline">' + escapeHtml(card.headline) + '</div>' +
+        '<div class="stage-support-meta">' + card.time_range + '</div></div>';
+    });
+    if (supportHtml) {
+      supportHtml = '<div class="stage-supporting">' + supportHtml + '</div>';
+    }
+
+    // Subtitle bar — use opening title or lead headline as mock subtitle
+    var subtitleText = sections.opening && sections.opening.title ? sections.opening.title :
+      (leadCard ? leadCard.headline : "");
+    var subtitleBarHtml = '<div class="stage-subtitle-bar">' +
+      '<div class="stage-subtitle-text">' + escapeHtml(subtitleText) + '</div></div>';
+
+    // Timeline rail (compact video-progress style)
+    var timelineHtml = '<div class="stage-timeline"><div class="tl-rail"><div class="tl-track">' +
+      renderSharedTimelineMarkersHtml(timeline, st) + '</div></div></div>';
+
+    // Closing chip (recap label)
+    var closingHtml = '<div class="stage-closing-chip">' +
+      '<div class="stage-closing-dot"></div>' +
+      '<span>📍 结尾 — ' + escapeHtml(sections.closing.title) + '</span></div>';
+
+    // Recap chip (top right)
+    var recapHtml = '<div class="stage-recap">RECAP</div>';
+
+    // Opening label
+    var openingHtml = '<div class="stage-opening-label">📍 开场</div>';
+
+    return '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
+      '<title>' + escapeHtml(episode.title) + '</title>\n' + stageCss + '</head>\n<body>\n' +
+      '<div class="video-stage-shell">\n' +
+      '<div class="video-stage stage-9x16">\n' +
+      '<div class="stage-bg"></div>\n' +
+      // Topbar
+      '<div class="stage-topbar">' +
+      '<span class="stage-breaking-badge">🔴 BREAKING NEWS</span>' +
+      '<span class="stage-meta">' + sections.news_cards.length + ' 条 · ' + totalTimeStr + '</span></div>\n' +
+      // Recap chip (top right)
+      recapHtml + '\n' +
+      // Opening label
+      openingHtml + '\n' +
+      // Title area
+      '<div class="stage-title-area">' +
+      '<div class="stage-episode-title">' + escapeHtml(episode.title) + '</div>' +
+      '<div class="stage-episode-subtitle">' + escapeHtml(episode.subtitle) + '</div></div>\n' +
+      // Main lead card
+      leadHtml + '\n' +
+      // Supporting stacked cards (right side)
+      supportHtml + '\n' +
+      // Subtitle bar
+      subtitleBarHtml + '\n' +
+      // Closing chip
+      closingHtml + '\n' +
+      // Timeline rail
+      timelineHtml + '\n' +
+      '</div>\n</div>\n</body>\n</html>';
   }
 
   // CP35.1: Layout 3 — data_dashboard_v1 (monitoring dashboard with metric panels and 2-col grid)

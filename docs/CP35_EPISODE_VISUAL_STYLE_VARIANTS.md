@@ -370,3 +370,11 @@ The validator was not relaxed — the layouts were patched to remain compliant.
 | No API key / voice_id | ✓ |
 | No `/api/jobs` called | ✓ |
 | No real LLM / TTS / MP4 | ✓ |
+
+---
+
+## CP36 Note: Transition to Fixed Video Stage
+
+CP36 (`feat/cp36-fixed-video-stage-preview`) extends CP35 by converting `breaking_news_v1` from a web page layout to a **fixed 9:16 video stage canvas**. The CP35 series (CP35 → CP35.1 → CP35.2) served as the visual style exploration baseline — establishing 5 distinct layout structures. CP36 begins the next phase: replacing the web information-flow layout of `breaking_news_v1` with a fixed-aspect-ratio video viewport, while the other 4 styles continue to use their CP35.2 web layouts for parallel comparison.
+
+See [CP36_FIXED_VIDEO_STAGE_PREVIEW.md](./CP36_FIXED_VIDEO_STAGE_PREVIEW.md) for full details.
