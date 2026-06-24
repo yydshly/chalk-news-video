@@ -1123,6 +1123,31 @@ ALLOWED_ARTIFACTS = {
 
 **API key 不作为命令行参数传递**，通过 config/llm.yaml + config/tts.yaml 读取环境变量。
 
+### Provider Readiness 推导规则（CP15.1）
+
+`_collect_required_env_from_profile(profile)`：
+- `api_key_env`：始终要求（如果 profile 有此字段）
+- `base_url_env`：仅在 profile 无 `base_url` 或 `base_url` 为空时要求
+- `model_env`：仅在 profile 无 `model` 或 `model` 为空时要求
+- `endpoint_path_env`：仅在 profile 无 `endpoint_path` 时要求
+- `voice_id_env`：仅在 profile 无 `voice_id` 时要求
+
+### _validate_provider_selection（CP15.1）
+
+1. 有效 `llm_provider`：`body.llm_provider` or (`body.mock=true` → "mock" : "minimax_m3_openai")
+2. 有效 `tts_provider`：`body.tts_provider` or (`dialogue=true` → "mock_dialogue" : "mock")
+3. 非 mock LLM provider 检查 readiness，缺 env 则返回错误
+4. 非 mock/mock_dialogue TTS provider 检查 readiness，缺 env 则返回错误
+
+### Failed Provider Job（CP15.1）
+
+当 provider 不 ready 时：
+- 创建 `failed` job，写入 `outputs/jobs/{job_id}/meta.json`
+- SSE 发送 `error` 事件
+- `/api/history` 可见 failed job
+- `/api/jobs/{job_id}/artifacts/meta` 可读
+- error message 只含 env var name，不含 value
+
 ## 文件清单（V0.11 新增 / 修改）
 
 新增（CP10）：
@@ -1188,6 +1213,10 @@ ALLOWED_ARTIFACTS = {
 - `web/app.js`（loadProviders、provider select、payload 增加 llm_provider/tts_provider）
 - `web/style.css`（新增 provider-row、provider-status、status-ready、status-warning 样式）
 - `README.md` / `PROJECT_SPEC.md` / `BACKLOG.md`（CP15 更新）
+
+修改（CP15.1）：
+- `src/server.py`（`_validate_provider_selection`、`_create_failed_job`、`_collect_required_env_from_profile`、`_dedupe_keep_order`、移除 mock=false 拒绝、failed job 处理）
+- README.md / PROJECT_SPEC.md / BACKLOG.md（CP15.1 更新）
 
 未修改：
 - `src/pace.py` / `src/render_html.py`

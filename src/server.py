@@ -35,6 +35,17 @@ from src.config_loader import load_yaml, load_llm_config
 # ---------- provider status helpers (CP15) ----------
 
 
+def _dedupe_keep_order(items: list[str]) -> list[str]:
+    """Remove duplicates while preserving order."""
+    seen = set()
+    result = []
+    for item in items:
+        if item not in seen:
+            seen.add(item)
+            result.append(item)
+    return result
+
+
 def _check_env_vars(required_env: list[str]) -> list[str]:
     """Return list of missing env var names (not values)."""
     missing = []
@@ -42,6 +53,44 @@ def _check_env_vars(required_env: list[str]) -> list[str]:
         if var and not os.environ.get(var):
             missing.append(var)
     return missing
+
+
+def _collect_required_env_from_profile(profile: dict) -> list[str]:
+    """Collect required env var names from a profile.
+
+    Rules:
+    - api_key_env is always required if present
+    - base_url_env is only required if profile has no base_url or base_url is empty
+    - model_env is only required if profile has no model or model is empty
+    - endpoint_path_env is only required if profile has no endpoint_path
+    - voice_id_env is only required if profile has no voice_id
+    """
+    required = []
+    api_key = profile.get("api_key_env")
+    if api_key:
+        required.append(api_key)
+
+    base_url = profile.get("base_url", "")
+    base_url_env = profile.get("base_url_env")
+    if base_url_env and not base_url:
+        required.append(base_url_env)
+
+    model = profile.get("model", "")
+    model_env = profile.get("model_env")
+    if model_env and not model:
+        required.append(model_env)
+
+    endpoint_path = profile.get("endpoint_path", "")
+    endpoint_path_env = profile.get("endpoint_path_env")
+    if endpoint_path_env and not endpoint_path:
+        required.append(endpoint_path_env)
+
+    voice_id = profile.get("voice_id", "")
+    voice_id_env = profile.get("voice_id_env")
+    if voice_id_env and not voice_id:
+        required.append(voice_id_env)
+
+    return _dedupe_keep_order(required)
 
 
 def _get_llm_provider_status() -> list[dict]:
@@ -78,13 +127,7 @@ def _get_llm_provider_status() -> list[dict]:
         if pid == "mock":
             continue
         profile = profiles.get(pid, {})
-        # Collect required env vars from profile
-        required_env = []
-        for key in ("api_key_env", "base_url_env", "model_env"):
-            val = profile.get(key)
-            if val:
-                required_env.append(val)
-
+        required_env = _collect_required_env_from_profile(profile)
         missing = _check_env_vars(required_env)
         result.append({
             "id": pid,
@@ -133,22 +176,27 @@ def _get_tts_provider_status() -> list[dict]:
         "missing_env": [],
     })
 
-    # minimax_dialogue - requires MINIMAX_TTS_HOST_VOICE_ID, MINIMAX_TTS_EXPERT_VOICE_ID
+    # minimax_dialogue
     min_diag_profile = dialogue_profiles.get("minimax_dialogue", {})
     required_env = []
+    seen_envs = set()
+
     for speaker in ("host", "expert"):
         sp_info = min_diag_profile.get(speaker, {})
         voice_env = sp_info.get("voice_env")
-        if voice_env:
+        if voice_env and voice_env not in seen_envs:
             required_env.append(voice_env)
-        # Also check the minimax_speech profile api_key_env
+            seen_envs.add(voice_env)
+
+        # Check the minimax_speech profile for required envs
         sp_profile_name = sp_info.get("profile")
         if sp_profile_name:
             sp_profile = profiles.get(sp_profile_name, {})
-            for key in ("api_key_env", "base_url_env", "model_env", "voice_id_env"):
-                val = sp_profile.get(key)
-                if val:
-                    required_env.append(val)
+            profile_required = _collect_required_env_from_profile(sp_profile)
+            for env in profile_required:
+                if env not in seen_envs:
+                    required_env.append(env)
+                    seen_envs.add(env)
 
     missing = _check_env_vars(required_env)
     result.append({
@@ -160,6 +208,59 @@ def _get_tts_provider_status() -> list[dict]:
     })
 
     return result
+
+
+def _get_provider_status_by_id(kind: str, provider_id: str) -> Optional[dict]:
+    """Get provider status dict by kind ('llm' or 'tts') and provider_id."""
+    if kind == "llm":
+        providers = _get_llm_provider_status()
+    elif kind == "tts":
+        providers = _get_tts_provider_status()
+    else:
+        return None
+    for p in providers:
+        if p["id"] == provider_id:
+            return p
+    return None
+
+
+def _validate_provider_selection(body: GenerateRequest) -> tuple[bool, Optional[str]]:
+    """Validate provider selection.
+
+    Returns (is_valid, error_message).
+    error_message contains only env var names, never values.
+    """
+    # Determine effective llm_provider
+    if body.llm_provider:
+        llm_provider = body.llm_provider
+    elif body.mock:
+        llm_provider = "mock"
+    else:
+        llm_provider = "minimax_m3_openai"
+
+    # Determine effective tts_provider
+    if body.tts_provider:
+        tts_provider = body.tts_provider
+    elif body.dialogue:
+        tts_provider = "mock_dialogue"
+    else:
+        tts_provider = "mock"
+
+    # Check LLM provider readiness
+    if llm_provider != "mock":
+        llm_status = _get_provider_status_by_id("llm", llm_provider)
+        if llm_status and not llm_status["ready"]:
+            missing = ", ".join(llm_status["missing_env"])
+            return False, f"Provider '{llm_provider}' is not ready. Missing env: {missing}"
+
+    # Check TTS provider readiness (only for real TTS providers)
+    if tts_provider not in ("mock", "mock_dialogue"):
+        tts_status = _get_provider_status_by_id("tts", tts_provider)
+        if tts_status and not tts_status["ready"]:
+            missing = ", ".join(tts_status["missing_env"])
+            return False, f"Provider '{tts_provider}' is not ready. Missing env: {missing}"
+
+    return True, None
 
 
 class GenerateRequest(BaseModel):
@@ -241,21 +342,21 @@ def _build_pipeline_cmd(body: GenerateRequest, news_path: str, output_dir: Path)
     API keys are NOT passed as command-line arguments — they are read from
     environment variables via the config files.
     """
-    # Determine provider
-    is_mock = body.mock
-    if not is_mock and not body.llm_provider:
-        # Default to minimax_m3_openai for real LLM
-        llm_provider = "minimax_m3_openai"
-    elif is_mock:
+    # Determine effective provider (must match _validate_provider_selection logic)
+    if body.llm_provider:
+        llm_provider = body.llm_provider
+    elif body.mock:
         llm_provider = "mock"
     else:
-        llm_provider = body.llm_provider or "minimax_m3_openai"
+        llm_provider = "minimax_m3_openai"
 
     # TTS provider
-    if body.dialogue:
-        tts_provider = body.tts_provider or "mock_dialogue"
+    if body.tts_provider:
+        tts_provider = body.tts_provider
+    elif body.dialogue:
+        tts_provider = "mock_dialogue"
     else:
-        tts_provider = body.tts_provider or "mock"
+        tts_provider = "mock"
 
     cmd = [
         sys.executable, "-m", "src.pipeline",
@@ -265,7 +366,7 @@ def _build_pipeline_cmd(body: GenerateRequest, news_path: str, output_dir: Path)
         "--output-dir", str(output_dir),
     ]
 
-    if is_mock or llm_provider == "mock":
+    if llm_provider == "mock":
         cmd.append("--mock")
     else:
         cmd += ["--profile", llm_provider]
@@ -370,6 +471,8 @@ def _load_history_from_disk() -> list[dict]:
                 "theme": meta.get("theme", ""),
                 "mode": meta.get("mode", "sample"),
                 "dialogue": meta.get("dialogue", False),
+                "llm_provider": meta.get("llm_provider"),
+                "tts_provider": meta.get("tts_provider"),
                 "exported": meta.get("exported", False),
                 "title": meta.get("title"),
                 "summary": meta.get("summary"),
@@ -464,15 +567,24 @@ def _write_meta(job: dict, output_dir: Path) -> None:
     if exported:
         artifacts["output_mp4"] = f"/outputs/jobs/{job_id}/output.mp4"
 
+    # Determine provider ids for meta (safe to record, no secrets)
+    request = job.get("request", {})
+    llm_provider = request.get("llm_provider") or ("mock" if request.get("mock", True) else "minimax_m3_openai")
+    tts_provider = request.get("tts_provider")
+    if not tts_provider:
+        tts_provider = "mock_dialogue" if request.get("dialogue", False) else "mock"
+
     meta = {
         "job_id": job_id,
         "created_at": job["created_at"],
         "updated_at": job["updated_at"],
         "status": job["status"],
-        "mode": job.get("request", {}).get("mode", "sample"),
-        "theme": job.get("request", {}).get("theme", ""),
-        "dialogue": job.get("request", {}).get("dialogue", False),
-        "mock": job.get("request", {}).get("mock", True),
+        "mode": request.get("mode", "sample"),
+        "theme": request.get("theme", ""),
+        "dialogue": request.get("dialogue", False),
+        "mock": request.get("mock", True),
+        "llm_provider": llm_provider,
+        "tts_provider": tts_provider,
         "exported": exported,
         "title": title,
         "summary": summary,
@@ -753,17 +865,65 @@ def api_generate(body: GenerateRequest):
 # ---------- jobs ----------
 
 
+def _create_failed_job(body: GenerateRequest, error_message: str) -> tuple[str, Path]:
+    """Create a failed job with the given error message. Returns (job_id, output_dir)."""
+    job_id = f"job_{uuid.uuid4().hex[:12]}"
+    output_dir = JOBS_DIR / job_id
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    now = datetime.now().isoformat()
+    job = {
+        "job_id": job_id,
+        "output_dir": str(output_dir),
+        "status": "failed",
+        "stage": "provider_validation",
+        "message": "Provider not ready",
+        "progress": 0,
+        "created_at": now,
+        "updated_at": now,
+        "result": None,
+        "error": error_message,
+        "events": [{
+            "type": "error",
+            "data": {
+                "status": "failed",
+                "error": error_message,
+                "stage": "provider_validation",
+                "progress": 0,
+            }
+        }],
+        "request": body.model_dump(),
+    }
+
+    JOBS[job_id] = job
+    _write_meta(job, output_dir)
+
+    return job_id, output_dir
+
+
 @app.post("/api/jobs")
 def api_create_job(body: GenerateRequest):
-    """Create an async generation job with isolated output directory."""
-    if not body.mock:
+    """Create an async generation job with isolated output directory.
+
+    Supports both mock and real LLM/TTS providers.
+    If provider is not ready (missing required env vars), creates a failed job.
+    """
+    # Validate provider selection
+    is_valid, error_msg = _validate_provider_selection(body)
+    if not is_valid:
+        job_id, output_dir = _create_failed_job(body, error_msg)
         return JSONResponse({
             "ok": False,
-            "error": "Only mock=true is supported.",
+            "job_id": job_id,
+            "status": "failed",
+            "error": error_msg,
+            "status_url": f"/api/jobs/{job_id}",
+            "events_url": f"/api/jobs/{job_id}/events",
         }, status_code=400)
 
     job_id = f"job_{uuid.uuid4().hex[:12]}"
     output_dir = JOBS_DIR / job_id
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     job = {
         "job_id": job_id,

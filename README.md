@@ -514,6 +514,22 @@ python -m src.server --host 127.0.0.1 --port 8777
 - real provider 缺配置时 failed job error 清晰但不泄露 secret
 - 前端 Provider 区显示 ready/missing_env 状态
 
+**Checkpoint 15.1 — Real Provider Entry（当前）**：
+
+- `/api/jobs` 支持 `mock=false`，不再直接拒绝
+- provider readiness 检查：`_validate_provider_selection()` 在 job 创建前验证
+- 缺必需 env 时创建 failed job：`meta.json` + history 可见 + SSE error 事件
+- `_collect_required_env_from_profile()`：只有 profile 缺少默认值时才要求 env var
+- `_dedupe_keep_order()`：missing_env 去重
+- `/api/generate` 保持同步兼容，仅支持 mock
+
+**CP15.1 验收**：
+- `minimax_m3_openai` 只缺 `MINIMAX_API_KEY` 时 `missing_env` 只包含 `MINIMAX_API_KEY`
+- `minimax_dialogue` missing_env 去重后无重复
+- 未配置真实 key 时 `curl -X POST /api/jobs -d '{"mock":false,"llm_provider":"minimax_m3_openai"}'` 创建 failed job
+- failed job 在 `/api/history` 可见，`/api/jobs/{id}/artifacts/meta` 可读
+- failed job meta 不包含任何 secret value
+
 ## 项目定位
 
 V0.11: News → LLM → semantic_ir → dual-host dialogue → video（含双角色音频）。

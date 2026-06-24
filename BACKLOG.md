@@ -316,7 +316,17 @@
 - [x] history item 显示 llm_provider / tts_provider
 - [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
 
-## Checkpoint 15.1 — Real LLM/TTS E2E 验证
+## Checkpoint 15.1 — Real Provider Entry
+
+- [x] `/api/jobs` 支持 `mock=false`，不再直接拒绝
+- [x] `_validate_provider_selection()`：创建 job 前验证 provider readiness
+- [x] `_collect_required_env_from_profile()`：只有 profile 缺少默认值时才要求 env var
+- [x] `_dedupe_keep_order()`：missing_env 去重
+- [x] `_create_failed_job()`：provider 不 ready 时创建 failed job
+- [x] `/api/generate` 保持同步兼容，仅支持 mock
+- [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
+
+## Checkpoint 15.2 — Real LLM/TTS E2E 验证
 
 - 真实 API key 配置后完整链路跑通
 - 验证 minimax_m3_openai + mock_dialogue
@@ -327,13 +337,20 @@
 - DELETE `/api/jobs/{job_id}` 删除 job 输出目录
 - 清理历史记录接口
 
-## Checkpoint 15 — Web Studio 配置面板
+## Checkpoint 16 — 主题预览图库
 
-- 真实 LLM / TTS API Key 配置
-- Theme gallery 预览
-- 前端配置持久化（localStorage）
+- 前端主题预览缩略图
+- Theme gallery
 
-## Checkpoint 16 — Remotion / 视觉升级
+## Checkpoint 17 — Remotion / 视觉升级
+
+- Remotion 数字人
+- 前端 UI（网页端配置和播放）
+
+## Checkpoint 18 — 角色头像 / 半数字人
+
+- 角色头像
+- 半数字人
 
 - Remotion 数字人
 - 前端 UI（网页端配置和播放）
