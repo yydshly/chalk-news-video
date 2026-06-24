@@ -334,6 +334,13 @@
 - [x] API key / voice_id 不泄露验收
 - [ ] 真实 TTS E2E（CP15.3）
 
+## Checkpoint 15.2.1 — Web Studio .env 自动加载
+
+- [x] server 启动时 `load_dotenv(PROJECT_ROOT / ".env", override=False)`
+- [x] `python-dotenv` 加入 requirements.txt
+- [x] `/api/providers` 能读取 .env 中配置的 MINIMAX_API_KEY
+- [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
+
 ## Checkpoint 15.3 — 真实 MiniMax TTS E2E
 
 ## Checkpoint 14.2 — Job 删除 / 清理

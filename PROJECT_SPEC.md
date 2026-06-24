@@ -1094,9 +1094,10 @@ ALLOWED_ARTIFACTS = {
 
 **安全规则**：
 - 只返回 env var **名称**，不返回值
-- 不读取 .env 文件内容
+- server 启动时加载项目根目录 `.env`（`python-dotenv`，`override=False`）
 - 不返回 voice_id 值
 - job.request 记录 provider id，不记录 secret
+- API response / meta.json / logs / command line 均不包含 API key / voice_id
 
 ### GenerateRequest 扩展（CP15）
 
@@ -1218,6 +1219,11 @@ ALLOWED_ARTIFACTS = {
 修改（CP15.1）：
 - `src/server.py`（`_validate_provider_selection`、`_create_failed_job`、`_collect_required_env_from_profile`、`_dedupe_keep_order`、移除 mock=false 拒绝、failed job 处理）
 - README.md / PROJECT_SPEC.md / BACKLOG.md（CP15.1 更新）
+
+修改（CP15.2.1）：
+- `src/server.py`（启动时 `load_dotenv(PROJECT_ROOT / ".env", override=False)`）
+- `requirements.txt`（新增 `python-dotenv>=1.0.0`）
+- README.md / PROJECT_SPEC.md / BACKLOG.md（CP15.2.1 更新）
 
 未修改：
 - `src/pace.py` / `src/render_html.py`

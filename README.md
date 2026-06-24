@@ -546,6 +546,20 @@ python -m src.server --host 127.0.0.1 --port 8777
 - `/api/providers` 显示 provider ready 状态正确，missing_env 去重
 - API key / voice_id 不泄露到任何 API 响应或 artifact
 
+**Checkpoint 15.2.1 — Web Studio .env 自动加载（当前）**：
+
+- `python -m src.server` 启动时自动加载项目根目录 `.env`
+- 使用 `python-dotenv`，`override=False`（系统环境变量优先）
+- `.env` 不存在时不报错
+- 加载后 `/api/providers` 能读取 `.env` 中配置的 `MINIMAX_API_KEY` 等变量
+- API 不返回 key value，只显示 missing_env 变量名
+- `.env` 不提交 Git（已加入 .gitignore）
+
+**CP15.2.1 验收**：
+- 启动 server 后 `curl http://127.0.0.1:8777/api/providers` 显示 `minimax_m3_openai.ready=true`（如果 .env 已配置）
+- `minimax_m3_openai` 的 `missing_env=[]`（不报缺 MINIMAX_API_KEY）
+- API 响应中不出现真实 key / sk-
+
 ## 项目定位
 
 V0.11: News → LLM → semantic_ir → dual-host dialogue → video（含双角色音频）。

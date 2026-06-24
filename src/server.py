@@ -29,6 +29,14 @@ from pydantic import BaseModel
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+# Load .env file for provider config (CP15.2.1)
+# override=False: system env vars take precedence; .env only fills missing vars
+try:
+    from dotenv import load_dotenv
+    load_dotenv(PROJECT_ROOT / ".env", override=False)
+except Exception:
+    pass
+
 from src.config_loader import load_yaml, load_llm_config
 
 
