@@ -58,6 +58,8 @@
   // CP21: Generation plan panel DOM refs
   const genPlanNews = document.getElementById("gen-plan-news");
   const genPlanTheme = document.getElementById("gen-plan-theme");
+  const genPlanRecommendRow = document.getElementById("gen-plan-recommend-row");
+  const genPlanRecommend = document.getElementById("gen-plan-recommend");
   const genPlanMode = document.getElementById("gen-plan-mode");
   const genPlanOutputs = document.getElementById("gen-plan-outputs");
   const genPlanTime = document.getElementById("gen-plan-time");
@@ -85,6 +87,7 @@
   let latestEpisodeAudioManifest = null;  // CP26: most recent audio manifest
   let latestEpisodeRenderIr = null;        // CP27: most recent render IR
   let latestEpisodePreviewUrl = null;      // CP28: Blob URL for mock HTML preview
+  let currentStyleRecommendations = [];    // CP30: current style recommendations
 
   // CP20/CG29: Expanded theme showcase data — video style gallery
   const THEME_SHOWCASES = {
@@ -428,6 +431,125 @@
   });
 
   // ---------- hot news board (CP19) ----------
+  // CP30: News-aware style recommendation
+  function recommendStylesForNews(newsItem) {
+    if (!newsItem) return [];
+
+    var text = [
+      newsItem.title || "",
+      newsItem.summary || "",
+      newsItem.source || "",
+    ].join(" ").toLowerCase();
+
+    var score = newsItem.final_score || 0;
+    var points = newsItem.points || 0;
+
+    var picked = [];
+
+    // 1. Product launch / release
+    if (/\b(launch|launches|release|releases|announces|unveils|introduces|product|app |feature |api |model)\b/.test(text)) {
+      picked.push({ theme_id: "product_launch_v1", reason: "产品发布类新闻，适合产品发布会风格" });
+      picked.push({ theme_id: "news_card_v1", reason: "热点新闻，适合新闻卡片快速讲清" });
+    }
+
+    // 2. Paper / research
+    if (/\b(paper|arxiv|research|study|benchmark|eval|dataset|method|reasoning)\b/.test(text)) {
+      picked.push({ theme_id: "paper_digest_v1", reason: "论文研究类，适合论文速读风格" });
+      picked.push({ theme_id: "research_desk_v2", reason: "技术深度解读，适合研究室风格" });
+    }
+
+    // 3. Developer / open source
+    if (/\b(github|open source|repo|library|framework|sdk|cli|terminal|developer)\b/.test(text)) {
+      picked.push({ theme_id: "dev_terminal_v1", reason: "开发者类，适合终端风格" });
+      picked.push({ theme_id: "research_desk_v2", reason: "技术解读，适合研究室风格" });
+    }
+
+    // 4. Data / funding / leaderboard
+    if (/\b(funding|raises|valuation|revenue|users|benchmark|score|ranking|leaderboard|downloads)\b/.test(text)) {
+      picked.push({ theme_id: "data_dashboard_v1", reason: "数据榜单类，适合仪表盘风格" });
+      picked.push({ theme_id: "news_card_v1", reason: "热点数据，适合新闻卡片" });
+    }
+
+    // 5. Breaking / regulation
+    if (/\b(breaking|ban|regulation|lawsuit|outage|security|policy|government|antitrust)\b/.test(text)) {
+      picked.push({ theme_id: "breaking_news_v1", reason: "突发重大新闻，适合突发快讯风格" });
+      picked.push({ theme_id: "causal_map_v1", reason: "重大变化因果分析，适合因果链地图" });
+    }
+
+    // 6. Causal / opinion / analysis
+    if (/\b(why|because|impact|effect|risk|concern|debate|controversy|backlash)\b/.test(text)) {
+      picked.push({ theme_id: "causal_map_v1", reason: "因果分析类，适合因果链地图" });
+      picked.push({ theme_id: "opinion_column_v1", reason: "观点评论类，适合评论风" });
+    }
+
+    // 7. Multi-news / episode mode
+    if (episodeItemList.length >= 2) {
+      picked.push({ theme_id: "timeline_brief_v1", reason: "多新闻合集，适合时间线快报" });
+      picked.push({ theme_id: "magazine_cover_v1", reason: "多新闻封面，适合杂志封面风" });
+    }
+
+    // 8. High-score news gets news_card / breaking
+    if (score >= 8.0 || points >= 200) {
+      if (!picked.some(function (p) { return p.theme_id === "news_card_v1"; })) {
+        picked.push({ theme_id: "news_card_v1", reason: "高热度新闻，适合新闻卡片" });
+      }
+    }
+    if (score >= 8.5) {
+      if (!picked.some(function (p) { return p.theme_id === "breaking_news_v1"; })) {
+        picked.push({ theme_id: "breaking_news_v1", reason: "极高分新闻，适合突发快讯" });
+      }
+    }
+
+    // Deduplicate by theme_id, keep first occurrence (highest priority)
+    var seen = {};
+    var unique = [];
+    picked.forEach(function (p) {
+      if (!seen[p.theme_id]) {
+        seen[p.theme_id] = true;
+        unique.push(p);
+      }
+    });
+
+    return unique.slice(0, 3);
+  }
+
+  // CP30: Update UI with current style recommendations
+  function updateStyleRecommendations() {
+    var newsItem = selectedNews;
+    currentStyleRecommendations = recommendStylesForNews(newsItem);
+
+    // Update gen plan panel recommendation row
+    if (genPlanRecommendRow && genPlanRecommend) {
+      if (!selectedNews || currentStyleRecommendations.length === 0) {
+        genPlanRecommendRow.style.display = "none";
+        genPlanRecommend.innerHTML = "";
+      } else {
+        genPlanRecommendRow.style.display = "flex";
+        genPlanRecommend.innerHTML = "";
+        currentStyleRecommendations.forEach(function (rec) {
+          var theme = THEME_SHOWCASES[rec.theme_id];
+          if (!theme) return;
+          var isActive = selectTheme.value === rec.theme_id;
+          var btn = document.createElement("button");
+          btn.className = "gen-plan-recommend-tag" + (isActive ? " active" : "");
+          btn.textContent = theme.name;
+          btn.setAttribute("data-theme-id", rec.theme_id);
+          btn.setAttribute("title", rec.reason);
+          btn.addEventListener("click", function () {
+            var t = THEME_SHOWCASES[rec.theme_id];
+            if (t) {
+              ensureThemeOption(t);
+              renderThemeShowcase();
+              updateStyleRecommendations();
+              updateGenerationPlan();
+            }
+          });
+          genPlanRecommend.appendChild(btn);
+        });
+      }
+    }
+  }
+
   async function loadHotNews() {
     hotNewsLoading.style.display = "block";
     hotNewsError.style.display = "none";
@@ -480,10 +602,36 @@
           '<span>' + (item.points || 0) + ' pts</span> ' +
           '<span>' + (item.comments || 0) + ' comments</span>' +
         '</div>' +
+        '<div class="style-recommend-tags"></div>' +
         '<div class="hot-news-item-actions-row">' +
           '<button class="hot-news-item-select-btn" type="button">选择这条</button>' +
           '<button class="hot-news-item-join-btn ' + joinBtnClass + '" type="button" data-episode-item-id="' + (item.id || "") + '">' + joinBtnText + '</button>' +
         '</div>';
+
+      // CP30: Add style recommendation tags to this card
+      var recTagsContainer = div.querySelector(".style-recommend-tags");
+      var recs = recommendStylesForNews(item);
+      recs.forEach(function (rec) {
+        var theme = THEME_SHOWCASES[rec.theme_id];
+        if (!theme) return;
+        var isActive = selectTheme.value === rec.theme_id;
+        var btn = document.createElement("button");
+        btn.className = "style-recommend-tag" + (isActive ? " active" : "");
+        btn.textContent = theme.name;
+        btn.setAttribute("data-theme-id", rec.theme_id);
+        btn.setAttribute("title", rec.reason);
+        btn.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          var t = THEME_SHOWCASES[rec.theme_id];
+          if (t) {
+            ensureThemeOption(t);
+            renderThemeShowcase();
+            updateStyleRecommendations();
+            updateGenerationPlan();
+          }
+        });
+        recTagsContainer.appendChild(btn);
+      });
 
       div.querySelector(".hot-news-item-select-btn").addEventListener("click", function (ev) {
         ev.stopPropagation();
@@ -507,6 +655,7 @@
 
     // Update generate button text based on selection state
     updateGenModeUI();
+    updateStyleRecommendations();
     updateGenerationPlan();
   }
 
@@ -524,6 +673,9 @@
     // Show selected banner
     hotNewsSelected.style.display = "block";
     selectedNewsTitleEl.textContent = item.title || "";
+
+    // CP30: Update style recommendations
+    updateStyleRecommendations();
 
     // Update generate button text
     updateGenModeUI();
