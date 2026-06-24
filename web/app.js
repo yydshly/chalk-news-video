@@ -82,6 +82,7 @@
   let episodeItemList = [];       // CP23: episode playlist items
   let latestEpisodePlan = null;    // CP24: most recent episode plan
   let latestEpisodeScript = null;  // CP25: most recent episode script
+  let latestEpisodeAudioManifest = null;  // CP26: most recent audio manifest
 
   // CP20: Theme showcase data
   const THEME_SHOWCASES = {
@@ -849,6 +850,222 @@
     }
   }
 
+  // CP26: Build episode audio manifest from episode script (mock, no real TTS)
+  function buildEpisodeAudioManifestFromScript(script) {
+    if (!script) {
+      return null;
+    }
+
+    var clips = [];
+    var order = 1;
+
+    // Opening clip
+    if (script.opening) {
+      clips.push({
+        clip_id: "opening_001",
+        order: order++,
+        section: "opening",
+        speaker: "host_a",
+        text: script.opening.text,
+        duration_hint_sec: 12,
+        audio_path: null,
+      });
+    }
+
+    // Per-segment clips
+    if (script.segments) {
+      script.segments.forEach(function (seg) {
+        var segIdx = seg.segment_order || seg.order;
+        var segPrefix = "seg_" + String(segIdx).padStart(3, "0");
+
+        if (seg.beats) {
+          seg.beats.forEach(function (beat) {
+            var beatType = beat.type; // headline | context | takeaway
+            var speaker = "host_a";
+            var durHint = 10;
+            if (beatType === "headline") { speaker = "host_a"; durHint = 8; }
+            else if (beatType === "context") { speaker = "host_b"; durHint = 14; }
+            else if (beatType === "takeaway") { speaker = "host_a"; durHint = 10; }
+
+            clips.push({
+              clip_id: segPrefix + "_" + beatType,
+              order: order++,
+              section: "segment",
+              segment_order: seg.order,
+              news_id: seg.news_id,
+              beat_type: beatType,
+              speaker: speaker,
+              text: beat.text,
+              duration_hint_sec: durHint,
+              audio_path: null,
+            });
+          });
+        }
+
+        // Transition after this segment (if not last)
+        var segIdx2 = seg.order || seg.segment_order;
+        if (segIdx2 < script.segments.length) {
+          clips.push({
+            clip_id: "transition_after_" + String(segIdx2).padStart(3, "0"),
+            order: order++,
+            section: "transition",
+            speaker: "host_b",
+            text: "接着看下一条。",
+            duration_hint_sec: 4,
+            audio_path: null,
+          });
+        }
+      });
+    }
+
+    // Closing clip
+    if (script.closing) {
+      clips.push({
+        clip_id: "closing_001",
+        order: order++,
+        section: "closing",
+        speaker: "host_a",
+        text: script.closing.text,
+        duration_hint_sec: 12,
+        audio_path: null,
+      });
+    }
+
+    var totalDuration = clips.reduce(function (sum, c) {
+      return sum + (c.duration_hint_sec || 0);
+    }, 0);
+
+    var manifest = {
+      version: "episode_audio_manifest_v1",
+      episode_title: script.episode_title || "今日 AI 前沿速览",
+      source_script_version: "episode_script_v1",
+      voice_mode: "dual_speaker",
+      estimated_duration_sec: totalDuration,
+      clips: clips,
+      mixing: {
+        format: "wav",
+        sample_rate: 32000,
+        channels: 1,
+        silence_between_clips_sec: 0.25,
+      },
+      constraints: {
+        no_real_tts: true,
+        audio_paths_are_placeholders: true,
+      },
+    };
+
+    return manifest;
+  }
+
+  // CP26: Validate episode audio manifest
+  function validateEpisodeAudioManifest(manifest) {
+    var warnings = [];
+    var errors = [];
+
+    if (!manifest) {
+      errors.push("manifest 为空");
+      return { ok: false, warnings: warnings, errors: errors };
+    }
+
+    if (manifest.version !== "episode_audio_manifest_v1") {
+      errors.push("version 必须为 episode_audio_manifest_v1");
+    }
+
+    if (!manifest.clips || manifest.clips.length < 1) {
+      errors.push("至少需要 1 个 clip");
+    }
+
+    var clipIds = {};
+    manifest.clips && manifest.clips.forEach(function (clip, i) {
+      if (clip.order !== i + 1) {
+        errors.push("第 " + (i + 1) + " 个 clip 的 order 不连续");
+      }
+      if (!clip.clip_id) {
+        errors.push("第 " + (i + 1) + " 个 clip 缺少 clip_id");
+      } else if (clipIds[clip.clip_id]) {
+        errors.push("clip_id 必须唯一，当前重复：" + clip.clip_id);
+      } else {
+        clipIds[clip.clip_id] = true;
+      }
+      if (clip.speaker !== "host_a" && clip.speaker !== "host_b") {
+        errors.push("第 " + (i + 1) + " 个 clip 的 speaker 必须是 host_a 或 host_b");
+      }
+      if (!clip.text) {
+        errors.push("第 " + (i + 1) + " 个 clip 的 text 不能为空");
+      }
+      if (clip.audio_path !== null) {
+        errors.push("第 " + (i + 1) + " 个 clip 的 audio_path 必须为 null");
+      }
+    });
+
+    if (!manifest.estimated_duration_sec || manifest.estimated_duration_sec <= 0) {
+      errors.push("estimated_duration_sec 必须大于 0");
+    }
+
+    // No API key / voice_id leakage
+    var manifestStr = JSON.stringify(manifest);
+    if (/api[_-]?key/i.test(manifestStr) || /voice[_-]?id/i.test(manifestStr)) {
+      errors.push("manifest 中不允许出现 API key 或 voice_id");
+    }
+
+    return {
+      ok: errors.length === 0,
+      warnings: warnings,
+      errors: errors,
+    };
+  }
+
+  // CP26: Show episode audio manifest preview
+  function showEpisodeAudioManifest() {
+    if (episodeItemList.length === 0) {
+      setStatus("请先加入新闻，再生成音频计划", "error");
+      return;
+    }
+
+    // Build or reuse latest script
+    var plan = buildEpisodePlan();
+    var planResult = validateEpisodePlan(plan);
+    if (!planResult.ok) {
+      setStatus("栏目计划有误：" + planResult.errors.join("；"), "error");
+      return;
+    }
+
+    var script = buildEpisodeScriptFromPlan(plan);
+    var scriptResult = validateEpisodeScript(script);
+    if (!scriptResult.ok) {
+      setStatus("栏目脚本有误：" + scriptResult.errors.join("；"), "error");
+      return;
+    }
+
+    var manifest = buildEpisodeAudioManifestFromScript(script);
+    var manifestResult = validateEpisodeAudioManifest(manifest);
+
+    // CP26: Save latest manifest
+    latestEpisodeAudioManifest = manifest;
+
+    // Switch to audio_manifest tab
+    tabBtns.forEach(function (b) { b.classList.remove("active"); });
+    tabContents.forEach(function (c) { c.classList.remove("active"); });
+    var tabBtn = document.querySelector('[data-tab="audio_manifest"]');
+    var tabContent = document.getElementById("tab-audio_manifest");
+    if (tabBtn) tabBtn.classList.add("active");
+    if (tabContent) tabContent.classList.add("active");
+
+    var jsonEl = document.getElementById("json-audio_manifest");
+    if (jsonEl) {
+      var output = JSON.stringify({ manifest: manifest, validation: manifestResult }, null, 2);
+      jsonEl.textContent = output;
+    }
+
+    if (!manifestResult.ok) {
+      setStatus("音频计划有误：" + manifestResult.errors.join("；"), "error");
+    } else if (manifestResult.warnings.length > 0) {
+      setStatus("音频计划已生成（" + manifestResult.warnings.join("；") + "）", "info");
+    } else {
+      setStatus("音频计划已生成", "success");
+    }
+  }
+
   // ---------- theme showcase (CP20) ----------
   function renderThemeShowcase() {
     if (!themeShowcaseList) return;
@@ -1022,6 +1239,14 @@
   if (btnViewEpisodeScript) {
     btnViewEpisodeScript.addEventListener("click", function () {
       showEpisodeScript();
+    });
+  }
+
+  // CP26: View audio manifest button
+  var btnViewAudioManifest = document.getElementById("btn-view-audio-manifest");
+  if (btnViewAudioManifest) {
+    btnViewAudioManifest.addEventListener("click", function () {
+      showEpisodeAudioManifest();
     });
   }
 
