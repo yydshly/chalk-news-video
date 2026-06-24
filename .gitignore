@@ -24,6 +24,9 @@ outputs/latest/*.m4a
 outputs/jobs/*
 !outputs/jobs/.gitkeep
 
+# Episode preview HTML artifacts (CP29)
+outputs/episode_previews/*.html
+
 # OS / editor noise
 .DS_Store
 Thumbs.db

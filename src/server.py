@@ -1491,6 +1491,78 @@ def api_preview(filename: str):
     raise HTTPException(status_code=404, detail="Unknown file type")
 
 
+# ---------- episode mock HTML artifact (CP29) ----------
+
+
+EPISODE_PREVIEWS_DIR = PROJECT_ROOT / "outputs" / "episode_previews"
+
+
+class MockHtmlRequest(BaseModel):
+    html: str
+    episode_title: Optional[str] = "今日 AI 前沿速览"
+
+
+@app.post("/api/episode/mock-html")
+def api_episode_mock_html(body: MockHtmlRequest):
+    """Save mock episode HTML artifact to outputs/episode_previews.
+
+    Security:
+    - Requires valid HTML structure (<!DOCTYPE html> or <html>)
+    - Rejects API key / voice_id leakage
+    - Rejects external http/https links
+    - Filename generated server-side (no path traversal)
+    - No /api/jobs created
+    """
+    import re
+
+    html: str = body.html
+    episode_title: str = body.episode_title or "今日 AI 前沿速览"
+
+    # Validate HTML structure
+    if "<!DOCTYPE html>" not in html and "<html" not in html:
+        raise HTTPException(status_code=400, detail="Invalid HTML: must contain <!DOCTYPE html> or <html>")
+
+    # Security checks
+    if re.search(r"api[_-]?key", html, re.IGNORECASE):
+        raise HTTPException(status_code=400, detail="HTML contains API key — not allowed")
+    if re.search(r"voice[_-]?id", html, re.IGNORECASE):
+        raise HTTPException(status_code=400, detail="HTML contains voice_id — not allowed")
+    if re.search(r"https?://", html):
+        raise HTTPException(status_code=400, detail="HTML contains external http/https links — not allowed")
+
+    # Ensure output directory exists
+    EPISODE_PREVIEWS_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Generate safe filename
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_title = re.sub(r"[^a-zA-Z0-9一-鿿]", "_", episode_title)[:20]
+    filename = f"episode_{timestamp}_{safe_title}.html"
+    filepath = EPISODE_PREVIEWS_DIR / filename
+
+    # Write file
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write(html)
+
+    return {
+        "ok": True,
+        "path": f"/outputs/episode_previews/{filename}",
+        "file_path": str(filepath),
+    }
+
+
+@app.get("/outputs/episode_previews/{filename}")
+def api_episode_preview(filename: str):
+    """Serve saved episode preview HTML files."""
+    # Block path traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=404, detail="Invalid filename")
+
+    filepath = EPISODE_PREVIEWS_DIR / filename
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(str(filepath), media_type="text/html")
+
+
 # ---------- CLI entry point ----------
 
 

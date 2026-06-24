@@ -85,6 +85,7 @@
   let latestEpisodeAudioManifest = null;  // CP26: most recent audio manifest
   let latestEpisodeRenderIr = null;        // CP27: most recent render IR
   let latestEpisodePreviewUrl = null;      // CP28: Blob URL for mock HTML preview
+  let latestEpisodeHtmlArtifact = null;  // CP29: saved episode HTML artifact path
 
   // CP20: Theme showcase data
   const THEME_SHOWCASES = {
@@ -1358,7 +1359,7 @@
       var audioCount = seg.audio_clip_ids ? seg.audio_clip_ids.length : 0;
       var borderStyle = isLead ? 'border: 2px solid #f59e0b;' : 'border: 1px solid #374151;';
       var bgStyle = isLead ? 'background: #1a1a2e;' : 'background: #111827;';
-      return '<div style="' + bgStyle + ' ' + borderStyle + ' border-radius: 12px; padding: 20px; margin: 12px 0;">' +
+      return '<div class="mock-news-card" data-section-type="news_segment" data-role="' + escapeHtml(seg.role || "") + '" style="' + bgStyle + ' ' + borderStyle + ' border-radius: 12px; padding: 20px; margin: 12px 0;">' +
         '<div style="color: #9ca3af; font-size: 13px; margin-bottom: 8px;">' + escapeHtml(layout) + (emphasis ? ' · ' + escapeHtml(emphasis) : '') + '</div>' +
         '<div style="color: #f9fafb; font-size: 17px; font-weight: 600; margin-bottom: 8px;">' + escapeHtml(seg.visual && seg.visual.headline ? seg.visual.headline : "") + '</div>' +
         '<div style="color: #6b7280; font-size: 12px;">' + escapeHtml(badges) + '</div>' +
@@ -1392,14 +1393,14 @@
       '</div>\n' +
       '<div class="content">\n' +
       '<div class="section-title">开场</div>\n' +
-      '<div style="background:#1e293b;border-radius:12px;padding:24px;margin-bottom:32px;">\n' +
+      '<div class="mock-opening-card" data-section-type="opening" style="background:#1e293b;border-radius:12px;padding:24px;margin-bottom:32px;">\n' +
       '<div style="font-size:16px;color:#e2e8f0;">' + escapeHtml(sections.find(function(s){return s.type==="opening";}) && sections.find(function(s){return s.type==="opening";}).visual ? sections.find(function(s){return s.type==="opening";}).visual.title : "今日 AI 前沿速览") + '</div>\n' +
       '<div style="color:#64748b;font-size:13px;margin-top:8px;">' + escapeHtml(renderIr.subtitle || "多条热门 AI 新闻合集") + '</div>\n' +
       '</div>\n' +
       '<div class="section-title">新闻列表（' + newsSegs.length + ' 条）</div>\n' +
       cardsHtml +
       '<div class="section-title" style="margin-top:32px;">结尾</div>\n' +
-      '<div style="background:#1e293b;border-radius:12px;padding:24px;">\n' +
+      '<div class="mock-closing-card" data-section-type="closing" style="background:#1e293b;border-radius:12px;padding:24px;">\n' +
       '<div style="color:#f9fafb;font-size:15px;">' + escapeHtml(closingSec && closingSec.visual ? closingSec.visual.title : "今天最值得关注的是...") + '</div>\n' +
       (closingSec && closingSec.visual && closingSec.visual.focus_news_id ? '<div style="color:#64748b;font-size:12px;margin-top:8px;">ID: ' + escapeHtml(closingSec.visual.focus_news_id) + '</div>' : '') +
       '</div>\n' +
@@ -1424,10 +1425,19 @@
       errors.push("HTML 必须包含 <!DOCTYPE html> 或 <html>");
     }
 
-    // Check it contains episode title (any visible text is ok for mock)
-    // Check for at least one news card
-    if (html.indexOf("news_segment") === -1 && html.indexOf("section-title") === -1) {
-      warnings.push("HTML 可能不包含新闻内容");
+    // Must contain mock-news-card class
+    if (html.indexOf("mock-news-card") === -1) {
+      errors.push("HTML 必须包含 mock-news-card");
+    }
+
+    // Must contain opening section
+    if (html.indexOf("mock-opening-card") === -1) {
+      errors.push("HTML 必须包含开场区块");
+    }
+
+    // Must contain closing section
+    if (html.indexOf("mock-closing-card") === -1) {
+      errors.push("HTML 必须包含结尾区块");
     }
 
     // No API key / voice_id
@@ -1435,7 +1445,7 @@
       errors.push("HTML 中不允许出现 API key 或 voice_id");
     }
 
-    // No external http links
+    // No external http links (allow data: URIs)
     if (/https?:\/\//.test(html) && !/https?:\/\/localhost/.test(html)) {
       errors.push("HTML 中不允许出现外部 http 链接");
     }
@@ -1509,6 +1519,96 @@
     autoPreviewBanner.textContent = "多新闻合集 Mock 预览";
 
     setStatus("Mock 预览已生成", "success");
+  }
+
+  // CP29: Save mock episode HTML to backend artifact
+  function saveEpisodeHtmlArtifact() {
+    if (episodeItemList.length === 0) {
+      setStatus("请先加入新闻，再保存合集 HTML", "error");
+      return;
+    }
+
+    var plan = buildEpisodePlan();
+    var planResult = validateEpisodePlan(plan);
+    if (!planResult.ok) {
+      setStatus("栏目计划有误：" + planResult.errors.join("；"), "error");
+      return;
+    }
+
+    var script = buildEpisodeScriptFromPlan(plan);
+    var scriptResult = validateEpisodeScript(script);
+    if (!scriptResult.ok) {
+      setStatus("栏目脚本有误：" + scriptResult.errors.join("；"), "error");
+      return;
+    }
+
+    var manifest = buildEpisodeAudioManifestFromScript(script);
+    var manifestResult = validateEpisodeAudioManifest(manifest);
+    if (!manifestResult.ok) {
+      setStatus("音频计划有误：" + manifestResult.errors.join("；"), "error");
+      return;
+    }
+
+    var renderIr = buildEpisodeRenderIrFromContracts(plan, script, manifest);
+    var renderIrResult = validateEpisodeRenderIr(renderIr);
+    if (!renderIrResult.ok) {
+      setStatus("视觉计划有误：" + renderIrResult.errors.join("；"), "error");
+      return;
+    }
+
+    var html = buildMockEpisodeHtml(renderIr);
+    var htmlResult = validateMockEpisodeHtml(html);
+    if (!htmlResult.ok) {
+      setStatus("Mock HTML 有误：" + htmlResult.errors.join("；"), "error");
+      return;
+    }
+
+    // POST to backend
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/episode/mock-html", true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.onload = function () {
+      if (xhr.status === 200) {
+        try {
+          var resp = JSON.parse(xhr.responseText);
+          if (resp.ok) {
+            latestEpisodeHtmlArtifact = {
+              path: resp.path,
+              file_path: resp.file_path,
+              created_at: new Date().toISOString(),
+            };
+
+            // Load saved HTML in preview iframe
+            previewHtml.src = resp.path;
+
+            // Show preview tab
+            switchToPreviewTab();
+            setPreviewMode("html");
+
+            // Show banner
+            autoPreviewBanner.style.display = "block";
+            autoPreviewBanner.textContent = "已保存的合集 HTML 预览";
+
+            setStatus("合集 HTML 已保存至 " + resp.path, "success");
+          } else {
+            setStatus("保存失败：" + (resp.detail || "未知错误"), "error");
+          }
+        } catch (e) {
+          setStatus("保存失败：响应解析错误", "error");
+        }
+      } else {
+        var detail = "";
+        try { detail = JSON.parse(xhr.responseText).detail; } catch (_) {}
+        setStatus("保存失败（" + xhr.status + "）：" + detail, "error");
+      }
+    };
+    xhr.onerror = function () {
+      setStatus("保存失败：网络错误", "error");
+    };
+    xhr.send(JSON.stringify({
+      html: html,
+      episode_title: plan.title || "今日 AI 前沿速览",
+    }));
   }
 
   // ---------- theme showcase (CP20) ----------
@@ -1708,6 +1808,14 @@
   if (btnPreviewEpisode) {
     btnPreviewEpisode.addEventListener("click", function () {
       previewMockEpisodeHtml();
+    });
+  }
+
+  // CP29: Save episode HTML artifact button
+  var btnSaveEpisodeHtml = document.getElementById("btn-save-episode-html");
+  if (btnSaveEpisodeHtml) {
+    btnSaveEpisodeHtml.addEventListener("click", function () {
+      saveEpisodeHtmlArtifact();
     });
   }
 
