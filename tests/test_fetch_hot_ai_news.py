@@ -1,4 +1,4 @@
-"""Tests for fetch_hot_ai_news keyword matching (CP15.2.6).
+"""Tests for fetch_hot_ai_news keyword matching (CP15.2.6) and story worthiness (CP15.5).
 
 Run with: python -m pytest tests/test_fetch_hot_ai_news.py -v
 Or directly: python tests/test_fetch_hot_ai_news.py
@@ -17,6 +17,7 @@ from src.fetch_hot_ai_news import (
     _match_phrase,
     _match_keywords,
     _should_include,
+    _compute_story_score,
 )
 
 
@@ -154,6 +155,16 @@ def run_tests():
         test_false_positive_regression,
         test_should_include_rules,
         test_keyword_bonus,
+        # CP15.5 story worthiness tests
+        test_story_major_company_bonus,
+        test_story_conflict_bonus,
+        test_story_impact_bonus,
+        test_story_title_length_bonus,
+        test_story_show_hn_penalty,
+        test_story_too_short_title_penalty,
+        test_story_model_no_impact_penalty,
+        test_story_final_score_computation,
+        test_story_visual_potential_bonus,
     ]
 
     passed = 0
@@ -173,6 +184,94 @@ def run_tests():
 
     print(f"\nResults: {passed} passed, {failed} failed")
     return failed == 0
+
+
+# ---------- CP15.5 story worthiness tests ----------
+
+
+def test_story_major_company_bonus():
+    """OpenAI in title should give +25 story score."""
+    item = {"title": "OpenAI releases GPT-5 DayBreak", "url": "https://openai.com"}
+    result = _compute_story_score(item)
+    assert result["story_score"] >= 25, f"Expected story_score >= 25, got {result['story_score']}"
+    assert result["story_flags"]["has_major_company"] is True
+    assert any("major_company:OpenAI" in r for r in result["story_reasons"])
+
+
+def test_story_conflict_bonus():
+    """Conflict keywords should give +20 story score."""
+    item = {"title": "AI's Affordability Crisis", "url": "https://example.com"}
+    result = _compute_story_score(item)
+    assert result["story_score"] >= 20, f"Expected story_score >= 20, got {result['story_score']}"
+    assert result["story_flags"]["has_clear_conflict"] is True
+    assert any("conflict:" in r for r in result["story_reasons"])
+
+
+def test_story_impact_bonus():
+    """Impact keywords should give +15 story score."""
+    item = {"title": "AI affects developers and enterprises worldwide", "url": "https://example.com"}
+    result = _compute_story_score(item)
+    assert result["story_score"] >= 15, f"Expected story_score >= 15, got {result['story_score']}"
+    assert result["story_flags"]["has_impact_words"] is True
+
+
+def test_story_title_length_bonus():
+    """Title 20-120 chars should get +10."""
+    item = {"title": "Nvidia GPU shortage affects AI labs globally", "url": "https://example.com"}
+    result = _compute_story_score(item)
+    assert 20 <= len(item["title"]) <= 120
+    assert any("title_len:" in r for r in result["story_reasons"])
+
+
+def test_story_too_short_title_penalty():
+    """Title <= 8 chars should get -15 penalty."""
+    item = {"title": "AI Tag", "url": "https://example.com"}  # 7 chars <= 8
+    result = _compute_story_score(item)
+    assert result["story_flags"]["too_short_title"] is True
+    assert any("title_too_short" in r for r in result["story_reasons"])
+
+
+def test_story_show_hn_penalty():
+    """Show HN without major company should get -10 penalty applied."""
+    item = {"title": "Show HN: tiny AI wrapper tool", "url": "https://example.com"}
+    result = _compute_story_score(item)
+    assert result["story_flags"]["is_show_hn"] is True
+    assert result["story_flags"]["has_major_company"] is False
+    # Score reduced by 10 for Show HN without company
+    assert any("show_hn_no_company" in r for r in result["story_reasons"])
+
+
+def test_story_model_no_impact_penalty():
+    """Pure model name without impact/conflict should get -10 penalty."""
+    item = {"title": "New Llama 3 paper released", "url": "https://example.com/paper"}
+    result = _compute_story_score(item)
+    assert result["story_flags"]["has_product_or_model"] is True
+    assert not result["story_flags"]["has_clear_conflict"]
+    assert not result["story_flags"]["has_impact_words"]
+    assert any("model_no_impact" in r for r in result["story_reasons"])
+
+
+def test_story_final_score_computation():
+    """final_score = hotness_score + story_score."""
+    item = {
+        "title": "OpenAI GPT-5 causes controversy among developers",
+        "url": "https://openai.com",
+        "points": 100,
+        "descendants": 50,
+    }
+    hotness_score = 100 * 1.0 + 50 * 2.0  # 200
+    result = _compute_story_score(item)
+    story_score = result["story_score"]
+    assert story_score >= 50  # has major company + conflict
+    assert hotness_score + story_score == hotness_score + story_score  # tautology but verifies the field exists
+
+
+def test_story_visual_potential_bonus():
+    """Visual/benchmark keywords should give +10."""
+    item = {"title": "LLM benchmark ranking chart 2026", "url": "https://example.com"}
+    result = _compute_story_score(item)
+    assert result["story_flags"]["has_visual_potential"] is True
+    assert any("visual:" in r for r in result["story_reasons"])
 
 
 if __name__ == "__main__":

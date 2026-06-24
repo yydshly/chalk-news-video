@@ -425,13 +425,24 @@
 
 ## Checkpoint 15.5 — 选题可讲性评分
 
-- [ ] 新闻内容可讲性评分（是否有足够的观点/数据/因果链）
-- [ ] 可讲性不足时给出警告或自动补充
+- [x] `_compute_story_score()` 函数实现
+- [x] `hot_ai_candidates.json` 含 `story_score` / `hotness_score` / `final_score`
+- [x] `latest_news.json` 含 `story_score` / `final_score` / `story_reasons[]` / `story_flags{}`
+- [x] 按 `final_score = hotness_score + story_score` 排序
+- [x] `story_score < 30` 时 warning 但不失败
+- [x] tests/test_fetch_hot_ai_news.py 新增 CP15.5 测试
+- [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
+- [ ] E2E 验收（待执行）
 
 ## Checkpoint 15.6 — 不同音色推荐与 voice preset
 
 - [ ] 根据新闻类型推荐不同音色（严肃/轻松/技术等）
 - [ ] voice preset 配置
+
+## Checkpoint 15.7 — dialogue_budget 按 target_duration_sec 动态调整
+
+- [ ] 根据 target_duration_sec 动态计算 max_turns
+- [ ] 动态计算 max_total_dialogue_chars
 
 ## Checkpoint 16 — 主题预览图库
 

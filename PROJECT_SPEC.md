@@ -1484,3 +1484,82 @@ class GenerateRequest(BaseModel):
 - dialogue_script turns <= 14（压缩后）
 - dialogue_manifest.total_duration <= 65 秒（mock 下允许近似）
 - render_ir.total_duration == dialogue_manifest.total_duration
+
+### Story Worthiness Scoring（CP15.5）
+
+**目标**：hot_ai 新闻按"是否适合做 45-60 秒视频讲解"排序，不只按 HN 热度。
+
+**问题背景**：
+- HN hotness 高 ≠ 适合做视频
+- 太偏论文/模型细节，普通观众难懂
+- 缺少因果链、标题太短、过度小众
+
+**评分函数** `_compute_story_score(item) -> dict`：
+```python
+{
+    "story_score": 0-100,
+    "story_reasons": ["major_company:OpenAI", "conflict:cost", ...],
+    "story_flags": {
+        "has_major_company": bool,
+        "has_clear_conflict": bool,
+        "has_product_or_model": bool,
+        "has_impact_words": bool,
+        "has_visual_potential": bool,
+        "too_short_title": bool,
+        "too_niche": bool,
+        "is_show_hn": bool,
+    }
+}
+```
+
+**评分规则（CP15.5）**：
+
+| 维度 | 分值 | 命中条件 |
+|------|------|---------|
+| 大公司/公众认知 | +25 | title 含 OpenAI/Anthropic/Google/Meta/Nvidia/Apple/xAI/HuggingFace 等 |
+| 模型/产品发布 | +20 | title 含 GPT/Claude/Gemini/Llama/Sora/Copilot/agent/benchmark/model 等 |
+| 明确问题/冲突 | +20 | title 含 crisis/controversy/outage/safety/risk/lawsuit/ban/cost/affordability 等 |
+| 影响面 | +15 | title 含 users/developers/enterprises/market/industry/regulation/GPU/pricing 等 |
+| 可视化潜力 | +10 | title 含 chart/benchmark/report/ranking/comparison/architecture/dataset 等 |
+| 标题长度 20-120 字符 | +10 | len(title) in [20, 120] |
+| 标题过短 <=8 字符 | -15 | len(title) <= 8 |
+| Show HN 无大公司 | -10 | is_show_hn=True and not has_major_company |
+| 纯模型无影响/冲突 | -10 | has_product_or_model and not (has_clear_conflict or has_impact_words or has_major_company) |
+| 弱关键词过多 | -10 | 无 strong kw，无 major_company/product/conflict，matched <= 2 |
+
+**排序策略**：
+- `final_score = hotness_score + story_score`
+- 按 `final_score` 降序选择 top 1
+- `story_score < 30` 时输出 warning 但不失败
+
+**输出字段（CP15.5）**：
+
+`hot_ai_candidates.json` item 新增：
+```json
+{
+  "hotness_score": 421.0,
+  "story_score": 65,
+  "final_score": 486.0,
+  "story_reasons": ["major_company:OpenAI", "conflict:cost", "impact:developers"],
+  "story_flags": {...}
+}
+```
+
+`latest_news.json` 新增：
+```json
+{
+  "hotness_score": 421.0,
+  "story_score": 65,
+  "final_score": 486.0,
+  "story_reasons": [...],
+  "story_flags": {...}
+}
+```
+
+**content 字段新增**：
+```
+Story Worthiness:
+  - story_score: 65/100
+  - reasons: major_company:OpenAI, conflict:cost, impact:developers
+  - why suitable for video: major_company:OpenAI / conflict:cost / impact:developers
+```

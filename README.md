@@ -705,6 +705,50 @@ max_turns: int | None = 14           # 最大 turns
 - 如果压缩发生，compressed=true
 - validation 无 error
 
+## CP15.5 — 选题可讲性评分（Story Worthiness Scoring）
+
+**目标**：HN 热门不等于适合做视频。需要按"是否适合生成 45-60 秒讲解视频"排序。
+
+**背景问题**：
+- 过于技术碎片、普通观众难懂
+- 缺少因果链
+- 标题太短，信息不足
+- 只有工具发布，没有影响解释
+- 过于冷门，不适合作为"今日 AI 新闻视频"
+
+**新增评分维度** `story_score`（0-100）：
+
+| 维度 | 分值 | 说明 |
+|------|------|------|
+| 大公司/公众认知 | +25 | OpenAI / Anthropic / Google / Meta / Nvidia / Apple / xAI / Hugging Face 等 |
+| 模型/产品发布 | +20 | GPT / Claude / Gemini / Llama / Sora / Copilot / agent / benchmark 等 |
+| 明确问题/冲突 | +20 | crisis / controversy / outage / safety / risk / lawsuit / ban / cost 等 |
+| 影响面 | +15 | users / developers / enterprises / market / industry / regulation 等 |
+| 可视化潜力 | +10 | chart / benchmark / report / ranking / comparison / architecture 等 |
+| 标题长度 20-120 字符 | +10 | 信息密度充足 |
+| 标题过短 <=8 字符 | -15 | 信息不足 |
+| Show HN 无大公司 | -10 | 过度小众 |
+| 纯论文/模型名无影响 | -10 | 缺 impact/conflict |
+
+**最终排序**：`final_score = hotness_score + story_score`
+
+**新增输出字段**：
+- `hot_ai_candidates.json`：每条 candidate 含 `hotness_score` / `story_score` / `final_score` / `story_reasons[]` / `story_flags{}`
+- `latest_news.json`：含 `hotness_score` / `story_score` / `final_score` / `story_reasons[]` / `story_flags{}`
+- `content` 中新增 Story Worthiness 小节
+
+**low_story_score 警告**：如果最高分新闻的 `story_score < 30`，输出 warning 但不失败。
+
+**CP15.5 验收**：
+- hot_ai_candidates.json 每条含 story_score / hotness_score / final_score
+- latest_news.json 含 story_score / final_score
+- selected news 是明显适合视频讲解的 AI 新闻
+- semantic_ir validation PASS
+- dialogue_script turns <= 14
+- dialogue_manifest.total_duration <= 65
+- animation.html 存在
+- 不泄露 API key / voice_id
+
 ## 项目定位
 
 V0.11: News → LLM → semantic_ir → dual-host dialogue → video（含双角色音频）。

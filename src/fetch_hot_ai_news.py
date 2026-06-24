@@ -67,6 +67,158 @@ HN_TOP_STORIES_URL = f"{HN_API_BASE}/topstories.json"
 HN_ITEM_URL = f"{HN_API_BASE}/item"
 
 
+# ---------- story worthiness scoring (CP15.5) ----------
+
+# Major companies with public awareness
+MAJOR_COMPANIES = {
+    "OpenAI", "Anthropic", "DeepMind", "Google", "Meta", "Microsoft",
+    "Nvidia", "Apple", "xAI", "Hugging Face", "Mistral", "Perplexity",
+    "Meta", "IBM", "Intel", "AMD", "Amazon", "ByteDance", "Tencent",
+}
+
+# Product/model keywords
+PRODUCT_MODEL_PATTERNS = [
+    "GPT", "Claude", "Gemini", "Llama", "Mistral", "Qwen", "Sora",
+    "Copilot", "Copilot", "Gemini", "Claude", "ChatGPT",
+    "agent", "benchmark", "model", "LLM", "SLM", "GPT-",
+    "o1", "o2", "o3", "o4", "gpt-5", "gpt-4",
+    "AI assistant", "AI model", "language model",
+]
+
+# Conflict/problem keywords
+CONFLICT_PATTERNS = [
+    "crisis", "controversy", "outage", "error", "safety", "risk",
+    "lawsuit", "ban", "regulation", "cost", "affordability",
+    "hallucination", "jailbreak", "cyber", "fraud", "failure",
+    "shortage", "scarcity", "threat", "danger", "harm", "abuse",
+    "exploit", "vulnerability", "attack", "breach", "leak",
+]
+
+# Impact keywords
+IMPACT_PATTERNS = [
+    "users", "developers", "enterprises", "market", "industry",
+    "regulation", "GPU", "pricing", "open source", "china", "US",
+    "Europe", "global", "worldwide", "economy", "workforce",
+    "jobs", "education", "healthcare", "science", "research",
+]
+
+# Visualization potential keywords
+VISUAL_PATTERNS = [
+    "chart", "benchmark", "report", "ranking", "map",
+    "comparison", "timeline", "architecture", "model",
+    "graph", "diagram", "figure", "dataset", "study", "survey",
+]
+
+
+def _compute_story_score(item: dict) -> dict:
+    """Compute story worthiness score for an HN item (CP15.5).
+
+    Returns a dict with:
+      - story_score: 0-100 score
+      - story_reasons: list of human-readable reason tags
+      - story_flags: dict of boolean flags
+    """
+    title = item.get("title", "")
+    url = item.get("url", "") or ""
+    score = 0
+    reasons = []
+    flags = {
+        "has_major_company": False,
+        "has_clear_conflict": False,
+        "has_product_or_model": False,
+        "has_impact_words": False,
+        "has_visual_potential": False,
+        "too_short_title": False,
+        "too_niche": False,
+        "is_show_hn": title.startswith("Show HN:"),
+    }
+
+    title_lower = title.lower()
+    url_lower = url.lower()
+
+    # 1. Major company bonus (+25)
+    for company in MAJOR_COMPANIES:
+        if company.lower() in title_lower:
+            score += 25
+            reasons.append(f"major_company:{company}")
+            flags["has_major_company"] = True
+            break
+
+    # 2. Product/model release bonus (+20)
+    for pattern in PRODUCT_MODEL_PATTERNS:
+        if pattern.lower() in title_lower or pattern.lower() in url_lower:
+            score += 20
+            reasons.append(f"product_model:{pattern}")
+            flags["has_product_or_model"] = True
+            break
+
+    # 3. Clear conflict/problem bonus (+20)
+    for pattern in CONFLICT_PATTERNS:
+        if pattern.lower() in title_lower:
+            score += 20
+            reasons.append(f"conflict:{pattern}")
+            flags["has_clear_conflict"] = True
+            break
+
+    # 4. Impact breadth bonus (+15)
+    for pattern in IMPACT_PATTERNS:
+        if pattern.lower() in title_lower:
+            score += 15
+            reasons.append(f"impact:{pattern}")
+            flags["has_impact_words"] = True
+            break
+
+    # 5. Visualization potential bonus (+10)
+    for pattern in VISUAL_PATTERNS:
+        if pattern.lower() in title_lower:
+            score += 10
+            reasons.append(f"visual:{pattern}")
+            flags["has_visual_potential"] = True
+            break
+
+    # 6. Title length bonus/penalty
+    title_len = len(title)
+    if 20 <= title_len <= 120:
+        score += 10
+        reasons.append(f"title_len:{title_len}")
+    elif title_len <= 8:
+        score -= 15
+        reasons.append("title_too_short")
+        flags["too_short_title"] = True
+    elif title_len > 200:
+        score -= 5
+        reasons.append("title_too_long")
+
+    # 7. Show HN without major company penalty (-10)
+    if flags["is_show_hn"] and not flags["has_major_company"]:
+        score -= 10
+        reasons.append("show_hn_no_company")
+        flags["too_niche"] = True
+
+    # 8. Pure paper/model name without impact/conflict (-10)
+    if flags["has_product_or_model"] and not (flags["has_clear_conflict"] or flags["has_impact_words"] or flags["has_major_company"]):
+        score -= 10
+        reasons.append("model_no_impact")
+
+    # 9. Weak keywords only penalty (-10)
+    if not (flags["has_major_company"] or flags["has_product_or_model"] or flags["has_clear_conflict"]):
+        matched = item.get("matched_keywords", [])
+        strong = item.get("strong_matched", [])
+        if not strong and len(matched) <= 2:
+            score -= 10
+            reasons.append("weak_keywords_only")
+            flags["too_niche"] = True
+
+    # Cap score to 0-100
+    story_score = max(0, min(100, score))
+
+    return {
+        "story_score": story_score,
+        "story_reasons": reasons,
+        "story_flags": flags,
+    }
+
+
 # ---------- keyword matching (CP15.2.6) ----------
 
 
@@ -332,8 +484,17 @@ def fetch_hot_ai_news(
         score, strong_matched, weak_matched, keyword_bonus = _score_item(item)
         all_matched = strong_matched + weak_matched
 
+        # CP15.5: Story worthiness scoring
+        item_with_keywords = dict(item)
+        item_with_keywords["matched_keywords"] = all_matched
+        item_with_keywords["strong_matched"] = strong_matched
+        story_result = _compute_story_score(item_with_keywords)
+        story_score = story_result["story_score"]
+        # final_score = hotness_score + story_score
+        final_score = score + story_score
+
         # Build rank reason
-        rank_reason = _build_rank_reason(item, strong_matched, weak_matched, keyword_bonus, score)
+        rank_reason = _build_rank_reason(item, strong_matched, weak_matched, keyword_bonus, final_score)
 
         hn_url = item.get("url") or f"https://news.ycombinator.com/item?id={item.get('id')}"
         discussion_url = f"https://news.ycombinator.com/item?id={item.get('id')}"
@@ -348,12 +509,17 @@ def fetch_hot_ai_news(
             "published_at": _hn_timestamp_to_iso(ts) if ts else None,
             "points": item.get("score", 0) or 0,
             "comments": item.get("descendants", 0) or 0,
-            "score": score,
+            "score": final_score,  # CP15.5: score = final_score
+            "hotness_score": score,  # CP15.5: original hotness score
+            "story_score": story_score,  # CP15.5
+            "final_score": final_score,  # CP15.5
             "matched_keywords": all_matched,
             "strong_matched": strong_matched,
             "weak_matched": weak_matched,
             "keyword_bonus": keyword_bonus,
             "rank_reason": rank_reason,
+            "story_reasons": story_result["story_reasons"],  # CP15.5
+            "story_flags": story_result["story_flags"],  # CP15.5
         }
         candidates.append(candidate)
 
@@ -397,23 +563,41 @@ def fetch_hot_ai_news(
             f"HN Discussion: {top['hn_url']}\n"
             f"Points: {top['points']} | Comments: {top['comments']}\n"
             f"Matched Keywords: {', '.join(top['matched_keywords']) if top['matched_keywords'] else 'None'}\n"
-            f"HN Hotness Score: {top['score']:.1f}\n"
+            f"HN Hotness Score: {top['hotness_score']:.1f}\n"
+            f"Story Worthiness Score: {top['story_score']}/100\n"
+            f"Final Score: {top['final_score']:.1f} (hotness + story)\n"
+            f"Story Reasons: {', '.join(top['story_reasons']) if top['story_reasons'] else 'None'}\n"
             f"Rank Reason: {top['rank_reason']}\n\n"
+            f"Story Worthiness:\n"
+            f"  - story_score: {top['story_score']}/100\n"
+            f"  - reasons: {', '.join(top['story_reasons']) if top['story_reasons'] else 'none'}\n"
+            f"  - why suitable for video: {' / '.join(top['story_reasons'][:3]) if top['story_reasons'] else 'low score, may not be ideal for video'}\n\n"
             f"[NOTE] Full article text was not fetched. "
             f"This summary was generated from HN metadata only. "
             f"No paywall was bypassed. No copyright content was stored."
         ),
         "content_source": "hn_hot",
         "fetched_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
-        "score": top["score"],
+        "score": top["final_score"],  # CP15.5: final_score as primary score
+        "hotness_score": top["hotness_score"],  # CP15.5
+        "story_score": top["story_score"],  # CP15.5
+        "final_score": top["final_score"],  # CP15.5
+        "story_reasons": top["story_reasons"],  # CP15.5
+        "story_flags": top["story_flags"],  # CP15.5
         "comments": top["comments"],
         "rank_reason": top["rank_reason"],
     }
+
+    # CP15.5: Low story score warning
+    if top["story_score"] < 30:
+        print(f"[fetch_hot_ai_news] WARNING: top candidate has low story_score={top['story_score']}", file=sys.stderr)
+        print(f"[fetch_hot_ai_news] title={top['title']}", file=sys.stderr)
 
     if dry_run:
         print(f"[fetch_hot_ai_news] Dry run — not saving files.")
         print(f"[fetch_hot_ai_news] Candidates: {len(top_candidates)}")
         print(f"[fetch_hot_ai_news] Top candidate: {top['title']}")
+        print(f"[fetch_hot_ai_news]   hotness={top['hotness_score']:.0f} story={top['story_score']} final={top['final_score']:.0f}")
         return latest_news
 
     # Save outputs
