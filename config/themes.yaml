@@ -335,31 +335,42 @@ themes:
       canvas:
         safe_margin: 36
       title:
-        y: 52
-        font_size: 30
+        y: 55
+        font_size: 34
+        font_size_1_line: 38
+        font_size_2_lines: 34
+        font_size_3_lines: 30
       # CP17: News card specific layout
+      # CP18.1: Enhanced for better readability
       news_card:
         breaking_badge: "NEWS"
         breaking_color: "#ff3535"
         source_y: 18
         title_y: 55
-        title_max_chars: 20
-        title_max_lines: 2
+        title_max_chars: 22
+        title_max_lines: 3
+        title_bg: true
         main_card:
           y: 130
-          h: 140
+          h: 150
           label: "发生了什么"
+          label_font_size: 15
+          content_font_size: 17
         key_cards:
-          y: 290
-          h: 120
-          gap: 12
+          y: 300
+          h: 130
+          gap: 14
           labels: ["为什么重要", "谁受影响", "接下来怎么看"]
+          label_font_size: 14
+          content_font_size: 15
+          max_lines: 3
         progress_bar:
           y: 620
-          h: 4
+          h: 5
         subtitle:
           y: 640
-          h: 60
+          h: 55
+          font_size: 17
       nodes:
         style: news_main_card
         radius: 12

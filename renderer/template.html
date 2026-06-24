@@ -324,23 +324,34 @@
   const IS_NEWS_CARD = VARIANT === "news_card_v1";
 
   // CP17: News card config from theme
+  // CP18.1: Enhanced with dynamic font sizes and better key card settings
   const NEWS_CARD = {
     breaking_color: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.breaking_color) || "#ff3535",
     source_y: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.source_y) || 18,
-    title_y: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.title_y) || 52,
-    title_max_chars: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.title_max_chars) || 20,
-    title_max_lines: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.title_max_lines) || 2,
+    title_y: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.title_y) || 55,
+    title_max_chars: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.title_max_chars) || 22,
+    title_max_lines: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.title_max_lines) || 3,
+    title_font_size_1: (THEME.layout && THEME.layout.title && THEME.layout.title.font_size_1_line) || 38,
+    title_font_size_2: (THEME.layout && THEME.layout.title && THEME.layout.title.font_size_2_lines) || 34,
+    title_font_size_3: (THEME.layout && THEME.layout.title && THEME.layout.title.font_size_3_lines) || 30,
+    title_bg: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.title_bg) || false,
     main_card_y: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.main_card && THEME.layout.news_card.main_card.y) || 130,
-    main_card_h: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.main_card && THEME.layout.news_card.main_card.h) || 140,
+    main_card_h: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.main_card && THEME.layout.news_card.main_card.h) || 150,
     main_card_label: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.main_card && THEME.layout.news_card.main_card.label) || "发生了什么",
-    key_cards_y: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.key_cards && THEME.layout.news_card.key_cards.y) || 280,
-    key_cards_h: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.key_cards && THEME.layout.news_card.key_cards.h) || 120,
-    key_cards_gap: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.key_cards && THEME.layout.news_card.key_cards.gap) || 12,
+    main_card_label_font_size: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.main_card && THEME.layout.news_card.main_card.label_font_size) || 15,
+    main_card_content_font_size: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.main_card && THEME.layout.news_card.main_card.content_font_size) || 17,
+    key_cards_y: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.key_cards && THEME.layout.news_card.key_cards.y) || 300,
+    key_cards_h: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.key_cards && THEME.layout.news_card.key_cards.h) || 130,
+    key_cards_gap: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.key_cards && THEME.layout.news_card.key_cards.gap) || 14,
     key_cards_labels: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.key_cards && THEME.layout.news_card.key_cards.labels) || ["为什么重要", "谁受影响", "接下来怎么看"],
+    key_cards_label_font_size: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.key_cards && THEME.layout.news_card.key_cards.label_font_size) || 14,
+    key_cards_content_font_size: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.key_cards && THEME.layout.news_card.key_cards.content_font_size) || 15,
+    key_cards_max_lines: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.key_cards && THEME.layout.news_card.key_cards.max_lines) || 3,
     progress_bar_y: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.progress_bar && THEME.layout.news_card.progress_bar.y) || 620,
-    progress_bar_h: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.progress_bar && THEME.layout.news_card.progress_bar.h) || 4,
+    progress_bar_h: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.progress_bar && THEME.layout.news_card.progress_bar.h) || 5,
     subtitle_y: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.subtitle && THEME.layout.news_card.subtitle.y) || 640,
-    subtitle_h: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.subtitle && THEME.layout.news_card.subtitle.h) || 50,
+    subtitle_h: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.subtitle && THEME.layout.news_card.subtitle.h) || 55,
+    subtitle_font_size: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.subtitle && THEME.layout.news_card.subtitle.font_size) || 17,
   };
 
   const board = document.getElementById("board");
@@ -420,6 +431,7 @@
     }
 
     // CP17: Apply news_card_v1 specific theme
+    // CP18.1: Enhanced with dynamic font sizes
     if (IS_NEWS_CARD) {
       // Breaking badge color
       var breakingBadge = document.getElementById("breaking-badge");
@@ -431,20 +443,29 @@
       var sourceText = document.getElementById("source-text");
       if (sourceText) sourceText.setAttribute("fill", TEXT.subtitle);
 
-      // Main card styling
+      // Main card styling with font sizes
       var mainCardBg = document.getElementById("main-card-bg");
       if (mainCardBg) {
         mainCardBg.setAttribute("fill", NODE.fill);
         mainCardBg.setAttribute("stroke", NODE.stroke);
       }
       var mainCardLabel = document.getElementById("main-card-label");
-      if (mainCardLabel) mainCardLabel.setAttribute("fill", NODE.stroke);
+      if (mainCardLabel) {
+        mainCardLabel.setAttribute("fill", NODE.stroke);
+        mainCardLabel.setAttribute("font-size", String(NEWS_CARD.main_card_label_font_size));
+      }
       var mainCardTitle = document.getElementById("main-card-title");
-      if (mainCardTitle) mainCardTitle.setAttribute("fill", TEXT.title);
+      if (mainCardTitle) {
+        mainCardTitle.setAttribute("fill", TEXT.title);
+        mainCardTitle.setAttribute("font-size", String(NEWS_CARD.main_card_content_font_size));
+      }
       var mainCardDesc = document.getElementById("main-card-desc");
-      if (mainCardDesc) mainCardDesc.setAttribute("fill", TEXT.body);
+      if (mainCardDesc) {
+        mainCardDesc.setAttribute("fill", TEXT.body);
+        mainCardDesc.setAttribute("font-size", String(NEWS_CARD.main_card_content_font_size - 2));
+      }
 
-      // Key cards styling
+      // Key cards styling with font sizes
       var keyCardColors = [NODE.stroke, DIALOGUE_THEME.expert_accent, "#50ff80"];
       for (var k = 0; k < 3; k++) {
         var keyCardGroup = document.getElementById("key-card-" + k);
@@ -454,16 +475,25 @@
             keyCardRect.setAttribute("fill", NODE.fill);
             keyCardRect.setAttribute("stroke", keyCardColors[k]);
           }
-          var keyCardLabel = keyCardGroup.querySelector("text");
-          if (keyCardLabel) keyCardLabel.setAttribute("fill", keyCardColors[k]);
+          var keyCardLabelEl = keyCardGroup.querySelector("text");
+          if (keyCardLabelEl) {
+            keyCardLabelEl.setAttribute("fill", keyCardColors[k]);
+            keyCardLabelEl.setAttribute("font-size", String(NEWS_CARD.key_cards_label_font_size));
+          }
           var keyCardText = document.getElementById("key-card-" + k + "-text");
-          if (keyCardText) keyCardText.setAttribute("fill", TEXT.body);
+          if (keyCardText) {
+            keyCardText.setAttribute("fill", TEXT.body);
+            keyCardText.setAttribute("font-size", String(NEWS_CARD.key_cards_content_font_size));
+          }
         }
       }
 
       // Progress bar
       var progressFill = document.getElementById("progress-fill");
       if (progressFill) progressFill.setAttribute("fill", NODE.stroke);
+
+      // Subtitle styling
+      if (subtitleText) subtitleText.setAttribute("font-size", String(NEWS_CARD.subtitle_font_size));
 
       // Hide the standard title group (we use news card header instead)
       if (titleGroup) titleGroup.setAttribute("opacity", "0");
@@ -543,6 +573,13 @@
   applyTheme();
 
   // CP17: Build news_card_v1 specific elements
+  // CP18.1: Dynamic title font size based on line count
+  function getTitleFontSize(numLines) {
+    if (numLines <= 1) return NEWS_CARD.title_font_size_1 || 38;
+    if (numLines === 2) return NEWS_CARD.title_font_size_2 || 34;
+    return NEWS_CARD.title_font_size_3 || 30;
+  }
+
   function buildNewsCard() {
     if (!IS_NEWS_CARD) return;
 
@@ -563,23 +600,40 @@
       var mainNode = nodes[0];
       var mainTitle = document.getElementById("main-card-title");
       if (mainTitle) {
-        var titleLines = fitTextLines(mainNode.label || "", 35, 2);
-        mainTitle.textContent = titleLines.join("\n") || mainNode.label || "";
+        // Use label + sub for main card, up to 3 lines
+        var mainLabel = mainNode.label || "";
+        var mainSub = mainNode.sub || "";
+        var combinedText = mainSub ? mainLabel + "：" + mainSub : mainLabel;
+        var titleLines = fitTextLines(combinedText, 32, 3);
+        mainTitle.textContent = titleLines.join("\n") || mainLabel;
+        // Apply dynamic font size
+        var fontSize = getTitleFontSize(titleLines.length);
+        mainTitle.setAttribute("font-size", String(fontSize));
       }
       var mainDesc = document.getElementById("main-card-desc");
       if (mainDesc) {
-        var descLines = fitTextLines(mainNode.sub || "", 45, 1);
-        mainDesc.textContent = descLines[0] || "";
+        // Show source URL or hotness in desc if available
+        var sourceUrl = RENDER_IR.meta && RENDER_IR.meta.source_url ? RENDER_IR.meta.source_url : "";
+        if (sourceUrl) {
+          // Shorten URL for display
+          var shortUrl = sourceUrl.replace(/^https?:\/\//, "").replace(/\/$/, "").slice(0, 50);
+          mainDesc.textContent = shortUrl;
+        } else {
+          mainDesc.textContent = "";
+        }
       }
     }
 
-    // Key cards content (from nodes 1, 2, 3)
+    // Key cards content (from nodes 1, 2, 3) - show label + sub
     for (var k = 0; k < 3; k++) {
       var keyCardText = document.getElementById("key-card-" + k + "-text");
       if (keyCardText && nodes.length > k + 1) {
         var keyNode = nodes[k + 1];
-        var keyLines = fitTextLines(keyNode.label || "", 18, 3);
-        keyCardText.textContent = keyLines.join("\n") || keyNode.label || "";
+        var keyLabel = keyNode.label || "";
+        var keySub = keyNode.sub || "";
+        var keyCombined = keySub ? keyLabel + "\n" + keySub : keyLabel;
+        var keyLines = fitTextLines(keyCombined, 16, NEWS_CARD.key_cards_max_lines || 3);
+        keyCardText.textContent = keyLines.join("\n") || keyLabel;
       }
     }
 
@@ -592,9 +646,9 @@
     var mainCardLabel = document.getElementById("main-card-label");
     if (mainCardLabel) mainCardLabel.setAttribute("y", String(NEWS_CARD.main_card_y + 25));
     var mainCardTitle = document.getElementById("main-card-title");
-    if (mainCardTitle) mainCardTitle.setAttribute("y", String(NEWS_CARD.main_card_y + 50));
+    if (mainCardTitle) mainCardTitle.setAttribute("y", String(NEWS_CARD.main_card_y + 52));
     var mainCardDesc = document.getElementById("main-card-desc");
-    if (mainCardDesc) mainCardDesc.setAttribute("y", String(NEWS_CARD.main_card_y + 75));
+    if (mainCardDesc) mainCardDesc.setAttribute("y", String(NEWS_CARD.main_card_y + 90));
 
     // Update key cards position
     for (var k2 = 0; k2 < 3; k2++) {
@@ -606,13 +660,14 @@
         if (rects[0]) {
           rects[0].setAttribute("x", String(cardX));
           rects[0].setAttribute("y", String(NEWS_CARD.key_cards_y));
+          rects[0].setAttribute("height", String(NEWS_CARD.key_cards_h));
         }
         if (texts[0]) texts[0].setAttribute("x", String(cardX + 20));
         if (texts[0]) texts[0].setAttribute("y", String(NEWS_CARD.key_cards_y + 25));
         var keyCardTextEl = document.getElementById("key-card-" + k2 + "-text");
         if (keyCardTextEl) {
           keyCardTextEl.setAttribute("x", String(cardX + 20));
-          keyCardTextEl.setAttribute("y", String(NEWS_CARD.key_cards_y + 50));
+          keyCardTextEl.setAttribute("y", String(NEWS_CARD.key_cards_y + 52));
         }
       }
     }
@@ -623,6 +678,7 @@
       progressBg.setAttribute("x", "36");
       progressBg.setAttribute("y", String(NEWS_CARD.progress_bar_y));
       progressBg.setAttribute("width", String(RENDER_IR.canvas.width - 72));
+      progressBg.setAttribute("height", String(NEWS_CARD.progress_bar_h));
     }
     var progressFill = document.getElementById("progress-fill");
     if (progressFill) {
@@ -1019,13 +1075,14 @@
     });
 
     // CP17: News card animation
+    // CP18.1: Enhanced with staggered key card reveals and beat highlighting
     if (IS_NEWS_CARD) {
       const newsCardHeader = document.getElementById("news-card-header");
       const mainEventCard = document.getElementById("main-event-card");
       const keyCardsGroup = document.getElementById("key-cards-group");
       const progressBarGroup = document.getElementById("progress-bar-group");
 
-      // Title beat reveals header
+      // Title beat reveals header with fade in
       if (revealedTitle) {
         const headerOpacity = currentBeat && currentBeat.reveal === "title"
           ? Math.min(1, (t - currentBeat.at) / FADE_IN).toFixed(3)
@@ -1045,33 +1102,55 @@
       // Key cards: reveal when 2+ nodes are shown
       const keyCardRevealed = nodes.length > 1 && revealedNodes.has(nodes[1] ? nodes[1].id : "");
       if (keyCardRevealed) {
-        const keyOpacity = currentBeat && currentBeat.reveal === nodes[1].id
-          ? Math.min(1, (t - currentBeat.at) / FADE_IN).toFixed(3)
-          : "1";
-        if (keyCardsGroup) keyCardsGroup.setAttribute("opacity", keyOpacity);
+        if (keyCardsGroup) keyCardsGroup.setAttribute("opacity", "1");
 
-        // Stagger individual key cards
+        // Stagger individual key cards with delay
+        const STAGGER_DELAY = 0.15; // seconds between each card
         for (let k = 0; k < 3; k++) {
           const keyCardGroup = document.getElementById("key-card-" + k);
           if (!keyCardGroup) continue;
-          if (k === 0 && revealedNodes.has(nodes[1] ? nodes[1].id : "")) {
-            keyCardGroup.setAttribute("opacity", "1");
-          } else if (k === 1 && nodes.length > 2 && revealedNodes.has(nodes[2] ? nodes[2].id : "")) {
-            keyCardGroup.setAttribute("opacity", "1");
-          } else if (k === 2 && nodes.length > 3 && revealedNodes.has(nodes[3] ? nodes[3].id : "")) {
-            keyCardGroup.setAttribute("opacity", "1");
+
+          const nodeId = k === 0 ? nodes[1]?.id : k === 1 ? nodes[2]?.id : nodes[3]?.id;
+          const isRevealed = nodeId && revealedNodes.has(nodeId);
+
+          if (isRevealed) {
+            // Find when this node was first revealed
+            let cardRevealTime = 0;
+            for (let i = 0; i < RENDER_IR.timeline.length; i++) {
+              const tt = RENDER_IR.timeline[i];
+              if (tt.at > t) break;
+              if (tt.reveal === nodeId) {
+                cardRevealTime = tt.at;
+                break;
+              }
+            }
+            const cardElapsed = t - cardRevealTime;
+            const cardDelay = k * STAGGER_DELAY;
+            const cardOpacity = cardElapsed >= cardDelay
+              ? Math.min(1, (cardElapsed - cardDelay) / FADE_IN).toFixed(3)
+              : "0";
+            keyCardGroup.setAttribute("opacity", cardOpacity);
+
+            // Highlight current beat card with enhanced stroke
+            const isCurrentBeat = currentBeat && currentBeat.reveal === nodeId;
+            const keyCardRect = keyCardGroup.querySelector("rect");
+            if (keyCardRect) {
+              keyCardRect.setAttribute("stroke-width", isCurrentBeat ? "3" : "1.5");
+            }
+          } else {
+            keyCardGroup.setAttribute("opacity", "0");
           }
         }
       }
 
-      // Progress bar
+      // Progress bar with smooth fill
       if (progressBarGroup) {
         progressBarGroup.setAttribute("opacity", "1");
         const totalDuration = RENDER_IR.total_duration || 1;
         const progress = Math.min(1, t / totalDuration);
         const progressFill = document.getElementById("progress-fill");
         if (progressFill) {
-          progressFill.setAttribute("width", String(progress * (RENDER_IR.canvas.width - 72)));
+          progressFill.setAttribute("width", String(Math.round(progress * (RENDER_IR.canvas.width - 72))));
         }
       }
     }
