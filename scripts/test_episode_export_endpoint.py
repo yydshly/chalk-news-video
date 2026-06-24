@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""CP40.2: Endpoint test for POST /api/episode/export.
+"""CP40.3: Endpoint test for async POST /api/episode/export + status polling.
 
 This is a prototype test — it creates real MP4 artifacts.
-Run manually to validate the endpoint.
+Run manually to validate the async job flow.
 """
 
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -97,8 +98,8 @@ def build_mock_episode_contract() -> dict:
     }
 
 
-def test_episode_export() -> None:
-    print("[test] POST /api/episode/export")
+def test_async_episode_export() -> None:
+    print("[test] POST /api/episode/export (async)")
 
     resp = client.post("/api/episode/export", json={
         "contract": build_mock_episode_contract(),
@@ -112,31 +113,58 @@ def test_episode_export() -> None:
     data = resp.json()
     print(f"[test] response={data}")
 
-    # Assertions
-    assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
-    assert data.get("status") == "completed", f"Expected status=completed, got {data}"
+    # Must return 202 Accepted
+    assert resp.status_code == 202, f"Expected 202, got {resp.status_code}"
 
     export_id = data.get("export_id")
     assert export_id, "export_id missing"
+    assert export_id.startswith("episode_export_"), f"Bad export_id format: {export_id}"
+
+    status_url = data.get("status_url")
+    assert status_url, "status_url missing"
+    assert f"/api/episode/exports/{export_id}" == status_url, \
+        f"status_url mismatch: expected /api/episode/exports/{export_id}, got {status_url}"
 
     mp4_url = data.get("mp4_url")
     assert mp4_url, "mp4_url missing"
-    assert mp4_url.endswith("/output.mp4"), f"mp4_url should end with /output.mp4: {mp4_url}"
 
-    mp4_path_str = data.get("mp4_path")
-    assert mp4_path_str, "mp4_path missing"
-    mp4_path = Path(mp4_path_str)
-    assert mp4_path.exists(), f"MP4 file does not exist: {mp4_path}"
-    assert mp4_path.stat().st_size > 0, "MP4 file is empty"
+    # Poll status until completed or failed
+    print(f"[test] Polling status for {export_id} …")
+    max_polls = 120
+    final_status = None
+    final_data = None
+    for i in range(max_polls):
+        time.sleep(1)
+        r = client.get(f"/api/episode/exports/{export_id}")
+        assert r.status_code == 200, f"Status GET failed: {r.status_code}"
+        status_data = r.json()
+        current_status = status_data.get("status")
+        progress = status_data.get("progress", 0)
+        message = status_data.get("message", "")
+        print(f"  poll {i+1:3d}: status={current_status}, progress={progress}, message={message}")
+        if current_status in ("completed", "failed"):
+            final_status = current_status
+            final_data = status_data
+            break
+    else:
+        raise AssertionError(f"Export did not complete after {max_polls} polls")
 
-    assert data.get("width") == 720, f"Expected width=720, got {data.get('width')}"
-    assert data.get("height") == 1280, f"Expected height=1280, got {data.get('height')}"
-    assert data.get("fps") == 30, f"Expected fps=30, got {data.get('fps')}"
+    assert final_status == "completed", \
+        f"Expected completed, got {final_status}: {final_data}"
 
-    # Test static file serving
-    static_resp = client.get(mp4_url)
-    assert static_resp.status_code == 200, f"Static file serve failed: {static_resp.status_code}"
-    assert static_resp.headers.get("content-type") == "video/mp4", f"Wrong content-type: {static_resp.headers.get('content-type')}"
+    result = final_data.get("result")
+    assert result is not None, "result missing in completed status"
+
+    # Verify result URLs
+    assert result.get("mp4_url"), "mp4_url missing in result"
+    assert result.get("html_url"), "html_url missing in result"
+    assert result.get("meta_url"), "meta_url missing in result"
+    assert result.get("contract_url"), "contract_url missing in result"
+
+    # Verify file serving
+    mp4_resp = client.get(mp4_url)
+    assert mp4_resp.status_code == 200, f"MP4 serve failed: {mp4_resp.status_code}"
+    assert mp4_resp.headers.get("content-type") == "video/mp4"
 
     html_url = data.get("html_url")
     html_resp = client.get(html_url)
@@ -145,11 +173,26 @@ def test_episode_export() -> None:
     meta_url = data.get("meta_url")
     meta_resp = client.get(meta_url)
     assert meta_resp.status_code == 200, f"Meta serve failed: {meta_resp.status_code}"
-    meta_data = meta_resp.json()
-    assert meta_data.get("status") == "completed", "meta status should be completed"
 
-    print("[test] All checks PASSED")
+    contract_url = data.get("contract_url")
+    contract_resp = client.get(contract_url)
+    assert contract_resp.status_code == 200, f"Contract serve failed: {contract_resp.status_code}"
+
+    # Verify status.json is served
+    status_url_full = f"/outputs/episode_exports/{export_id}/status.json"
+    status_file_resp = client.get(status_url_full)
+    assert status_file_resp.status_code == 200, f"status.json serve failed: {status_file_resp.status_code}"
+    assert status_file_resp.headers.get("content-type") == "application/json"
+
+    # Verify export_meta.json matches status result
+    meta_json = meta_resp.json()
+    assert meta_json.get("status") == "completed"
+    assert meta_json.get("width") == 720
+    assert meta_json.get("height") == 1280
+    assert meta_json.get("fps") == 30
+
+    print(f"[test] All checks PASSED — export {export_id} completed successfully")
 
 
 if __name__ == "__main__":
-    test_episode_export()
+    test_async_episode_export()

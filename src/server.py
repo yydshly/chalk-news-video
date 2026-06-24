@@ -1138,15 +1138,14 @@ class EpisodeExportRequest(BaseModel):
 
 @app.post("/api/episode/export")
 def api_episode_export(body: EpisodeExportRequest):
-    """Export an episode_template_v1 contract to MP4.
+    """Start an async episode export job.
 
-    CP40.2: No real LLM, no real TTS, no audio mux.
-    Returns mp4_url, html_url, meta_url, and artifact paths.
+    Returns immediately with 202 Accepted. Poll GET /api/episode/exports/{export_id} for status.
+    No real LLM, no real TTS, no audio mux.
     """
     from src.episode_export import (
-        export_episode_contract_to_mp4,
+        start_episode_export_background,
         ALLOWED_STYLE_IDS,
-        clamp_export_options,
     )
 
     # Validate style_id
@@ -1165,34 +1164,15 @@ def api_episode_export(body: EpisodeExportRequest):
             "message": "contract must be an object",
         }, status_code=400)
 
-    # Clamp dimensions
-    width, height, fps = clamp_export_options(body.width, body.height, body.fps)
-
     try:
-        result = export_episode_contract_to_mp4(
+        result = start_episode_export_background(
             contract=body.contract,
             style_id=body.style_id,
-            width=width,
-            height=height,
-            fps=fps,
-            audio_path=None,
+            width=body.width,
+            height=body.height,
+            fps=body.fps,
         )
-        return JSONResponse({
-            "status": "completed",
-            "export_id": result["export_id"],
-            "style_id": result["style_id"],
-            "width": result["width"],
-            "height": result["height"],
-            "fps": result["fps"],
-            "mp4_path": result["mp4_path"],
-            "mp4_url": result["mp4_url"],
-            "html_url": result["html_url"],
-            "meta_url": result["meta_url"],
-            "contract_url": result["contract_url"],
-            "mp4_size_bytes": result["mp4_size_bytes"],
-            "audio_path": None,
-            "created_at": result["created_at"],
-        })
+        return JSONResponse(result, status_code=202)
     except ValueError as ve:
         return JSONResponse({
             "status": "failed",
@@ -1200,13 +1180,33 @@ def api_episode_export(body: EpisodeExportRequest):
             "message": str(ve),
         }, status_code=400)
     except Exception as exc:
-        # Redact secrets from error messages
         redacted = _redact_secret_text(str(exc))
         return JSONResponse({
             "status": "failed",
             "error_type": "export_failed",
             "message": redacted,
         }, status_code=500)
+
+
+@app.get("/api/episode/exports/{export_id}")
+def api_get_episode_export_status(export_id: str):
+    """Get the status of an episode export job.
+
+    Returns status.json contents: pending / running / completed / failed.
+    """
+    from src.episode_export import (
+        validate_export_id,
+        read_episode_export_status,
+    )
+
+    if not validate_export_id(export_id):
+        raise HTTPException(status_code=404, detail="Export not found")
+
+    status = read_episode_export_status(export_id)
+    if status is None:
+        raise HTTPException(status_code=404, detail="Export not found")
+
+    return JSONResponse(status)
 
 
 @app.get("/outputs/episode_exports/{export_id}/{filename}")
@@ -1248,6 +1248,8 @@ def serve_episode_export_file(export_id: str, filename: str):
     elif filename == "contract.json":
         return FileResponse(str(file_path), media_type="application/json")
     elif filename == "export_meta.json":
+        return FileResponse(str(file_path), media_type="application/json")
+    elif filename == "status.json":
         return FileResponse(str(file_path), media_type="application/json")
 
     raise HTTPException(status_code=404, detail="Unsupported file type")
