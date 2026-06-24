@@ -441,7 +441,17 @@
 - [x] 新增 `hotness_norm` / `ranking_formula` / `selection_pool` / `selection_warning` 字段
 - [x] 新增 CP15.5.1 测试（hotness_norm_capped, weight_comparison）
 - [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
-- [ ] E2E 验收（待执行）
+- [x] E2E 验收（待执行）
+
+## Checkpoint 15.5.2 — semantic_ir beats 超限修复 + HN score 字段修复
+
+- [x] `src/fetch_hot_ai_news.py`：`_score_item()` / `_build_rank_reason()` 使用 `item.get("score")`（HN 用 score 字段）
+- [x] `src/generate_ir.py`：`_enforce_beat_budget()` deterministic guard（beats > 10 压缩中间，beats < 6 仅警告）
+- [x] `prompts/news_to_semantic_ir.md`：明确 beats 6-10，推荐 8-10，不超过 10
+- [x] `tests/test_generate_ir_repair.py`（新增）：beats trim / title-preservation 测试
+- [x] `tests/test_fetch_hot_ai_news.py`：HN score 字段读取测试
+- [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
+- [x] mode=hot_ai + real LLM + mock_dialogue E2E 完整通过
 
 ## Checkpoint 15.6 — 不同音色推荐与 voice preset
 

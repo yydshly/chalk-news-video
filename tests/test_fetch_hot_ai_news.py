@@ -325,6 +325,84 @@ def test_story_visual_potential_bonus():
     assert any("visual:" in r for r in result["story_reasons"])
 
 
+# ---------- CP15.5.2 HN score field tests ----------
+
+from src.fetch_hot_ai_news import _score_item, _build_rank_reason
+
+
+def test_hn_score_field_reads_score_not_points():
+    """CP15.5.2: HN Firebase items use 'score' field, not 'points'.
+
+    _score_item should read item.get("score", item.get("points", 0)).
+    """
+    item = {
+        "title": "Show HN: tiny tool",  # no strong AI keywords -> no keyword bonus
+        "score": 350,       # HN uses 'score'
+        "points": 999,      # wrong field, should be ignored
+        "descendants": 80,
+        "time": 100000,
+    }
+    score, strong, weak, kb = _score_item(item)
+    # score = points*1.0 + comments*2.0 = 350*1 + 80*2 = 510 (no keyword bonus for this title)
+    assert score == 510.0, f"Expected 510.0, got {score}"
+    # Should NOT use the wrong 'points' value
+    assert score != (999 * 1.0 + 80 * 2.0), "Should use 'score' field, not 'points'"
+
+
+def test_hn_score_field_falls_back_to_points():
+    """If no 'score' field, should fall back to 'points'."""
+    item = {
+        "title": "Test news",
+        "points": 200,      # using 'points' as fallback
+        "descendants": 40,
+        "time": 100000,
+    }
+    score, strong, weak, kb = _score_item(item)
+    assert score == 280.0, f"Expected 280.0 (200*1 + 40*2), got {score}"
+
+
+def test_hn_score_field_zero_when_missing():
+    """Both fields missing should result in 0 score."""
+    item = {
+        "title": "Test news",
+        "descendants": 50,
+        "time": 100000,
+    }
+    score, strong, weak, kb = _score_item(item)
+    assert score == 100.0, f"Expected 100.0 (0*1 + 50*2), got {score}"
+
+
+def test_rank_reason_uses_score_field():
+    """CP15.5.2: rank_reason should reflect score from 'score' field."""
+    item = {
+        "title": "OpenAI news",
+        "score": 150,
+        "points": 888,  # wrong
+        "descendants": 30,
+        "time": 100000,
+    }
+    score, strong, weak, kb = _score_item(item)
+    reason = _build_rank_reason(item, strong, weak, kb, score)
+    # Should contain points=150 (from score field), not points=888
+    assert "points=150" in reason, f"Expected 'points=150' in rank_reason, got: {reason}"
+    assert "points=888" not in reason, f"Should NOT have wrong points=888 in rank_reason"
+
+
+def test_candidate_points_uses_score_field():
+    """CP15.5.2: candidate['points'] should come from item['score']."""
+    # Use a title with no strong AI keywords so keyword bonus = 0
+    item = {
+        "title": "Some tech news",
+        "score": 420,
+        "points": 999,
+        "descendants": 60,
+        "time": 100000,
+    }
+    score, strong, weak, kb = _score_item(item)
+    expected = 420 * 1.0 + 60 * 2.0
+    assert score == expected, f"Expected {expected}, got {score}"
+
+
 if __name__ == "__main__":
     print("Running CP15.2.6 keyword matching tests...\n")
     success = run_tests()

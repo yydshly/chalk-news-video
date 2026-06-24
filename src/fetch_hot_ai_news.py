@@ -329,7 +329,8 @@ def _score_item(item: dict) -> tuple[float, list[str], list[str], int]:
     Returns (score, strong_matched, weak_matched, keyword_bonus).
     score = points * 1.0 + comments * 2.0 + recency_bonus + keyword_bonus
     """
-    points = item.get("points", 0) or 0
+    # CP15.5.2: HN Firebase items use "score" field, not "points"
+    points = item.get("score", item.get("points", 0)) or 0
     comments = item.get("descendants", 0) or 0
     score = points * 1.0 + comments * 2.0
 
@@ -357,7 +358,8 @@ def _build_rank_reason(
 ) -> str:
     """Build human-readable rank reason."""
     parts = []
-    pts = item.get("points", 0) or 0
+    # CP15.5.2: HN Firebase items use "score" field, not "points"
+    pts = item.get("score", item.get("points", 0)) or 0
     cmts = item.get("descendants", 0) or 0
     parts.append(f"points={pts}")
     parts.append(f"comments={cmts}")

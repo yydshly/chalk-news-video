@@ -183,14 +183,17 @@ def _apply_deterministic_repairs(semantic_ir: dict, issues: list) -> tuple[dict,
     existing_beat_ids = {b["id"] for b in semantic_ir.get("beats", [])}
 
     def make_unique_beat_id(base: str) -> str:
-        """Generate a unique beat id like b_auto_edge_e1_2."""
-        if base not in existing_beat_ids:
-            existing_beat_ids.add(base)
-            return base
-        idx = 2
-        while f"{base}_{idx}" in existing_beat_ids:
-            idx += 1
-        result = f"{base}_{idx}"
+        """Generate a unique beat id matching ^b\\d+$ (e.g. b11, b12)."""
+        # Extract existing numeric suffixes
+        numeric_ids = []
+        for bid in existing_beat_ids:
+            m = re.match(r'^b(\d+)$', bid)
+            if m:
+                numeric_ids.append(int(m.group(1)))
+        next_num = max(numeric_ids) + 1 if numeric_ids else 11
+        while f"b{next_num}" in existing_beat_ids:
+            next_num += 1
+        result = f"b{next_num}"
         existing_beat_ids.add(result)
         return result
 
@@ -273,7 +276,143 @@ def _apply_deterministic_repairs(semantic_ir: dict, issues: list) -> tuple[dict,
         revealed.add(cid)
         applied.append(f"added beat {beat_id} revealing callout {cid}")
 
+    # CP15.5.2: Handle SCHEMA_VIOLATION — strip forbidden 'on' field from beats
+    # The 'on' field is valid on callouts, not beats. LLM sometimes incorrectly adds it to beats.
+    for beat in semantic_ir.get("beats", []):
+        if "on" in beat:
+            applied.append(f"stripped 'on' field from beat {beat.get('id', '?')}")
+            del beat["on"]
+
+    # CP15.5.2: Handle BROKEN_CAUSAL_CHAIN — remove orphan nodes not in the chain
+    # Build adjacency for causal_chain: each node has at most one outgoing edge
+    edges = semantic_ir.get("edges", [])
+    adj = {}
+    for e in edges:
+        frm, to = e.get("from"), e.get("to")
+        if frm and to:
+            adj[frm] = to
+
+    # Find all reachable nodes from chain starts
+    if adj:
+        has_incoming = set(adj.values())
+        starts = [n for n in node_ids if n not in has_incoming]
+        reachable = set()
+        for start in starts:
+            cur = start
+            seen_path = []
+            seen_set = {start}
+            while cur in adj:
+                seen_path.append(cur)
+                reachable.add(cur)
+                cur = adj[cur]
+                if cur in seen_set:
+                    break
+                seen_set.add(cur)
+            reachable.add(cur)  # last node
+
+        # Nodes not reachable from any chain start are orphans
+        orphan_nodes = node_ids - reachable
+        if orphan_nodes:
+            orphan_list = sorted(orphan_nodes)
+            applied.append(f"removing orphan nodes (not in causal chain): {orphan_list}")
+            # Remove orphan nodes
+            semantic_ir["nodes"] = [n for n in semantic_ir.get("nodes", []) if n["id"] not in orphan_nodes]
+            # Remove edges referencing orphan nodes
+            semantic_ir["edges"] = [
+                e for e in semantic_ir.get("edges", [])
+                if e.get("from") not in orphan_nodes and e.get("to") not in orphan_nodes
+            ]
+            # Remove callouts referencing orphan nodes
+            semantic_ir["callouts"] = [
+                c for c in semantic_ir.get("callouts", []) if c.get("on") not in orphan_nodes
+            ]
+            # Remove beats revealing orphan nodes (keep title beat)
+            semantic_ir["beats"] = [
+                b for b in semantic_ir.get("beats", [])
+                if b.get("reveal") in ("title",) or b.get("reveal", "") not in orphan_nodes
+            ]
+
     return semantic_ir, applied
+
+
+def _enforce_beat_budget(
+    semantic_ir: dict,
+    max_beats: int = 10,
+    min_beats: int = 6,
+) -> tuple[dict, list[dict]]:
+    """Enforce that beats count is within [min_beats, max_beats] deterministically.
+
+    CP15.5.2: LLM sometimes generates beats > 10 (e.g. 11). This guard trims
+    to max_beats while preserving reveal order and not generating new content.
+
+    Rules:
+    1. If len(beats) <= max_beats: no change.
+    2. If len(beats) > max_beats:
+       - Keep first beat (title reveal).
+       - Keep last beat.
+       - Sample/compress middle beats to reach max_beats total.
+       - Preserve reveal order; do NOT shuffle.
+       - Do NOT generate new reveals that don't exist.
+       - Do NOT remove the title reveal.
+    3. If len(beats) < min_beats:
+       - Do NOT fabricate facts.
+       - Can supplement from existing title/node/callout reveals.
+       - If uncertain, output repair warning only.
+    4. Write repair record to debug_deterministic_repairs.json.
+
+    Returns (modified_semantic_ir, repair_records).
+    """
+    beats = semantic_ir.get("beats", [])
+    original_count = len(beats)
+    records = []
+
+    # Case 1: within budget — nothing to do
+    if min_beats <= original_count <= max_beats:
+        return semantic_ir, records
+
+    # Case 2: over budget — trim middle beats
+    if original_count > max_beats:
+        records.append({
+            "type": "BEAT_BUDGET_TRIM",
+            "before_beats": original_count,
+            "after_beats": max_beats,
+            "reason": f"LLM generated {original_count} beats, exceeds schema limit {max_beats}. "
+                      f"Preserving first (title) and last beats, compressing middle.",
+        })
+
+        # Strategy: keep first (title), keep last, compress middle
+        # middle_slots = max_beats - 2
+        # middle_original = original_count - 2
+        # Take every (middle_original / middle_slots)-th beat from the middle
+        kept_beats = []
+        kept_beats.append(beats[0])  # always keep first (title)
+
+        middle_count = original_count - 2
+        target_middle = max_beats - 2
+
+        if middle_count > 0 and target_middle > 0:
+            # Sample middle beats at regular intervals
+            step = middle_count / target_middle
+            for i in range(target_middle):
+                idx = int(round(1 + i * step))
+                if idx < original_count - 1:  # don't include last (reserved)
+                    kept_beats.append(beats[idx])
+
+        kept_beats.append(beats[-1])  # always keep last
+
+        semantic_ir["beats"] = kept_beats
+        return semantic_ir, records
+
+    # Case 3: under budget — do NOT fabricate, just warn
+    # CP15.5.2: We do NOT add beats because that would require generating new content
+    records.append({
+        "type": "BEAT_BUDGET_UNDER",
+        "before_beats": original_count,
+        "after_beats": original_count,
+        "reason": f"Only {original_count} beats, below minimum {min_beats}. "
+                  f"Not fabricating new beats to avoid hallucination.",
+    })
+    return semantic_ir, records
 
 
 # ---------- CLI ----------
@@ -404,6 +543,23 @@ def main(argv=None):
     except ValueError as e:
         print(f"Error: minimum checks failed: {e}", file=sys.stderr)
         return 5
+
+    # CP15.5.2: Enforce beat budget before validation
+    # This deterministic guard runs regardless of --repair flag
+    semantic_ir, beat_budget_repairs = _enforce_beat_budget(semantic_ir)
+    if beat_budget_repairs:
+        # Merge with any existing deterministic repairs log
+        existing_repairs = []
+        if debug_deterministic_path.exists():
+            try:
+                existing_repairs = load_json(debug_deterministic_path).get("repairs", [])
+            except Exception:
+                pass
+        all_repairs = existing_repairs + beat_budget_repairs
+        save_json({"repairs": all_repairs}, debug_deterministic_path)
+        for r in beat_budget_repairs:
+            print(f"[generate_ir] beat_budget: {r['type']} — before={r['before_beats']} after={r['after_beats']} "
+                  f"({'; '.join(beat_budget_repairs[0].get('reason', '').split('.')[:2])}.)", file=sys.stderr)
 
     # --- full validation ---
     issues = validate_ir.validate_semantic_ir(semantic_ir, DEFAULT_SCHEMA_PATH)

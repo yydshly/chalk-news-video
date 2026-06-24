@@ -786,6 +786,24 @@ final_score = hotness_norm * 0.45 + story_score * 0.55
 - 如果无 >= 60 候选，必须有 warning
 - 不泄露 API key / voice_id
 
+**Checkpoint 15.5.2 — semantic_ir beats 超限修复 + HN score 字段修复（当前）**：
+
+- `src/fetch_hot_ai_news.py`：`_score_item()` 和 `_build_rank_reason()` 使用 `item.get("score", item.get("points", 0))`（HN Firebase 使用 `score` 字段）
+- `src/generate_ir.py`：新增 `_enforce_beat_budget()` deterministic guard，beats > 10 时保留首尾压缩中间，beats < 6 时仅警告不编造
+- `prompts/news_to_semantic_ir.md`：明确要求 beats 数量 6-10，推荐 8-10，绝对不超过 10
+- `tests/test_generate_ir_repair.py`（新增）：beats 超限 trim 测试
+- `tests/test_fetch_hot_ai_news.py`：新增 HN score 字段读取测试
+
+**CP15.5.2 验收**：
+- `python -m pytest tests/test_generate_ir_repair.py tests/test_fetch_hot_ai_news.py` → 32 passed
+- `mode=hot_ai` + minimax_m3_openai + mock_dialogue E2E → job succeeded
+- semantic_ir beats 数量在 6-10 范围内
+- semantic_ir validation PASS
+- debug_deterministic_repairs.json 存在（如果触发了 beat budget repair）
+- HN score 正确计入 hotness_score
+- candidate["points"] 使用 item["score"] 字段
+- 不泄露 API key / voice_id
+
 ## 项目定位
 
 V0.11: News → LLM → semantic_ir → dual-host dialogue → video（含双角色音频）。

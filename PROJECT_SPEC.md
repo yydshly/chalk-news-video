@@ -172,7 +172,7 @@ class ValidationIssue:
 | nodes | 数量 2~5；id 唯一；推荐 `^n\d+$` |
 | edges | id 唯一；推荐 `^e\d+$`；from/to 必须引用存在的 node id；from ≠ to；数量 ≥ nodes-1；causal_chain 要求存在一条线性路径覆盖所有 node，断链时报 `BROKEN_CAUSAL_CHAIN` |
 | callouts | id 唯一；推荐 `^c\d+$`；on 必须引用存在的 node id；数量 0~3 |
-| beats | 数量 6~10；id 唯一；推荐 `^b\d+$`；第一个 beat.reveal = "title"；reveal 必须是已知 id 或 "title"；narration 非空且 ≤ 120 字符；每个 node/edge/callout 至少被 reveal 一次 |
+| beats | 数量 6~10；id 唯一；推荐 `^b\d+$`；第一个 beat.reveal = "title"；reveal 必须是已知 id 或 "title"；narration 非空且 ≤ 120 字符；每个 node/edge/callout 至少被 reveal 一次；**CP15.5.2：`_enforce_beat_budget()` deterministic guard 在 validation 前执行，beats > 10 时自动压缩中间 beats |
 | meta | lang = "zh"；source_title / source_url / source_name 必须存在 |
 
 ### Repair Loop
@@ -1325,7 +1325,9 @@ WEAK_KEYWORDS（低精度）：需至少 2 个才能入选
 1. 从 `https://hacker-news.firebaseio.com/v0/topstories.json` 获取 HN top 500 story IDs
 2. 批量获取 story items（最多 100 条）
 3. 边界感知关键词过滤：`_should_include()` 检查 STRONG/WEAK 分层
-4. 热度评分：`score = points * 1.0 + comments * 2.0 + recency_bonus + keyword_bonus`
+4. 热度评分：`score = item_score * 1.0 + comments * 2.0 + recency_bonus + keyword_bonus`
+   - **CP15.5.2：HN Firebase item 的分数字段是 `score`，不是 `points`**
+   - `item_score = item.get("score", item.get("points", 0))` — 优先读 `score`，无则 fall back 到 `points`
    - recency_bonus：24h 内 +30，48h 内 +15，72h 内 +5
 5. 按评分降序，取 top 20 作为候选，top 1 作为选中新闻
 
@@ -1334,7 +1336,8 @@ WEAK_KEYWORDS（低精度）：需至少 2 个才能入选
 - `latest_news.json`：top 1 选中新闻（兼容 pipeline 格式）
 
 **内容限制**：
-- content 仅包含 HN metadata（title/url/points/comments/matched keywords/rank reason）
+- content 仅包含 HN metadata（title/url/score/comments/matched keywords/rank reason）
+- **CP15.5.2：`candidate["points"]` 的值来自 HN item 的 `score` 字段**
 - 不抓取目标 URL 全文
 - 不绕过 paywall
 - 不保存版权内容全文

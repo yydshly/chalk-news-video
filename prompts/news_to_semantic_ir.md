@@ -92,7 +92,9 @@ fetched_at         拉取时间（ISO 8601）
 - `tone ∈ {"info", "alert", "positive"}`。
 
 ## beats（**唯一**时间源）
-- 数量 **6 到 10 个**。
+- 数量 **必须 6 到 10 个**，推荐 **8 到 10 个**。
+- **绝对不要超过 10 个**。如果信息较多，**合并 beats**，不要新增第 11 个。
+- 每个 beat 只揭示一个 title / node / edge / callout。
 - 每个 `id` 唯一，形如 `b1`, `b2`, ...。
 - 第一个 beat 的 `reveal` **必须**是字符串 `"title"`。
 - 后续 beats 的 `reveal` 必须是下面之一：
