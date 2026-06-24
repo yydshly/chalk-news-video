@@ -607,7 +607,28 @@ def main(argv=None):
         default=None,
         help="Output path for manifest.json",
     )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help="Output directory for audio and manifest (default: outputs/latest). (CP14)",
+    )
     args = parser.parse_args(argv)
+
+    # Apply output-dir override
+    if getattr(args, "output_dir", None):
+        output_dir = Path(args.output_dir).resolve()
+        # Override module-level OUTPUT_DIR and AUDIO_DIR for this invocation
+        import sys
+        this_module = sys.modules[__name__]
+        setattr(this_module, "OUTPUT_DIR", output_dir)
+        setattr(this_module, "AUDIO_DIR", output_dir / "audio")
+        # Set default --output if not explicitly provided
+        if args.output is None:
+            if getattr(args, "dialogue", False) or getattr(args, "dialogue_legacy", False):
+                args.output = str(output_dir / "dialogue_manifest.json")
+            else:
+                args.output = str(output_dir / "narration_manifest.json")
 
     try:
         if args.dialogue:

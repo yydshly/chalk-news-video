@@ -201,6 +201,7 @@ def run_auto_pipeline(args):
                 sys.executable, "-m", "src.narration",
                 "--dialogue-script", str(dialogue_script_path),
                 "--dialogue",
+                "--output-dir", str(output_dir),
             ]
             if args.dialogue_profile:
                 narration_cmd += ["--dialogue-profile", args.dialogue_profile]
@@ -222,6 +223,7 @@ def run_auto_pipeline(args):
                 "--dialogue-legacy",
                 "--host-profile", args.host_profile,
                 "--expert-profile", args.expert_profile,
+                "--output-dir", str(output_dir),
             ]
             manifest_path = output_dir / "dialogue_manifest.json"
         else:
@@ -231,6 +233,7 @@ def run_auto_pipeline(args):
                 sys.executable, "-m", "src.narration",
                 "--semantic-ir", str(semantic_ir_path),
                 "--profile", args.tts_profile,
+                "--output-dir", str(output_dir),
             ]
             manifest_path = output_dir / "narration_manifest.json"
 
