@@ -251,6 +251,8 @@
       tts_provider: selectTtsProvider.value,
       repair: checkRepair.checked,
       repair_attempts: 2,
+      target_duration_sec: 45,
+      max_turns: 10,
     };
 
     if (mode === "text") {
@@ -481,7 +483,9 @@
 
     } else if (action === "video") {
       if (job.output_mp4) {
+        setPreviewMode("video");
         previewVideo.src = job.output_mp4 + "?t=" + Date.now();
+        previewVideo.play().catch(function () {});
         previewHtml.src = job.animation_html ? job.animation_html + "?t=" + Date.now() : "about:blank";
         downloadLinks.innerHTML = "";
         if (job.animation_html) {
@@ -521,13 +525,16 @@
     autoPreviewBanner.style.display = "none";
     const ts = "?t=" + Date.now();
 
-    if (job.animation_html) {
-      previewHtml.src = job.animation_html + ts;
-    }
-
+    // CP18.3.1: Set preview mode first — video takes priority over animation
     if (job.output_mp4) {
+      setPreviewMode("video");
       previewVideo.src = job.output_mp4 + ts;
+      previewVideo.play().catch(function () {});
     } else {
+      setPreviewMode("html");
+      if (job.animation_html) {
+        previewHtml.src = job.animation_html + ts;
+      }
       previewVideo.src = "about:blank";
     }
 
@@ -590,6 +597,17 @@
     });
   }
 
+  // CP18.3.1: Preview mode toggle (animation.html vs MP4 video)
+  function setPreviewMode(mode) {
+    if (mode === "video") {
+      document.body.classList.add("preview-mode-video");
+      document.body.classList.remove("preview-mode-html");
+    } else {
+      document.body.classList.add("preview-mode-html");
+      document.body.classList.remove("preview-mode-video");
+    }
+  }
+
   // ---------- helpers ----------
   function switchToPreviewTab() {
     tabBtns.forEach(function (b) { b.classList.remove("active"); });
@@ -614,6 +632,8 @@
     setExportHint(null);
     audioPlayerWrap.style.display = "none";
     autoPreviewBanner.style.display = "none";
+    // CP18.3.1: Reset to HTML preview mode as default
+    setPreviewMode("html");
   }
 
   function clearJobLog() {
@@ -656,20 +676,22 @@
       autoPreviewBanner.textContent = "最近成功作品";
     }
 
-    if (result.animation_html) {
-      previewHtml.src = result.animation_html + ts;
-    }
-
+    // CP18.3.1: Set preview mode before loading content
     if (result.exported === true && result.output_mp4) {
+      setPreviewMode("video");
       previewVideo.src = result.output_mp4 + ts;
+      // Auto-play MP4 when loaded
+      previewVideo.play().catch(function () {});
       downloadLinks.innerHTML = "";
       addDownloadLink(result.animation_html, "📄 animation.html");
       addDownloadLink(result.output_mp4, "🎬 output.mp4");
       setExportHint(true);
     } else {
+      setPreviewMode("html");
       previewVideo.src = "about:blank";
       downloadLinks.innerHTML = "";
       if (result.animation_html) {
+        previewHtml.src = result.animation_html + ts;
         addDownloadLink(result.animation_html, "📄 animation.html");
       }
       setExportHint(false);

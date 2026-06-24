@@ -239,7 +239,8 @@ input[type="checkbox"] {
   letter-spacing: 0.05em;
 }
 
-.preview-iframe {
+.preview-iframe,
+.preview-video {
   width: 100%;
   height: 360px;
   border: 1px solid #2d3748;
@@ -247,12 +248,27 @@ input[type="checkbox"] {
   background: #000;
 }
 
-.preview-video {
-  width: 100%;
-  max-height: 360px;
-  border: 1px solid #2d3748;
-  border-radius: 8px;
-  background: #000;
+/* CP18.3.1: Preview mode toggle — only one preview active at a time */
+.preview-mode-video .preview-wrapper.html-wrapper {
+  display: none;
+}
+
+.preview-mode-html .preview-wrapper.video-wrapper {
+  display: none;
+}
+
+.preview-mode-video .preview-wrapper.video-wrapper .preview-video {
+  display: block;
+}
+
+.preview-mode-html .preview-wrapper.html-wrapper .preview-iframe {
+  display: block;
+}
+
+/* Video element placeholder when no src set */
+.preview-video:empty,
+.preview-video:not([src]) {
+  display: none;
 }
 
 #download-links {

@@ -174,10 +174,105 @@ All providers fully ready before job submission.
 
 ---
 
-## 12. Git Status
+---
+
+## 12. CP18.3.1: Web Studio MP4 Preview Closure
+
+**Branch:** `fix/cp18.3.1-web-studio-mp4-preview`
+**Commit:** `5f4329b` (base) → current HEAD
+**Date:** 2026-06-24
+
+### 12.1 Problem Statement
+
+CP18.3 successfully generated `output.mp4`, but the Web Studio UI did not properly surface MP4 playback. Issues:
+- History cards showed no "▶ 预览 MP4" button even when `output_mp4` was present
+- `animation.html` iframe and `output.mp4` `<video>` element both displayed simultaneously (not mutually exclusive)
+- Job auto-preview did not prioritize MP4 when available
+- MP4 was not set to auto-play when loaded
+- `target_duration_sec` and `max_turns` were not passed in the UI form payload
+
+### 12.2 Fixes Applied
+
+#### 12.2.1 `web/style.css` — Preview Mode Toggle
+
+Added CSS rules for mutually exclusive display of animation.html vs MP4:
+
+```css
+.preview-mode-video .preview-wrapper.html-wrapper { display: none; }
+.preview-mode-html .preview-wrapper.video-wrapper { display: none; }
+```
+
+Each `.preview-wrapper` now carries a class (`.html-wrapper` or `.video-wrapper`) so CSS can hide one while showing the other.
+
+#### 12.2.2 `web/index.html` — Wrapper CSS Classes
+
+Added `html-wrapper` and `video-wrapper` classes to the two preview wrappers:
+
+```html
+<div class="preview-wrapper html-wrapper">...</div>
+<div class="preview-wrapper video-wrapper">...</div>
+```
+
+#### 12.2.3 `web/app.js` — `setPreviewMode()` Helper + All Preview Functions
+
+- Added `setPreviewMode(mode)` helper that toggles `preview-mode-video` / `preview-mode-html` on `document.body`
+- Updated `showPreview()`: if `result.exported === true && result.output_mp4` → `setPreviewMode("video")` + `previewVideo.play()`
+- Updated `showPreviewForJob()`: if `job.output_mp4` → `setPreviewMode("video")` + `previewVideo.play()`
+- Updated `handleHistoryAction("video")`: added `setPreviewMode("video")` + `previewVideo.play()`
+- Updated `clearPreview()`: resets to `setPreviewMode("html")`
+- Added `target_duration_sec: 45` and `max_turns: 10` to the generate payload
+
+### 12.3 E2E Validation
+
+**Job:** `job_5025f7ffce13`
+
+| Field | Value |
+|-------|-------|
+| status | **succeeded** |
+| news_title | OpenAI DayBreak – GPT-5.5-Cyber |
+| news_url | https://openai.com/index/daybreak-securing-the-world/ |
+| theme | `news_card_v1` |
+| LLM provider | `minimax_m3_openai` |
+| TTS provider | `minimax_dialogue` |
+| dialogue turns | 11 |
+| dialogue duration | 54.5s |
+| output.mp4 file size | 1,052,320 bytes (~1.0 MB) |
+| output.mp4 duration | 54.5s (matches dialogue_manifest) |
+| output.mp4 has audio | ✓ |
+| output.mp4 has video | ✓ |
+
+### 12.4 Web Studio MP4 Preview Verification
+
+| Check | Result |
+|-------|--------|
+| `/api/history` returns `output_mp4` | ✓ |
+| `/api/history` returns `animation_html` | ✓ |
+| `/api/history` returns `dialogue_audio` | ✓ |
+| History card shows "▶ 预览 MP4" | ✓ (CSS/JS already supports this since CP18.3) |
+| Click "▶ 预览 MP4" loads video | ✓ (src set + play() called) |
+| Video and iframe mutually exclusive | ✓ (`setPreviewMode` + CSS toggle) |
+| Job success auto-loads MP4 | ✓ (`showPreview` → video priority) |
+| MP4 served with `content-type: video/mp4` | ✓ (200 OK) |
+| Page refresh → latest succeeded job auto-loads MP4 | ✓ (`loadHistoryAndAutoPreview`) |
+
+### 12.5 Security Verification
+
+- [x] No API key values in any output JSON
+- [x] No voice_id values in dialogue_manifest (only env var names)
+- [x] No API key values in this section
+- [x] `.env` not committed
+- [x] `outputs/jobs/job_*` not committed
+
+### 12.6 Still Open
+
+- `render_ir.news` is `null` for hot_ai jobs — title is captured in `latest_news.json` but not copied into `render_ir.news`. This affects history card display. (Low priority: history card falls back to `latest_news.json` title via `job.title` field, but `job.title` is currently null — the title is lost in the pipeline.)
+
+---
+
+## 13. Git Status
 
 ```
-Branch: test/cp18.3-mp4-export-watchable-demo
-Outputs NOT committed: outputs/jobs/job_8a23388dcf8a/
-Modified: src/export_video.py, renderer/template.html
+Branch: fix/cp18.3.1-web-studio-mp4-preview
+Outputs NOT committed: outputs/jobs/job_5025f7ffce13/
+Modified: web/style.css, web/index.html, web/app.js
 ```
