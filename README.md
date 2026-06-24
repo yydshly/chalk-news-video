@@ -319,7 +319,7 @@ python -m src.server --host 127.0.0.1 --port 8777
 - 不做云部署
 - 不做 Remotion（CP17）
 
-**Checkpoint 14 — Job History / Output Isolation（当前）**：
+**Checkpoint 14 — Job History / Output Isolation**：
 
 每个任务拥有独立输出目录，不再相互覆盖。
 
@@ -377,9 +377,23 @@ outputs/jobs/job_xxx/
   "job_id": "job_xxx",
   "status": "succeeded",
   "theme": "podcast",
+  "mode": "sample",
   "dialogue": true,
+  "mock": true,
   "exported": true,
-  "error": null
+  "title": "...",
+  "summary": "...",
+  "duration": 31.167,
+  "error": null,
+  "artifacts": {
+    "animation_html": "/outputs/jobs/{job_id}/animation.html",
+    "output_mp4": "/outputs/jobs/{job_id}/output.mp4",
+    "render_ir": "/api/jobs/{job_id}/artifacts/render_ir",
+    "semantic_ir": "/api/jobs/{job_id}/artifacts/semantic_ir",
+    "dialogue_script": "/api/jobs/{job_id}/artifacts/dialogue_script",
+    "dialogue_manifest": "/api/jobs/{job_id}/artifacts/dialogue_manifest",
+    "meta": "/api/jobs/{job_id}/artifacts/meta"
+  }
 }
 ```
 
@@ -395,12 +409,29 @@ python -m src.pipeline --auto --mock --output-dir outputs/jobs/job_xxx
 - 前端新增「历史作品」tab
 - 展示所有任务的 job_id / theme / status / exported
 - 支持预览 animation / MP4 / artifacts
-- 服务重启后内存中的历史记录会丢失（内存 store）
+- 服务重启后内存中的历史记录从 meta.json 恢复
 
 **CP14 限制（明确不做）**：
 - 不做数据库持久化（CP14+）
 - 不做 job 删除接口
 - 不做多用户隔离
+
+**Checkpoint 14.1 — Job History 加固（当前）**：
+
+- `.gitignore` 简化：`outputs/jobs/*` 整体忽略，只追踪 `.gitkeep`
+- `outputs/jobs/.gitkeep` 被 Git 追踪，job_* 生成物不追踪
+- `meta` 加入 `ALLOWED_ARTIFACTS`，`/api/jobs/{job_id}/artifacts/meta` 可用
+- `/api/history` 支持磁盘扫描，服务重启后可从 meta.json 恢复历史
+- `/api/jobs/{job_id}/artifacts/{name}` 和 `/outputs/jobs/{job_id}/{filename}` 重启后仍可访问
+- 新增 `_resolve_job_output_dir` 安全 helper：job_id 格式校验 + 路径穿越防护
+- meta.json 增强：包含 artifacts 映射、duration、title、summary
+
+**CP14.1 验收**：
+- `git status` 干净（outputs/jobs/ 下无 untracked）
+- `git ls-files outputs/jobs/` 只显示 `.gitkeep`
+- 服务重启后 `/api/history` 包含重启前的 job
+- `/api/jobs/{job_id}/artifacts/meta` 返回完整 meta.json
+- invalid theme job 的 meta.json 正确记录 failed 状态
 
 ## 项目定位
 

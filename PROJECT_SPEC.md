@@ -977,7 +977,7 @@ FastAPI 后端，监听 `127.0.0.1:8777`。
 
 | 文件 | 说明 |
 |------|------|
-| `meta.json` | job 元数据（status/theme/error） |
+| `meta.json` | job 元数据（status/theme/error/artifacts 映射） |
 | `input_news.json` | 新闻输入 |
 | `semantic_ir.json` | LLM 生成的语义 IR |
 | `dialogue_script.json` | 对话脚本 |
@@ -986,62 +986,79 @@ FastAPI 后端，监听 `127.0.0.1:8777`。
 | `animation.html` | 动画预览 |
 | `output.mp4` | 导出视频（no_export=false 时） |
 
-### meta.json 契约
+### meta.json 契约（CP14.1 增强）
 
 ```json
 {
   "job_id": "job_abc123",
   "status": "succeeded",
+  "mode": "sample",
   "theme": "podcast",
   "dialogue": true,
+  "mock": true,
   "exported": true,
-  "error": null
+  "title": "...",
+  "summary": "...",
+  "duration": 31.167,
+  "error": null,
+  "artifacts": {
+    "animation_html": "/outputs/jobs/{job_id}/animation.html",
+    "output_mp4": "/outputs/jobs/{job_id}/output.mp4",
+    "render_ir": "/api/jobs/{job_id}/artifacts/render_ir",
+    "semantic_ir": "/api/jobs/{job_id}/artifacts/semantic_ir",
+    "dialogue_script": "/api/jobs/{job_id}/artifacts/dialogue_script",
+    "dialogue_manifest": "/api/jobs/{job_id}/artifacts/dialogue_manifest",
+    "meta": "/api/jobs/{job_id}/artifacts/meta"
+  }
 }
 ```
+
+**duration** 从 render_ir.total_duration 读取。**title/summary** 从 semantic_ir.news 读取。失败任务没有 render_ir 时允许为空。
 
 ### 新增 API
 
 | 方法 | 路由 | 说明 |
 |---|---|---|
-| GET | `/api/history` | 返回所有 job（按 created_at 倒序） |
-| GET | `/api/jobs/{job_id}/artifacts/{name}` | 读取 job 输出目录下的 JSON artifact |
+| GET | `/api/history` | 返回所有 job（按 updated_at 倒序，内存+磁盘合并） |
+| GET | `/api/jobs/{job_id}/artifacts/{name}` | 读取 job 输出目录下的 JSON artifact（含 meta） |
 | GET | `/outputs/jobs/{job_id}/{filename}` | 预览 animation.html / output.mp4 |
 
-### history API 契约
+### _resolve_job_output_dir 安全规则
 
-```json
-{
-  "ok": true,
-  "items": [
-    {
-      "job_id": "...",
-      "status": "succeeded|failed|queued|running",
-      "stage": "...",
-      "theme": "...",
-      "dialogue": true,
-      "exported": true,
-      "created_at": "ISO8601",
-      "animation_html": "/outputs/jobs/{job_id}/animation.html",
-      "output_mp4": "/outputs/jobs/{job_id}/output.mp4"
-    }
-  ]
+```python
+def _resolve_job_output_dir(job_id: str) -> Path:
+    # 1. job_id 必须匹配 ^job_[a-f0-9]+$
+    # 2. 优先从 JOBS 内存查找
+    # 3. 否则从 JOBS_DIR / job_id 查找
+    # 4. resolved path 必须在 JOBS_DIR.resolve() 之下
+    # 5. 否则 raise 404
+```
+
+### history merge 规则（内存 + 磁盘）
+
+1. 扫描 `outputs/jobs/job_*/meta.json` 构建磁盘历史
+2. 内存 JOBS 与磁盘 meta 合并（同名 job_id 优先使用内存状态）
+3. 按 updated_at 或 created_at 倒序
+4. 服务重启后历史可从磁盘恢复
+
+### ALLOWED_ARTIFACTS
+
+```python
+ALLOWED_ARTIFACTS = {
+    "semantic_ir",
+    "dialogue_script",
+    "dialogue_manifest",
+    "render_ir",
+    "meta",  # CP14.1 新增
 }
 ```
-
-### pipeline --output-dir
-
-```bash
-python -m src.pipeline --auto --mock --output-dir outputs/jobs/job_xxx
-```
-
-所有产物写入指定目录，默认 `outputs/latest`（向后兼容）。
 
 ### 前端 History Gallery
 
 - 新增「历史作品」tab
 - 显示所有 job：job_id / theme / status / exported / created_at
 - 支持预览 animation / MP4 / artifacts
-- 服务重启后内存 history 丢失（内存 store）
+- 服务重启后可从 meta.json 恢复（CP14.1）
 
 ## 文件清单（V0.11 新增 / 修改）
 

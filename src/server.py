@@ -56,6 +56,7 @@ ALLOWED_ARTIFACTS = {
     "dialogue_script",
     "dialogue_manifest",
     "render_ir",
+    "meta",
 }
 
 # Whitelist of allowed output files for preview
@@ -126,6 +127,92 @@ def _emit_job_event(job_id: str, event_type: str, data: dict) -> None:
     job["updated_at"] = datetime.now().isoformat()
 
 
+def _resolve_job_output_dir(job_id: str) -> Path:
+    """Resolve output directory for a job_id.
+
+    Security rules:
+    - job_id must match ^job_[a-f0-9]+$
+    - Returns JOBS[job_id].output_dir if in memory, otherwise JOBS_DIR / job_id
+    - Resolved path must be under JOBS_DIR (no path traversal)
+    """
+    if not re.match(r"^job_[a-f0-9]+$", job_id):
+        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+
+    if job_id in JOBS:
+        output_dir = Path(JOBS[job_id]["output_dir"])
+    else:
+        output_dir = JOBS_DIR / job_id
+
+    # Path traversal check
+    try:
+        output_dir = output_dir.resolve()
+        jobs_dir_resolved = JOBS_DIR.resolve()
+        # Ensure output_dir is under JOBS_DIR
+        if not str(output_dir).startswith(str(jobs_dir_resolved)):
+            raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+    except Exception:
+        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+
+    return output_dir
+
+
+def _load_history_from_disk() -> list[dict]:
+    """Scan outputs/jobs/job_*/meta.json and return history items."""
+    items = []
+    if not JOBS_DIR.exists():
+        return items
+
+    for job_dir in JOBS_DIR.iterdir():
+        if not job_dir.is_dir():
+            continue
+        job_id = job_dir.name
+        if not re.match(r"^job_[a-f0-9]+$", job_id):
+            continue
+
+        meta_path = job_dir / "meta.json"
+        if not meta_path.exists():
+            continue
+
+        try:
+            with open(meta_path, "r", encoding="utf-8") as f:
+                meta = json.load(f)
+
+            item = {
+                "job_id": meta.get("job_id", job_id),
+                "status": meta.get("status", "unknown"),
+                "stage": meta.get("status", "unknown"),
+                "message": "完成" if meta.get("status") == "succeeded" else ("失败" if meta.get("status") == "failed" else "未知"),
+                "progress": 100 if meta.get("status") == "succeeded" else (0 if meta.get("status") == "failed" else 50),
+                "created_at": meta.get("created_at", ""),
+                "updated_at": meta.get("updated_at", ""),
+                "theme": meta.get("theme", ""),
+                "mode": meta.get("mode", "sample"),
+                "dialogue": meta.get("dialogue", False),
+                "exported": meta.get("exported", False),
+                "title": meta.get("title"),
+                "summary": meta.get("summary"),
+                "duration": meta.get("duration"),
+                "error": meta.get("error"),
+            }
+
+            # Use artifacts from meta if present
+            artifacts = meta.get("artifacts", {})
+            if artifacts:
+                item["animation_html"] = artifacts.get("animation_html")
+                item["output_mp4"] = artifacts.get("output_mp4")
+            else:
+                # Fallback: derive from job_id
+                item["animation_html"] = f"/outputs/jobs/{job_id}/animation.html"
+                if meta.get("exported"):
+                    item["output_mp4"] = f"/outputs/jobs/{job_id}/output.mp4"
+
+            items.append(item)
+        except Exception:
+            continue
+
+    return items
+
+
 def _build_generate_result(no_export: bool, output_dir: Path) -> dict:
     """Build GenerateResponse from job's isolated output directory."""
     animation_path = output_dir / "animation.html"
@@ -165,15 +252,51 @@ def _build_generate_result(no_export: bool, output_dir: Path) -> dict:
 
 def _write_meta(job: dict, output_dir: Path) -> None:
     """Write meta.json into job output directory."""
+    job_id = job["job_id"]
+    exported = job.get("result", {}).get("exported", False) if job.get("result") else False
+
+    # Read duration/title/summary from render_ir if available
+    duration = None
+    title = None
+    summary = None
+    render_ir_path = output_dir / "render_ir.json"
+    if render_ir_path.exists():
+        try:
+            with open(render_ir_path, "r", encoding="utf-8") as f:
+                render_ir = json.load(f)
+            duration = render_ir.get("total_duration")
+            if render_ir.get("news"):
+                title = render_ir["news"].get("title")
+                summary = render_ir["news"].get("summary")
+        except Exception:
+            pass
+
+    artifacts = {
+        "animation_html": f"/outputs/jobs/{job_id}/animation.html",
+        "render_ir": f"/api/jobs/{job_id}/artifacts/render_ir",
+        "semantic_ir": f"/api/jobs/{job_id}/artifacts/semantic_ir",
+        "dialogue_script": f"/api/jobs/{job_id}/artifacts/dialogue_script",
+        "dialogue_manifest": f"/api/jobs/{job_id}/artifacts/dialogue_manifest",
+        "meta": f"/api/jobs/{job_id}/artifacts/meta",
+    }
+    if exported:
+        artifacts["output_mp4"] = f"/outputs/jobs/{job_id}/output.mp4"
+
     meta = {
-        "job_id": job["job_id"],
+        "job_id": job_id,
         "created_at": job["created_at"],
         "updated_at": job["updated_at"],
         "status": job["status"],
+        "mode": job.get("request", {}).get("mode", "sample"),
         "theme": job.get("request", {}).get("theme", ""),
         "dialogue": job.get("request", {}).get("dialogue", False),
-        "exported": job.get("result", {}).get("exported", False) if job.get("result") else False,
+        "mock": job.get("request", {}).get("mock", True),
+        "exported": exported,
+        "title": title,
+        "summary": summary,
+        "duration": duration,
         "error": job["error"],
+        "artifacts": artifacts,
     }
     try:
         with open(output_dir / "meta.json", "w", encoding="utf-8") as f:
@@ -549,11 +672,21 @@ def api_job_events(job_id: str):
 
 @app.get("/api/history")
 def api_history():
-    """Return list of all jobs ordered by created_at descending."""
-    items = []
+    """Return list of all jobs ordered by updated_at descending.
+
+    Merges in-memory JOBS with disk-scanned meta.json files.
+    For duplicate job_ids, in-memory state takes priority.
+    """
+    # Build a map of job_id -> item from disk
+    disk_items: dict[str, dict] = {}
+    for disk_item in _load_history_from_disk():
+        disk_items[disk_item["job_id"]] = disk_item
+
+    # Merge in-memory jobs (priority over disk)
     for job in JOBS.values():
+        job_id = job["job_id"]
         item = {
-            "job_id": job["job_id"],
+            "job_id": job_id,
             "status": job["status"],
             "stage": job["stage"],
             "message": job["message"],
@@ -561,6 +694,7 @@ def api_history():
             "created_at": job["created_at"],
             "updated_at": job["updated_at"],
             "theme": job.get("request", {}).get("theme", ""),
+            "mode": job.get("request", {}).get("mode", "sample"),
             "dialogue": job.get("request", {}).get("dialogue", False),
             "exported": job.get("result", {}).get("exported", False) if job.get("result") else False,
             "error": job["error"],
@@ -568,9 +702,21 @@ def api_history():
         if job["result"]:
             item["animation_html"] = job["result"].get("animation_html")
             item["output_mp4"] = job["result"].get("output_mp4")
-        items.append(item)
 
-    items.sort(key=lambda x: x["created_at"], reverse=True)
+        # Supplement from disk meta if available
+        if job_id in disk_items:
+            disk = disk_items.pop(job_id)
+            # Fill in missing fields from disk
+            for key in ("title", "summary", "duration", "mode"):
+                if key not in item or item[key] is None:
+                    item[key] = disk.get(key)
+
+        disk_items[job_id] = item
+
+    # Add remaining disk-only items
+    items = list(disk_items.values())
+
+    items.sort(key=lambda x: x.get("updated_at") or x.get("created_at") or "", reverse=True)
     return JSONResponse({"ok": True, "items": items})
 
 
@@ -579,15 +725,14 @@ def api_history():
 
 @app.get("/api/jobs/{job_id}/artifacts/{name}")
 def api_job_artifact(job_id: str, name: str):
-    """Get artifact JSON from a job's output directory."""
-    if job_id not in JOBS:
-        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+    """Get artifact JSON from a job's output directory.
 
+    Supports both in-memory jobs and disk-only jobs (after restart).
+    """
     if name not in ALLOWED_ARTIFACTS:
         raise HTTPException(status_code=404, detail=f"Unknown artifact: {name}")
 
-    job = JOBS[job_id]
-    output_dir = Path(job["output_dir"])
+    output_dir = _resolve_job_output_dir(job_id)
 
     if name == "meta":
         filename = "meta.json"
@@ -612,15 +757,14 @@ def api_job_artifact(job_id: str, name: str):
 
 @app.get("/outputs/jobs/{job_id}/{filename}")
 def api_job_preview(job_id: str, filename: str):
-    """Preview animation.html or output.mp4 from a job's output directory."""
-    if job_id not in JOBS:
-        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+    """Preview animation.html or output.mp4 from a job's output directory.
 
+    Supports both in-memory jobs and disk-only jobs (after restart).
+    """
     if filename not in ALLOWED_PREVIEW_FILES:
         raise HTTPException(status_code=404, detail=f"Preview not allowed: {filename}")
 
-    job = JOBS[job_id]
-    output_dir = Path(job["output_dir"])
+    output_dir = _resolve_job_output_dir(job_id)
     filepath = output_dir / filename
 
     if not filepath.exists():

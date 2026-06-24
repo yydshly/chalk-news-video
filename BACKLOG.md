@@ -292,7 +292,19 @@
 - [x] `web/style.css`：新增 history panel 样式
 - [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
 
-## Checkpoint 14.1 — Job 删除 / 清理
+## Checkpoint 14.1 — Job History 加固
+
+- [x] `.gitignore` 简化：`outputs/jobs/*` 整体忽略，只追踪 `.gitkeep`
+- [x] `outputs/jobs/.gitkeep` 被 Git 追踪
+- [x] `meta` 加入 `ALLOWED_ARTIFACTS`，`/api/jobs/{job_id}/artifacts/meta` 可用
+- [x] `/api/history` 支持磁盘扫描（`_load_history_from_disk`）
+- [x] 服务重启后 `/api/history` 从 meta.json 恢复
+- [x] `_resolve_job_output_dir` helper：job_id 格式校验 + 路径穿越防护
+- [x] artifact/preview API 重启后可访问磁盘上的 job
+- [x] `meta.json` 增强：artifacts 映射、duration、title、summary
+- [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
+
+## Checkpoint 14.2 — Job 删除 / 清理
 
 - DELETE `/api/jobs/{job_id}` 删除 job 输出目录
 - 清理历史记录接口
