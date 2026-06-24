@@ -297,21 +297,21 @@ themes:
     description: "新闻资讯卡片风格，中央大标题加三张关键点卡片，适合热点新闻、公司发布"
     background:
       type: solid
-      color: "#1a1a2e"
-      grid_color: "#252540"
+      color: "#12121f"
+      grid_color: "#1e1e32"
     text:
       title: "#ffffff"
-      body: "#e0e0e0"
-      subtitle: "#b0b0b0"
+      body: "#d0d0e0"
+      subtitle: "#9090a0"
     node:
-      fill: "#252545"
+      fill: "#1e1e38"
       stroke: "#ff6b35"
       text: "#ffffff"
       badge_fill: "#ff6b35"
       badge_text: "#ffffff"
     edge:
-      stroke: "#7070a0"
-      label: "#c0c0d0"
+      stroke: "#6060a0"
+      label: "#b0b0c8"
     callout:
       info_fill: "#ff6b35"
       info_stroke: "#ff8c5a"
@@ -327,28 +327,51 @@ themes:
       expert_accent: "#35a0ff"
       host_indicator: "#ff6b35"
       expert_indicator: "#35a0ff"
-      panel_fill: "rgba(37,37,69,0.92)"
+      panel_fill: "rgba(30,30,56,0.90)"
       panel_stroke: "#ff6b35"
-      subtitle_fill: "rgba(26,26,46,0.90)"
+      subtitle_fill: "rgba(18,18,31,0.92)"
     layout:
       variant: news_card_v1
       canvas:
-        safe_margin: 40
+        safe_margin: 36
       title:
-        y: 50
-        font_size: 34
+        y: 52
+        font_size: 30
+      # CP17: News card specific layout
+      news_card:
+        breaking_badge: "NEWS"
+        breaking_color: "#ff3535"
+        source_y: 18
+        title_y: 55
+        title_max_chars: 20
+        title_max_lines: 2
+        main_card:
+          y: 130
+          h: 140
+          label: "发生了什么"
+        key_cards:
+          y: 290
+          h: 120
+          gap: 12
+          labels: ["为什么重要", "谁受影响", "接下来怎么看"]
+        progress_bar:
+          y: 620
+          h: 4
+        subtitle:
+          y: 640
+          h: 60
       nodes:
-        style: modern_panel
-        radius: 10
+        style: news_main_card
+        radius: 12
         shadow: true
         stroke_width: 2
       dialogue:
-        panel_position: side
-        panel_y: 100
-        panel_w: 220
-        panel_h: 110
-        subtitle_h: 70
-        subtitle_font_size: 22
+        panel_position: bottom_corner
+        panel_y: 580
+        panel_w: 160
+        panel_h: 80
+        subtitle_h: 50
+        subtitle_font_size: 18
 
   causal_map_v1:
     name: "因果链地图"

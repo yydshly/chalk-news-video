@@ -51,6 +51,8 @@
   .node-research { rx: 6; ry: 6; }
   /* paper_note: soft, paper-like */
   .node-paper { rx: 12; ry: 12; }
+  /* news_main_card: news card style */
+  .node-news-main { rx: 12; ry: 12; }
 
   /* CP16: Enhanced node animations */
   @keyframes cardEnter {
@@ -75,6 +77,28 @@
   }
   .title-enter {
     animation: fadeIn 0.6s ease-out forwards;
+  }
+
+  /* CP17: News card specific animations */
+  @keyframes slideUp {
+    0% { opacity: 0; transform: translateY(20px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes keyCardEnter {
+    0% { opacity: 0; transform: translateY(12px) scale(0.95); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes progressFill {
+    from { width: 0%; }
+  }
+  .news-header-enter {
+    animation: fadeIn 0.4s ease-out forwards;
+  }
+  .main-card-enter {
+    animation: slideUp 0.5s ease-out forwards;
+  }
+  .key-card-enter {
+    animation: keyCardEnter 0.4s ease-out forwards;
   }
 </style>
 </head>
@@ -132,6 +156,66 @@
   <g id="edges-group"></g>
   <g id="nodes-group"></g>
   <g id="callouts-group"></g>
+
+  <!-- CP17: News card specific elements (only rendered for news_card_v1) -->
+  <g id="news-card-header" opacity="0">
+    <!-- Breaking news badge -->
+    <rect id="breaking-badge" x="36" y="12" width="60" height="24" rx="4" ry="4" fill="#ff3535"/>
+    <text id="breaking-text" x="66" y="29" text-anchor="middle" fill="#ffffff"
+          font-family="'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="13" font-weight="bold">NEWS</text>
+    <!-- Source info -->
+    <text id="source-text" x="1244" y="29" text-anchor="end" fill="#9090a0"
+          font-family="'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="13"></text>
+  </g>
+
+  <!-- CP17: Main event card (what happened) -->
+  <g id="main-event-card" opacity="0">
+    <rect id="main-card-bg" x="60" y="130" width="1160" height="130" rx="12" ry="12"
+          fill="#1e1e38" stroke="#ff6b35" stroke-width="2" filter="url(#cardShadow)"/>
+    <text id="main-card-label" x="80" y="155" fill="#ff6b35"
+          font-family="'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="14" font-weight="bold">发生了什么</text>
+    <text id="main-card-title" x="80" y="180" fill="#ffffff"
+          font-family="'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="18"></text>
+    <text id="main-card-desc" x="80" y="205" fill="#b0b0c0"
+          font-family="'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="14"></text>
+  </g>
+
+  <!-- CP17: Key point cards (3 cards) -->
+  <g id="key-cards-group" opacity="0">
+    <!-- Key card 1: Why important -->
+    <g id="key-card-0" opacity="0">
+      <rect x="60" y="280" width="370" height="110" rx="10" ry="10"
+            fill="#252545" stroke="#ff6b35" stroke-width="1.5" filter="url(#cardShadow)"/>
+      <text x="80" y="305" fill="#ff6b35"
+            font-family="'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="13" font-weight="bold">为什么重要</text>
+      <text id="key-card-0-text" x="80" y="330" fill="#d0d0e0"
+            font-family="'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="14"></text>
+    </g>
+    <!-- Key card 2: Who affected -->
+    <g id="key-card-1" opacity="0">
+      <rect x="455" y="280" width="370" height="110" rx="10" ry="10"
+            fill="#252545" stroke="#35a0ff" stroke-width="1.5" filter="url(#cardShadow)"/>
+      <text x="475" y="305" fill="#35a0ff"
+            font-family="'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="13" font-weight="bold">谁受影响</text>
+      <text id="key-card-1-text" x="475" y="330" fill="#d0d0e0"
+            font-family="'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="14"></text>
+    </g>
+    <!-- Key card 3: What's next -->
+    <g id="key-card-2" opacity="0">
+      <rect x="850" y="280" width="370" height="110" rx="10" ry="10"
+            fill="#252545" stroke="#50ff80" stroke-width="1.5" filter="url(#cardShadow)"/>
+      <text x="870" y="305" fill="#50ff80"
+            font-family="'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="13" font-weight="bold">接下来怎么看</text>
+      <text id="key-card-2-text" x="870" y="330" fill="#d0d0e0"
+            font-family="'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="14"></text>
+    </g>
+  </g>
+
+  <!-- CP17: Progress bar -->
+  <g id="progress-bar-group" opacity="0">
+    <rect id="progress-bg" x="60" y="620" width="1160" height="4" rx="2" ry="2" fill="#2a2a45"/>
+    <rect id="progress-fill" x="60" y="620" width="0" height="4" rx="2" ry="2" fill="#ff6b35"/>
+  </g>
 
   <g id="subtitle-group">
     <rect x="{{ render_ir.subtitles.bar.x }}" y="{{ render_ir.subtitles.bar.y }}"
@@ -235,6 +319,30 @@
     subtitle_fill: (THEME.dialogue && THEME.dialogue.subtitle_fill) || "rgba(0,0,0,0.75)",
   };
 
+  // CP17: Detect news_card_v1 variant
+  const VARIANT = (THEME.layout && THEME.layout.variant) || "chalkboard_v1";
+  const IS_NEWS_CARD = VARIANT === "news_card_v1";
+
+  // CP17: News card config from theme
+  const NEWS_CARD = {
+    breaking_color: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.breaking_color) || "#ff3535",
+    source_y: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.source_y) || 18,
+    title_y: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.title_y) || 52,
+    title_max_chars: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.title_max_chars) || 20,
+    title_max_lines: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.title_max_lines) || 2,
+    main_card_y: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.main_card && THEME.layout.news_card.main_card.y) || 130,
+    main_card_h: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.main_card && THEME.layout.news_card.main_card.h) || 140,
+    main_card_label: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.main_card && THEME.layout.news_card.main_card.label) || "发生了什么",
+    key_cards_y: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.key_cards && THEME.layout.news_card.key_cards.y) || 280,
+    key_cards_h: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.key_cards && THEME.layout.news_card.key_cards.h) || 120,
+    key_cards_gap: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.key_cards && THEME.layout.news_card.key_cards.gap) || 12,
+    key_cards_labels: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.key_cards && THEME.layout.news_card.key_cards.labels) || ["为什么重要", "谁受影响", "接下来怎么看"],
+    progress_bar_y: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.progress_bar && THEME.layout.news_card.progress_bar.y) || 620,
+    progress_bar_h: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.progress_bar && THEME.layout.news_card.progress_bar.h) || 4,
+    subtitle_y: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.subtitle && THEME.layout.news_card.subtitle.y) || 640,
+    subtitle_h: (THEME.layout && THEME.layout.news_card && THEME.layout.news_card.subtitle && THEME.layout.news_card.subtitle.h) || 50,
+  };
+
   const board = document.getElementById("board");
   const edgesGroup = document.getElementById("edges-group");
   const nodesGroup = document.getElementById("nodes-group");
@@ -311,6 +419,56 @@
       subtitleText.setAttribute("fill", TEXT.subtitle);
     }
 
+    // CP17: Apply news_card_v1 specific theme
+    if (IS_NEWS_CARD) {
+      // Breaking badge color
+      var breakingBadge = document.getElementById("breaking-badge");
+      if (breakingBadge) breakingBadge.setAttribute("fill", NEWS_CARD.breaking_color);
+      var breakingText = document.getElementById("breaking-text");
+      if (breakingText) breakingText.setAttribute("fill", "#ffffff");
+
+      // Source text color
+      var sourceText = document.getElementById("source-text");
+      if (sourceText) sourceText.setAttribute("fill", TEXT.subtitle);
+
+      // Main card styling
+      var mainCardBg = document.getElementById("main-card-bg");
+      if (mainCardBg) {
+        mainCardBg.setAttribute("fill", NODE.fill);
+        mainCardBg.setAttribute("stroke", NODE.stroke);
+      }
+      var mainCardLabel = document.getElementById("main-card-label");
+      if (mainCardLabel) mainCardLabel.setAttribute("fill", NODE.stroke);
+      var mainCardTitle = document.getElementById("main-card-title");
+      if (mainCardTitle) mainCardTitle.setAttribute("fill", TEXT.title);
+      var mainCardDesc = document.getElementById("main-card-desc");
+      if (mainCardDesc) mainCardDesc.setAttribute("fill", TEXT.body);
+
+      // Key cards styling
+      var keyCardColors = [NODE.stroke, DIALOGUE_THEME.expert_accent, "#50ff80"];
+      for (var k = 0; k < 3; k++) {
+        var keyCardGroup = document.getElementById("key-card-" + k);
+        if (keyCardGroup) {
+          var keyCardRect = keyCardGroup.querySelector("rect");
+          if (keyCardRect) {
+            keyCardRect.setAttribute("fill", NODE.fill);
+            keyCardRect.setAttribute("stroke", keyCardColors[k]);
+          }
+          var keyCardLabel = keyCardGroup.querySelector("text");
+          if (keyCardLabel) keyCardLabel.setAttribute("fill", keyCardColors[k]);
+          var keyCardText = document.getElementById("key-card-" + k + "-text");
+          if (keyCardText) keyCardText.setAttribute("fill", TEXT.body);
+        }
+      }
+
+      // Progress bar
+      var progressFill = document.getElementById("progress-fill");
+      if (progressFill) progressFill.setAttribute("fill", NODE.stroke);
+
+      // Hide the standard title group (we use news card header instead)
+      if (titleGroup) titleGroup.setAttribute("opacity", "0");
+    }
+
     // Speaker panels: apply theme colors
     if (DIALOGUE && DIALOGUE.enabled) {
       // Host panel
@@ -383,6 +541,103 @@
   }
 
   applyTheme();
+
+  // CP17: Build news_card_v1 specific elements
+  function buildNewsCard() {
+    if (!IS_NEWS_CARD) return;
+
+    // Source info from render_ir.meta (if available)
+    var sourceText = document.getElementById("source-text");
+    if (sourceText) {
+      var source = RENDER_IR.meta && RENDER_IR.meta.source ? RENDER_IR.meta.source : "";
+      var hotness = RENDER_IR.meta && RENDER_IR.meta.hotness_score ? RENDER_IR.meta.hotness_score : null;
+      var parts = [];
+      if (source) parts.push(source);
+      if (hotness !== null) parts.push("热度 " + hotness);
+      sourceText.textContent = parts.join(" · ");
+    }
+
+    // Main event card content (from first node)
+    var nodes = RENDER_IR.nodes || [];
+    if (nodes.length > 0) {
+      var mainNode = nodes[0];
+      var mainTitle = document.getElementById("main-card-title");
+      if (mainTitle) {
+        var titleLines = fitTextLines(mainNode.label || "", 35, 2);
+        mainTitle.textContent = titleLines.join("\n") || mainNode.label || "";
+      }
+      var mainDesc = document.getElementById("main-card-desc");
+      if (mainDesc) {
+        var descLines = fitTextLines(mainNode.sub || "", 45, 1);
+        mainDesc.textContent = descLines[0] || "";
+      }
+    }
+
+    // Key cards content (from nodes 1, 2, 3)
+    for (var k = 0; k < 3; k++) {
+      var keyCardText = document.getElementById("key-card-" + k + "-text");
+      if (keyCardText && nodes.length > k + 1) {
+        var keyNode = nodes[k + 1];
+        var keyLines = fitTextLines(keyNode.label || "", 18, 3);
+        keyCardText.textContent = keyLines.join("\n") || keyNode.label || "";
+      }
+    }
+
+    // Update main card background position from theme
+    var mainCardBg = document.getElementById("main-card-bg");
+    if (mainCardBg) {
+      mainCardBg.setAttribute("y", String(NEWS_CARD.main_card_y));
+      mainCardBg.setAttribute("height", String(NEWS_CARD.main_card_h));
+    }
+    var mainCardLabel = document.getElementById("main-card-label");
+    if (mainCardLabel) mainCardLabel.setAttribute("y", String(NEWS_CARD.main_card_y + 25));
+    var mainCardTitle = document.getElementById("main-card-title");
+    if (mainCardTitle) mainCardTitle.setAttribute("y", String(NEWS_CARD.main_card_y + 50));
+    var mainCardDesc = document.getElementById("main-card-desc");
+    if (mainCardDesc) mainCardDesc.setAttribute("y", String(NEWS_CARD.main_card_y + 75));
+
+    // Update key cards position
+    for (var k2 = 0; k2 < 3; k2++) {
+      var keyCardGroup = document.getElementById("key-card-" + k2);
+      if (keyCardGroup) {
+        var cardX = 60 + k2 * (370 + NEWS_CARD.key_cards_gap);
+        var rects = keyCardGroup.querySelectorAll("rect");
+        var texts = keyCardGroup.querySelectorAll("text");
+        if (rects[0]) {
+          rects[0].setAttribute("x", String(cardX));
+          rects[0].setAttribute("y", String(NEWS_CARD.key_cards_y));
+        }
+        if (texts[0]) texts[0].setAttribute("x", String(cardX + 20));
+        if (texts[0]) texts[0].setAttribute("y", String(NEWS_CARD.key_cards_y + 25));
+        var keyCardTextEl = document.getElementById("key-card-" + k2 + "-text");
+        if (keyCardTextEl) {
+          keyCardTextEl.setAttribute("x", String(cardX + 20));
+          keyCardTextEl.setAttribute("y", String(NEWS_CARD.key_cards_y + 50));
+        }
+      }
+    }
+
+    // Progress bar position
+    var progressBg = document.getElementById("progress-bg");
+    if (progressBg) {
+      progressBg.setAttribute("x", "36");
+      progressBg.setAttribute("y", String(NEWS_CARD.progress_bar_y));
+      progressBg.setAttribute("width", String(RENDER_IR.canvas.width - 72));
+    }
+    var progressFill = document.getElementById("progress-fill");
+    if (progressFill) {
+      progressFill.setAttribute("x", "36");
+      progressFill.setAttribute("y", String(NEWS_CARD.progress_bar_y));
+      progressFill.setAttribute("height", String(NEWS_CARD.progress_bar_h));
+    }
+
+    // Hide standard nodes/callouts for news_card (we use our own card layout)
+    nodesGroup.style.display = "none";
+    edgesGroup.style.display = "none";
+    calloutsGroup.style.display = "none";
+  }
+
+  buildNewsCard();
 
   // ---------- helpers ----------
 
@@ -762,6 +1017,64 @@
       if (!g) return;
       g.setAttribute("opacity", opFor(revealedCallouts, callout.id, true).toFixed(3));
     });
+
+    // CP17: News card animation
+    if (IS_NEWS_CARD) {
+      const newsCardHeader = document.getElementById("news-card-header");
+      const mainEventCard = document.getElementById("main-event-card");
+      const keyCardsGroup = document.getElementById("key-cards-group");
+      const progressBarGroup = document.getElementById("progress-bar-group");
+
+      // Title beat reveals header
+      if (revealedTitle) {
+        const headerOpacity = currentBeat && currentBeat.reveal === "title"
+          ? Math.min(1, (t - currentBeat.at) / FADE_IN).toFixed(3)
+          : "1";
+        if (newsCardHeader) newsCardHeader.setAttribute("opacity", headerOpacity);
+      }
+
+      // First node reveals main event card
+      const mainReveal = revealedNodes.has(nodes[0] ? nodes[0].id : "");
+      if (mainReveal) {
+        const mainOpacity = currentBeat && currentBeat.reveal === nodes[0].id
+          ? Math.min(1, (t - currentBeat.at) / FADE_IN).toFixed(3)
+          : "1";
+        if (mainEventCard) mainEventCard.setAttribute("opacity", mainOpacity);
+      }
+
+      // Key cards: reveal when 2+ nodes are shown
+      const keyCardRevealed = nodes.length > 1 && revealedNodes.has(nodes[1] ? nodes[1].id : "");
+      if (keyCardRevealed) {
+        const keyOpacity = currentBeat && currentBeat.reveal === nodes[1].id
+          ? Math.min(1, (t - currentBeat.at) / FADE_IN).toFixed(3)
+          : "1";
+        if (keyCardsGroup) keyCardsGroup.setAttribute("opacity", keyOpacity);
+
+        // Stagger individual key cards
+        for (let k = 0; k < 3; k++) {
+          const keyCardGroup = document.getElementById("key-card-" + k);
+          if (!keyCardGroup) continue;
+          if (k === 0 && revealedNodes.has(nodes[1] ? nodes[1].id : "")) {
+            keyCardGroup.setAttribute("opacity", "1");
+          } else if (k === 1 && nodes.length > 2 && revealedNodes.has(nodes[2] ? nodes[2].id : "")) {
+            keyCardGroup.setAttribute("opacity", "1");
+          } else if (k === 2 && nodes.length > 3 && revealedNodes.has(nodes[3] ? nodes[3].id : "")) {
+            keyCardGroup.setAttribute("opacity", "1");
+          }
+        }
+      }
+
+      // Progress bar
+      if (progressBarGroup) {
+        progressBarGroup.setAttribute("opacity", "1");
+        const totalDuration = RENDER_IR.total_duration || 1;
+        const progress = Math.min(1, t / totalDuration);
+        const progressFill = document.getElementById("progress-fill");
+        if (progressFill) {
+          progressFill.setAttribute("width", String(progress * (RENDER_IR.canvas.width - 72)));
+        }
+      }
+    }
 
     // Subtitle = current beat's narration (or dialogue turn text if dialogue enabled)
     // CP9: Handle dialogue turn subtitle and speaker highlighting
