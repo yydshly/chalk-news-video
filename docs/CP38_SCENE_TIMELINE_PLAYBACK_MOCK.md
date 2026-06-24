@@ -204,3 +204,99 @@ renderBreakingNewsStageEpisodeHtml(contract, st)
 - No audio synchronization
 - Only `breaking_news_v1` has shot timeline; other 4 styles unchanged
 - Supporting cards stagger is hardcoded (3 cards max)
+
+---
+
+## CP38.1: Shot Timeline Contract Wiring & Anchor Animation Layer Split
+
+**Branch:** `fix/cp38.1-shot-timeline-contract-wiring`
+**Date:** 2026-06-25
+
+### 1. What Was Fixed
+
+CP38.1 addressed two technical debts in the CP38 shot timeline implementation.
+
+### 2. Problem 1: Shot Timeline Not Wired
+
+CP38 added `buildBreakingNewsShotTimeline()` but the returned data was only used for the shot label — the CSS animation delays remained hardcoded numbers (2.5s, 3.2s, 5.0s, etc.) scattered in the CSS string, creating two sources of truth.
+
+### 3. Fix 1: Timing Object Drives All Delays
+
+CP38.1 added a complete timing helper chain:
+
+| Helper | Purpose |
+|--------|---------|
+| `getShotById(shotTimeline, shotId)` | Find shot by ID |
+| `getShotStart(shotTimeline, shotId, fallback)` | Get start_sec from timeline |
+| `getShotDuration(shotTimeline, shotId, fallback)` | Get duration_sec |
+| `getShotTimelineTotalDuration(shotTimeline)` | Sum of last shot start+duration |
+| `buildBreakingNewsStageTiming(contract)` | Returns `{ shotTimeline, totalDurationSec, delays }` |
+
+All CSS `animation-delay` values in `renderBreakingNewsStageEpisodeHtml` now come from the `delays` object — no more hardcoded numbers.
+
+### 4. Problem 2: Anchor Animation Layer Conflict
+
+The `.stage-anchor-layer` div had two responsibilities:
+1. Action animation (`anchor-action-talk`, etc.)
+2. Entrance animation (opacity + translateX)
+
+This caused the entrance to potentially override the action animation.
+
+### 5. Fix 2: Anchor Layer Split
+
+Split into two divs:
+
+```
+.stage-anchor-enter  (opacity/translate entrance + animation-delay)
+  └── .stage-anchor-layer  (action/expression classes + continuous animation)
+        └── .cartoon-anchor-svg  (SVG graphics)
+```
+
+- `.stage-anchor-enter`: `opacity:0` + `animation:anchorEnter` (fires once) + inline `style="animation-delay:Xs"`
+- `.stage-anchor-layer`: action classes, continuous action animation (no opacity)
+- `renderCartoonAnchorLayer(anchorCue, delaySec)` now accepts `delaySec` and wraps in both divs
+
+### 6. New Hidden Shot Metadata Node
+
+Added a hidden `<div>` for future Remotion wiring and debugging:
+
+```html
+<div class="stage-shot-meta" data-shot-count="5" data-duration="14"
+     style="display:none">
+  opening|0|3;anchor_intro|1|3;lead_news|3|6;supporting_news|7|6;closing|11|3
+</div>
+```
+
+### 7. Timing Delays Map (from `buildBreakingNewsStageTiming`)
+
+| CSS Class | Delay Source |
+|-----------|-------------|
+| `.stage-topbar` | `delays.topbar` |
+| `.stage-title-area` | `delays.title` |
+| `.stage-anchor-enter` | `delays.anchor` (via inline style) |
+| `.stage-main-card` | `delays.mainCard` |
+| `.stage-subtitle-bar` | `delays.subtitle` |
+| `.stage-supporting` | `delays.supporting` |
+| `.stage-support-card:nth(1)` | `delays.support1` |
+| `.stage-support-card:nth(2)` | `delays.support2` |
+| `.stage-support-card:nth(3)` | `delays.support3` |
+| `.stage-closing-chip` | `delays.closing` |
+| `.stage-recap` | `delays.recap` |
+| `.stage-shot-label` | `delays.shotLabel` |
+| `.stage-progress-fill` | `totalDurationSec` |
+
+### 8. Lightweight Verification
+
+| Test | Result |
+|------|--------|
+| `buildBreakingNewsShotTimeline()` data participates in rendering | ✅ |
+| All CSS delays derived from timing object | ✅ |
+| `stage-shot-meta` hidden div present with 5 shots | ✅ |
+| Anchor split into `.stage-anchor-enter` + `.stage-anchor-layer` | ✅ |
+| Anchor entrance via `anchorEnter` on outer wrapper | ✅ |
+| Anchor action animations on inner `.stage-anchor-layer` | ✅ |
+| Progress bar duration = `totalDurationSec` | ✅ |
+| Supporting cards still stagger | ✅ |
+| `validateMockEpisodeHtml` still passes | ✅ |
+| No external links / script | ✅ |
+

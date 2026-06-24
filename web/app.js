@@ -2494,13 +2494,17 @@
   }
 
   // Render full anchor layer HTML (SVG + wrapper div with CSS)
-  function renderCartoonAnchorLayer(anchorCue) {
+  // CP38.1: Render anchor with split layers (entrance wrapper + action layer + SVG)
+  function renderCartoonAnchorLayer(anchorCue, delaySec) {
     var actionClass = getAnchorActionClass(anchorCue.action);
     var expressionClass = getAnchorExpressionClass(anchorCue.expression);
     var svg = renderCartoonAnchorSvg(anchorCue);
+    var delay = typeof delaySec === "number" ? delaySec : 1;
 
-    return '<div class="stage-anchor-layer ' + actionClass + ' ' + expressionClass + '">' +
-      svg + '</div>';
+    // Split structure: .stage-anchor-enter (entrance) → .stage-anchor-layer (action) → SVG
+    return '<div class="stage-anchor-enter" style="animation-delay:' + delay + 's">' +
+      '<div class="stage-anchor-layer ' + actionClass + ' ' + expressionClass + '">' +
+      svg + '</div></div>';
   }
 
   // CP38: Build shot timeline for breaking_news_v1 stage playback mock
@@ -2516,6 +2520,57 @@
       { shot_id: "supporting_news", label: "补充快讯", start_sec: 7, duration_sec: 6, layer_targets: ["stage-supporting"] },
       { shot_id: "closing", label: "结尾", start_sec: 11, duration_sec: 3, layer_targets: ["stage-closing-chip", "stage-timeline"] },
     ];
+  }
+
+  // CP38.1: Timing helpers
+  function getShotById(shotTimeline, shotId) {
+    for (var i = 0; i < shotTimeline.length; i++) {
+      if (shotTimeline[i].shot_id === shotId) return shotTimeline[i];
+    }
+    return null;
+  }
+
+  function getShotStart(shotTimeline, shotId, fallbackSec) {
+    var shot = getShotById(shotTimeline, shotId);
+    return shot ? shot.start_sec : (fallbackSec !== undefined ? fallbackSec : 0);
+  }
+
+  function getShotDuration(shotTimeline, shotId, fallbackSec) {
+    var shot = getShotById(shotTimeline, shotId);
+    return shot ? shot.duration_sec : (fallbackSec !== undefined ? fallbackSec : 3);
+  }
+
+  function getShotTimelineTotalDuration(shotTimeline) {
+    var last = shotTimeline[shotTimeline.length - 1];
+    return last ? last.start_sec + last.duration_sec : 12;
+  }
+
+  // CP38.1: Build timing object from shot timeline (all delays derived from timeline, not hardcoded)
+  function buildBreakingNewsStageTiming(contract) {
+    var shotTimeline = buildBreakingNewsShotTimeline(contract);
+    var totalSec = getShotTimelineTotalDuration(shotTimeline);
+
+    function m(val) { return Math.max(0, val); }
+
+    return {
+      shotTimeline: shotTimeline,
+      totalDurationSec: totalSec,
+      delays: {
+        topbar: m(getShotStart(shotTimeline, "opening", 0) + 0.1),
+        title: m(getShotStart(shotTimeline, "opening", 0) + 0.2),
+        openingLabel: m(getShotStart(shotTimeline, "opening", 0) + 0.15),
+        recap: m(getShotStart(shotTimeline, "opening", 0) + 0.3),
+        shotLabel: m(getShotStart(shotTimeline, "opening", 0) + 0.1),
+        anchor: m(getShotStart(shotTimeline, "anchor_intro", 1)),
+        mainCard: m(getShotStart(shotTimeline, "lead_news", 3) - 0.5),
+        subtitle: m(getShotStart(shotTimeline, "lead_news", 3) + 0.2),
+        supporting: m(getShotStart(shotTimeline, "supporting_news", 7) - 2.0),
+        support1: m(getShotStart(shotTimeline, "supporting_news", 7) - 1.8),
+        support2: m(getShotStart(shotTimeline, "supporting_news", 7) - 1.45),
+        support3: m(getShotStart(shotTimeline, "supporting_news", 7) - 1.1),
+        closing: m(getShotStart(shotTimeline, "closing", 11) - 1.5),
+      }
+    };
   }
 
   // CP36: Layout 2 — breaking_news_v1 fixed video stage (9:16 vertical video canvas)
@@ -2536,6 +2591,11 @@
       leadCard = sections.news_cards[0];
       supportCards = sections.news_cards.slice(1);
     }
+
+    // CP38.1: Build timing from shot timeline (all delays derived, not hardcoded)
+    var timing = buildBreakingNewsStageTiming(contract);
+    var delays = timing.delays;
+    var totalDur = timing.totalDurationSec;
 
     // Stage CSS — 9:16 fixed canvas, no scrolling, video-like layers
     var stageCss = '<style>\n' +
@@ -2567,16 +2627,14 @@
       'margin-bottom:8px;text-shadow:0 1px 4px rgba(0,0,0,.6);}\n' +
       '.stage-lead-meta{display:flex;gap:8px;font-size:9px;color:#fca5a5;font-family:monospace;}\n' +
       '.stage-supporting{position:absolute;bottom:120px;right:14px;z-index:12;width:130px;' +
-      'display:flex;flex-direction:column;gap:6px;animation:cardEnter 0.5s 0.25s ease-out both;}\n' +
+      'display:flex;flex-direction:column;gap:6px;}\n' +
       '.stage-support-card{background:rgba(15,0,0,.82);border:1px solid #7f1d1d;' +
       'border-radius:8px;padding:8px 10px;}\n' +
       '.stage-support-headline{color:#fecaca;font-size:10px;font-weight:600;line-height:1.3;' +
       'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}\n' +
       '.stage-support-meta{color:#f87171;font-size:8px;font-family:monospace;margin-top:4px;}\n' +
       '.stage-subtitle-bar{position:absolute;bottom:70px;left:14px;right:14px;z-index:14;' +
-      'background:rgba(0,0,0,.75);border-radius:8px;padding:8px 12px;' +
-      'animation:subtitleSlideUp 0.5s 0.4s ease-out both;}\n' +
-      '@keyframes subtitleSlideUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}\n' +
+      'background:rgba(0,0,0,.75);border-radius:8px;padding:8px 12px;}\n' +
       '.stage-subtitle-text{color:#f9f9f9;font-size:11px;line-height:1.4;' +
       'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}\n' +
       '.stage-timeline{position:absolute;bottom:0;left:0;right:0;z-index:20;' +
@@ -2596,15 +2654,20 @@
       '.tl-name{color:#f87171;font-size:8px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40px;}\n' +
       '.stage-recap{position:absolute;top:44px;right:14px;z-index:18;' +
       'background:rgba(220,38,38,.85);border-radius:6px;padding:3px 8px;' +
-      'font-size:9px;color:#fff;font-weight:700;}\n' +
+      'font-size:9px;color:#fff;font-weight:700;opacity:0;' +
+      'animation:shotFadeIn 0.4s ' + delays.recap + 's ease-out both;}\n' +
       '.stage-opening-label{position:absolute;top:44px;left:14px;z-index:18;' +
-      'color:#fca5a5;font-size:9px;font-weight:700;letter-spacing:1px;}\n' +
+      'color:#fca5a5;font-size:9px;font-weight:700;letter-spacing:1px;opacity:0;' +
+      'animation:shotFadeIn 0.4s ' + delays.openingLabel + 's ease-out both;}\n' +
       '.stage-closing-chip{position:absolute;bottom:96px;left:14px;z-index:15;' +
-      'display:flex;align-items:center;gap:6px;font-size:9px;color:#fca5a5;}\n' +
+      'display:flex;align-items:center;gap:6px;font-size:9px;color:#fca5a5;opacity:0;' +
+      'animation:shotFadeIn 0.5s ' + delays.closing + 's ease-out both;}\n' +
       '.stage-closing-dot{width:6px;height:6px;border-radius:50%;background:#dc2626;}\n' +
-      // CP37: Cartoon anchor layer
-      '.stage-anchor-layer{position:absolute;left:8px;bottom:112px;width:86px;height:130px;' +
-      'z-index:16;pointer-events:none;opacity:0;}\n' +
+      // CP37/38.1: Split anchor layers — entrance wrapper + action layer
+      '.stage-anchor-enter{position:absolute;left:8px;bottom:112px;width:86px;height:130px;' +
+      'z-index:16;pointer-events:none;opacity:0;' +
+      'animation:anchorEnter 0.7s ease-out forwards;}\n' +
+      '.stage-anchor-layer{width:100%;height:100%;}\n' +
       '.cartoon-anchor-svg{width:100%;height:100%;filter:drop-shadow(0 6px 18px rgba(0,0,0,.6));}\n' +
       // Anchor action animations (body float + arm movement)
       '@keyframes anchorFloat{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}\n' +
@@ -2646,37 +2709,33 @@
       // Focused: pupils shift right slightly
       '.anchor-expression-focused .anchor-pupil{animation:focusPupil 3s ease-in-out infinite;}\n' +
       '@keyframes focusPupil{0%,100%{transform:translate(0,0);}50%{transform:translate(1.5px,0);}}\n' +
-      // CP38: Shot entrance animations (staggered by shot timeline)
+      // CP38: Shot entrance animations (all delays derived from timing object)
       // Shot 1 - Opening: topbar + title-area fade in
-      '.stage-topbar{animation:shotFadeIn 0.5s 0.1s ease-out both;}\n' +
-      '.stage-title-area{animation:shotFadeIn 0.6s 0.2s ease-out both;}\n' +
-      '.stage-opening-label{animation:shotFadeIn 0.4s 0.15s ease-out both;}\n' +
+      '.stage-topbar{opacity:0;animation:shotFadeIn 0.5s ' + delays.topbar + 's ease-out both;}\n' +
+      '.stage-title-area{opacity:0;animation:shotFadeIn 0.6s ' + delays.title + 's ease-out both;}\n' +
       '@keyframes shotFadeIn{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}\n' +
-      // Shot 2 - Anchor intro: anchor slides + fades in
-      '.stage-anchor-layer{opacity:0;animation:anchorEnter 0.7s 1.0s ease-out forwards,anchorFloat 2.2s 1.8s ease-in-out infinite;transform-origin:60px 176px;}\n' +
+      // Shot 2 - Anchor: entrance handled by .stage-anchor-enter CSS; action by .stage-anchor-layer
       '@keyframes anchorEnter{from{opacity:0;transform:translateX(-14px) translateY(8px);}to{opacity:1;transform:translateX(0) translateY(0);}}\n' +
       // Shot 3 - Lead news: card + subtitle bar enter
-      '.stage-main-card{opacity:0;animation:shotCardIn 0.6s 2.5s ease-out both;}\n' +
+      '.stage-main-card{opacity:0;animation:shotCardIn 0.6s ' + delays.mainCard + 's ease-out both;}\n' +
       '@keyframes shotCardIn{from{opacity:0;transform:translateY(14px) scale(0.97);}to{opacity:1;transform:translateY(0) scale(1);}}\n' +
-      '.stage-subtitle-bar{opacity:0;animation:shotFadeIn 0.5s 3.2s ease-out both;}\n' +
+      '.stage-subtitle-bar{opacity:0;animation:shotFadeIn 0.5s ' + delays.subtitle + 's ease-out both;}\n' +
       // Shot 4 - Supporting cards: staggered entries
-      '.stage-supporting{opacity:0;animation:shotFadeIn 0.5s 5.0s ease-out both;}\n' +
-      '.stage-support-card:nth-child(1){animation:shotCardIn 0.5s 5.2s ease-out both;}\n' +
-      '.stage-support-card:nth-child(2){animation:shotCardIn 0.5s 5.55s ease-out both;}\n' +
-      '.stage-support-card:nth-child(3){animation:shotCardIn 0.5s 5.9s ease-out both;}\n' +
-      // Shot 5 - Closing: closing chip + timeline progress
-      '.stage-closing-chip{opacity:0;animation:shotFadeIn 0.5s 9.5s ease-out both;}\n' +
-      '.stage-recap{animation:shotFadeIn 0.4s 0.3s ease-out both;}\n' +
-      // CP38: Mock progress bar (fills over ~12s, fills once then stays)
+      '.stage-supporting{opacity:0;animation:shotFadeIn 0.5s ' + delays.supporting + 's ease-out both;}\n' +
+      '.stage-support-card:nth-child(1){animation:shotCardIn 0.5s ' + delays.support1 + 's ease-out both;}\n' +
+      '.stage-support-card:nth-child(2){animation:shotCardIn 0.5s ' + delays.support2 + 's ease-out both;}\n' +
+      '.stage-support-card:nth-child(3){animation:shotCardIn 0.5s ' + delays.support3 + 's ease-out both;}\n' +
+      // Shot 5 - Closing: closing chip handled above via delays.closing (recap via delays.recap)
+      // CP38: Mock progress bar (duration derived from shot timeline total)
       '.stage-progress-wrap{position:absolute;bottom:6px;left:16px;right:16px;z-index:25;height:4px;}\n' +
       '.stage-progress-track{width:100%;height:100%;background:rgba(255,255,255,.15);border-radius:999px;overflow:hidden;}\n' +
       '.stage-progress-fill{width:0%;height:100%;background:linear-gradient(90deg,#dc2626,#f87171);' +
-      'border-radius:999px;animation:mockProgressFill 12s linear forwards;}\n' +
+      'border-radius:999px;animation:mockProgressFill ' + totalDur + 's linear forwards;}\n' +
       '@keyframes mockProgressFill{0%{width:0%;}100%{width:100%;}}\n' +
-      // CP38: Shot label (small, non-intrusive)
+      // CP38: Shot label
       '.stage-shot-label{position:absolute;top:38px;left:50%;transform:translateX(-50%);z-index:22;' +
       'background:rgba(0,0,0,.55);border-radius:20px;padding:2px 10px;font-size:8px;color:#fca5a5;' +
-      'white-space:nowrap;letter-spacing:0.5px;opacity:0;animation:shotFadeIn 0.4s 0.1s ease-out both;}\n' +
+      'white-space:nowrap;letter-spacing:0.5px;opacity:0;animation:shotFadeIn 0.4s ' + delays.shotLabel + 's ease-out both;}\n' +
       '</style>\n';
 
     // Build lead card HTML
@@ -2726,7 +2785,7 @@
 
     // CP37: Cartoon anchor layer — infer context and render SVG character
     var anchorCue = inferEpisodeAnchorCue(contract);
-    var anchorLayerHtml = renderCartoonAnchorLayer(anchorCue);
+    var anchorLayerHtml = renderCartoonAnchorLayer(anchorCue, delays.anchor);
 
     return '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n' +
       '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
@@ -2762,6 +2821,14 @@
       timelineHtml + '\n' +
       // CP38: Mock progress bar (overlaid at bottom)
       '<div class="stage-progress-wrap"><div class="stage-progress-track"><div class="stage-progress-fill"></div></div></div>\n' +
+      // CP38.1: Hidden shot metadata (for future Remotion wiring / debugging)
+      '<div class="stage-shot-meta" data-shot-count="' + timing.shotTimeline.length + '" data-duration="' + totalDur + '" style="display:none">' +
+      'opening|' + timing.shotTimeline[0].start_sec + '|' + timing.shotTimeline[0].duration_sec + ';' +
+      'anchor_intro|' + timing.shotTimeline[1].start_sec + '|' + timing.shotTimeline[1].duration_sec + ';' +
+      'lead_news|' + timing.shotTimeline[2].start_sec + '|' + timing.shotTimeline[2].duration_sec + ';' +
+      'supporting_news|' + timing.shotTimeline[3].start_sec + '|' + timing.shotTimeline[3].duration_sec + ';' +
+      'closing|' + timing.shotTimeline[4].start_sec + '|' + timing.shotTimeline[4].duration_sec +
+      '</div>\n' +
       '</div>\n</div>\n</body>\n</html>';
   }
 
