@@ -654,3 +654,24 @@ footer {
   max-height: 200px;
   overflow-y: auto;
 }
+
+/* CP18.5: Generation mode hint */
+#fieldset-generation-mode {
+  margin-bottom: 4px;
+}
+
+.gen-mode-hint {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin: 0 0 12px 0;
+  padding: 6px 10px;
+  background: #1a2a1a;
+  border: 1px solid #2a4a2a;
+  border-radius: 6px;
+  line-height: 1.4;
+}
+
+/* CP18.5: export checkbox hidden in voice mode */
+.checkbox-export-hidden {
+  display: none;
+}

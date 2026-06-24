@@ -10,7 +10,7 @@
 <div class="container">
   <header>
     <h1>🎬 Chalk News Video Studio</h1>
-    <p class="subtitle">CP15 — Local Web Studio V1</p>
+    <p class="subtitle">CP18.5 — Local Web Studio V1</p>
   </header>
 
   <main class="layout">
@@ -53,13 +53,33 @@
         <option value="notebook">notebook — 手写笔记</option>
       </select>
 
+      <!-- Generation Mode (CP18.5) -->
+      <fieldset id="fieldset-generation-mode">
+        <legend>生成模式</legend>
+        <label class="radio-label">
+          <input type="radio" name="gen_mode" value="fast" checked>
+          快速预览
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="gen_mode" value="voice">
+          语音预览
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="gen_mode" value="export">
+          最终导出 MP4
+        </label>
+      </fieldset>
+      <p id="gen-mode-hint" class="gen-mode-hint">
+        最快，只生成动画预览，不调用真实 TTS，不导出 MP4。
+      </p>
+
       <!-- Options -->
       <label class="checkbox-label">
         <input type="checkbox" id="check-dialogue" checked>
         启用对话模式（双人）
       </label>
-      <label class="checkbox-label">
-        <input type="checkbox" id="check-export" checked>
+      <label class="checkbox-label" id="label-check-export">
+        <input type="checkbox" id="check-export">
         导出 MP4 视频
       </label>
 
@@ -89,7 +109,7 @@
       </fieldset>
 
       <!-- Generate Button -->
-      <button id="btn-generate" class="btn-primary">生成视频</button>
+      <button id="btn-generate" class="btn-primary">生成快速预览</button>
       <p id="status-msg" class="status-msg"></p>
 
       <!-- Recommended Config Hint (CP15.6) -->
@@ -176,7 +196,7 @@
   </main>
 
   <footer>
-    <p>CP15 Local Web Studio · 不上传任何数据 · API Key 不暴露</p>
+    <p>CP18.5 Local Web Studio · 不上传任何数据 · API Key 不暴露</p>
   </footer>
 </div>
 

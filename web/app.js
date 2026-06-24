@@ -5,6 +5,9 @@
 
   // ---------- DOM refs ----------
   const modeRadios = document.querySelectorAll('input[name="mode"]');
+  const genModeRadios = document.querySelectorAll('input[name="gen_mode"]');
+  const genModeHint = document.getElementById("gen-mode-hint");
+  const labelCheckExport = document.getElementById("label-check-export");
   const textInputFields = document.getElementById("text-input-fields");
   const inputTitle = document.getElementById("input-title");
   const inputNews = document.getElementById("input-news");
@@ -75,6 +78,9 @@
     } catch (e) {
       setStatus("加载主题失败: " + e.message, "error");
     }
+
+    // CP18.5: Initialize generation mode UI
+    updateGenModeUI();
 
     // Load history on startup and auto-preview latest succeeded
     await loadHistoryAndAutoPreview();
@@ -198,6 +204,35 @@
     });
   });
 
+  // CP18.5: generation mode toggle
+  genModeRadios.forEach(function (radio) {
+    radio.addEventListener("change", function () {
+      updateGenModeUI();
+    });
+  });
+
+  function updateGenModeUI() {
+    const genMode = document.querySelector('input[name="gen_mode"]:checked').value;
+
+    // Update hint text
+    if (genMode === "fast") {
+      genModeHint.textContent = "最快，只生成动画预览，不调用真实 TTS，不导出 MP4。";
+      checkExport.checked = false;
+      labelCheckExport.classList.remove("checkbox-export-hidden");
+      btnGenerate.textContent = "生成快速预览";
+    } else if (genMode === "voice") {
+      genModeHint.textContent = "生成真实双人语音，但不导出 MP4。";
+      checkExport.checked = false;
+      labelCheckExport.classList.remove("checkbox-export-hidden");
+      btnGenerate.textContent = "生成语音预览";
+    } else {
+      genModeHint.textContent = "生成完整 MP4，耗时较长，请耐心等待。";
+      checkExport.checked = true;
+      labelCheckExport.classList.remove("checkbox-export-hidden");
+      btnGenerate.textContent = "导出 MP4 成片";
+    }
+  }
+
   // ---------- tabs ----------
   tabBtns.forEach(function (btn) {
     btn.addEventListener("click", function () {
@@ -221,7 +256,6 @@
     const mode = document.querySelector('input[name="mode"]:checked').value;
     const theme = selectTheme.value;
     const dialogue = checkDialogue.checked;
-    const noExport = !checkExport.checked;
     const title = inputTitle.value.trim();
     const newsText = inputNews.value.trim();
 
@@ -241,14 +275,23 @@
     clearJobLog();
     resetProgress();
 
+    // CP18.5: Build payload based on generation mode
+    const genMode = document.querySelector('input[name="gen_mode"]:checked').value;
+
+    // TTS provider: mock if fast, user-selected otherwise
+    const effectiveTts = (genMode === "fast") ? "mock_dialogue" : selectTtsProvider.value;
+
+    // no_export: true for fast and voice, false for export
+    const effectiveNoExport = (genMode !== "export");
+
     const payload = {
       mode: mode,
       theme: theme,
       dialogue: dialogue,
       mock: selectLlmProvider.value === "mock",
-      no_export: noExport,
+      no_export: effectiveNoExport,
       llm_provider: selectLlmProvider.value,
-      tts_provider: selectTtsProvider.value,
+      tts_provider: effectiveTts,
       repair: checkRepair.checked,
       repair_attempts: 2,
       target_duration_sec: 45,
