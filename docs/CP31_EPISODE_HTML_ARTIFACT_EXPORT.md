@@ -124,3 +124,61 @@ outputs/episode_previews/*.html
 - No audio, no subtitles, no MP4
 - Not integrated with job history
 - No delete / cleanup of old artifacts
+
+---
+
+## CP31.1: Artifact Path and Link Hardening
+
+**Branch:** `fix/cp31.1-artifact-path-link-hardening`
+**Commit:** `fix(cp31.1): harden episode html artifact path and links`
+**Date:** 2026-06-25
+
+### Problem 1: Absolute file_path Exposure
+
+CP31 returned `str(file_path)` which exposed the server's local filesystem path.
+
+**Fix:** Return relative path instead:
+```python
+"file_path": f"outputs/episode_previews/{filename}"
+```
+
+`path` stays as `/outputs/episode_previews/{filename}` for browser access.
+
+### Problem 2: No Open/Download Links
+
+Frontend saved the artifact and loaded it in iframe but showed no clickable link for the user.
+
+**Fix:** After successful save, populate `downloadLinks` with two links:
+- "🔗 打开已保存 HTML" — `target="_blank" rel="noopener"`
+- "💾 下载 HTML" — `download` attribute
+
+Both use `data.path` only (no absolute paths, no `file_path` local paths).
+
+### Problem 3: Weak Opening/Closing Validation
+
+CP31's `validateMockEpisodeHtml()` only warned on missing opening/closing sections, allowing malformed HTML to be saved.
+
+**Fix:** Promoted to errors:
+```javascript
+if (html.indexOf("section-title") === -1 && html.indexOf("开场") === -1) {
+  errors.push("HTML 必须包含开场");
+}
+if (html.indexOf("结尾") === -1 && html.indexOf("closing") === -1) {
+  errors.push("HTML 必须包含结尾");
+}
+```
+
+### Lightweight Verification Results
+
+| Test | Result |
+|------|--------|
+| `file_path` returned as `outputs/episode_previews/...` not absolute | ✓ |
+| Saved HTML opens in iframe via `data.path` | ✓ |
+| "打开已保存 HTML" link shown | ✓ |
+| "下载 HTML" link shown | ✓ |
+| Links use `data.path` only, no absolute paths | ✓ |
+| Missing opening → validation error | ✓ |
+| Missing closing → validation error | ✓ |
+| No `/api/jobs` called | ✓ |
+| No real LLM / TTS / MP4 | ✓ |
+

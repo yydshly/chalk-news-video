@@ -1768,14 +1768,14 @@
       errors.push("HTML 必须包含 mock-news-card");
     }
 
-    // CP31: Must have opening section
+    // CP31.1: Must have opening section (strict)
     if (html.indexOf("section-title") === -1 && html.indexOf("开场") === -1) {
-      warnings.push("HTML 可能不包含开场");
+      errors.push("HTML 必须包含开场");
     }
 
-    // CP31: Must have closing section
+    // CP31.1: Must have closing section (strict)
     if (html.indexOf("结尾") === -1 && html.indexOf("closing") === -1) {
-      warnings.push("HTML 可能不包含结尾");
+      errors.push("HTML 必须包含结尾");
     }
 
     // No API key / voice_id
@@ -1938,6 +1938,23 @@
 
         autoPreviewBanner.style.display = "block";
         autoPreviewBanner.textContent = "已保存的合集 HTML 预览";
+
+        // CP31.1: Show open and download links (no absolute paths)
+        downloadLinks.innerHTML = "";
+        var openLink = document.createElement("a");
+        openLink.href = data.path;
+        openLink.target = "_blank";
+        openLink.rel = "noopener";
+        openLink.className = "download-link";
+        openLink.textContent = "🔗 打开已保存 HTML";
+        downloadLinks.appendChild(openLink);
+
+        var downloadLink = document.createElement("a");
+        downloadLink.href = data.path;
+        downloadLink.download = "";
+        downloadLink.className = "download-link";
+        downloadLink.textContent = "💾 下载 HTML";
+        downloadLinks.appendChild(downloadLink);
 
         setStatus("合集 HTML 已保存至 artifact", "success");
       })

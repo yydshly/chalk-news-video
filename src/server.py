@@ -1080,7 +1080,7 @@ def api_save_episode_mock_html(body: EpisodeMockHtmlRequest):
     return JSONResponse({
         "ok": True,
         "path": f"/outputs/episode_previews/{filename}",
-        "file_path": str(file_path),
+        "file_path": f"outputs/episode_previews/{filename}",
         "created_at": datetime.now().isoformat(),
     })
 
