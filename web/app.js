@@ -84,6 +84,7 @@
   let latestEpisodeScript = null;  // CP25: most recent episode script
   let latestEpisodeAudioManifest = null;  // CP26: most recent audio manifest
   let latestEpisodeRenderIr = null;        // CP27: most recent render IR
+  let latestEpisodePreviewUrl = null;      // CP28: Blob URL for mock HTML preview
 
   // CP20: Theme showcase data
   const THEME_SHOWCASES = {
@@ -1340,6 +1341,176 @@
     }
   }
 
+  // CP28: Build mock episode HTML from render IR (pure frontend, no external resources)
+  function buildMockEpisodeHtml(renderIr) {
+    if (!renderIr) return "";
+
+    var sections = renderIr.timeline && renderIr.timeline.sections ? renderIr.timeline.sections : [];
+    var newsSegs = sections.filter(function (s) { return s.type === "news_segment"; });
+    var leadSeg = newsSegs.find(function (s) { return s.role === "lead"; });
+    var closingSec = sections.find(function (s) { return s.type === "closing"; });
+
+    var cardsHtml = newsSegs.map(function (seg) {
+      var isLead = seg.role === "lead";
+      var badges = seg.visual && seg.visual.badges ? seg.visual.badges.join(" · ") : "";
+      var layout = seg.visual && seg.visual.layout ? seg.visual.layout : "";
+      var emphasis = seg.visual && seg.visual.emphasis ? seg.visual.emphasis : "";
+      var audioCount = seg.audio_clip_ids ? seg.audio_clip_ids.length : 0;
+      var borderStyle = isLead ? 'border: 2px solid #f59e0b;' : 'border: 1px solid #374151;';
+      var bgStyle = isLead ? 'background: #1a1a2e;' : 'background: #111827;';
+      return '<div style="' + bgStyle + ' ' + borderStyle + ' border-radius: 12px; padding: 20px; margin: 12px 0;">' +
+        '<div style="color: #9ca3af; font-size: 13px; margin-bottom: 8px;">' + escapeHtml(layout) + (emphasis ? ' · ' + escapeHtml(emphasis) : '') + '</div>' +
+        '<div style="color: #f9fafb; font-size: 17px; font-weight: 600; margin-bottom: 8px;">' + escapeHtml(seg.visual && seg.visual.headline ? seg.visual.headline : "") + '</div>' +
+        '<div style="color: #6b7280; font-size: 12px;">' + escapeHtml(badges) + '</div>' +
+        '<div style="color: #4b5563; font-size: 11px; margin-top: 6px;">音频片段: ' + audioCount + '</div>' +
+        '</div>';
+    }).join("");
+
+    var html = '<!DOCTYPE html>\n' +
+      '<html lang="zh-CN">\n' +
+      '<head>\n' +
+      '<meta charset="UTF-8">\n' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
+      '<title>' + escapeHtml(renderIr.episode_title || "今日 AI 前沿速览") + '</title>\n' +
+      '<style>\n' +
+      '*{margin:0;padding:0;box-sizing:border-box}\n' +
+      'body{background:#0f172a;color:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;' +
+      'display:flex;flex-direction:column;min-height:100vh;padding:0}\n' +
+      '.header{background:#1e293b;padding:32px 40px;border-bottom:1px solid #334155}\n' +
+      '.header h1{font-size:28px;font-weight:700;margin-bottom:8px}\n' +
+      '.header p{color:#94a3b8;font-size:14px}\n' +
+      '.content{padding:32px 40px;flex:1;max-width:900px;margin:0 auto;width:100%}\n' +
+      '.section-title{color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:1px;margin-bottom:16px}\n' +
+      '.footer-bar{background:#1e293b;padding:12px 40px;border-top:1px solid #334155;font-size:12px;color:#64748b}\n' +
+      '.lead-badge{background:#f59e0b;color:#0f172a;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}\n' +
+      '</style>\n' +
+      '</head>\n' +
+      '<body>\n' +
+      '<div class="header">\n' +
+      '<h1>' + escapeHtml(renderIr.episode_title || "今日 AI 前沿速览") + '</h1>\n' +
+      '<p>' + escapeHtml(renderIr.theme || "") + ' · ' + (renderIr.timeline && renderIr.timeline.estimated_duration_sec ? renderIr.timeline.estimated_duration_sec + "s" : "") + '</p>\n' +
+      '</div>\n' +
+      '<div class="content">\n' +
+      '<div class="section-title">开场</div>\n' +
+      '<div style="background:#1e293b;border-radius:12px;padding:24px;margin-bottom:32px;">\n' +
+      '<div style="font-size:16px;color:#e2e8f0;">' + escapeHtml(sections.find(function(s){return s.type==="opening";}) && sections.find(function(s){return s.type==="opening";}).visual ? sections.find(function(s){return s.type==="opening";}).visual.title : "今日 AI 前沿速览") + '</div>\n' +
+      '<div style="color:#64748b;font-size:13px;margin-top:8px;">' + escapeHtml(renderIr.subtitle || "多条热门 AI 新闻合集") + '</div>\n' +
+      '</div>\n' +
+      '<div class="section-title">新闻列表（' + newsSegs.length + ' 条）</div>\n' +
+      cardsHtml +
+      '<div class="section-title" style="margin-top:32px;">结尾</div>\n' +
+      '<div style="background:#1e293b;border-radius:12px;padding:24px;">\n' +
+      '<div style="color:#f9fafb;font-size:15px;">' + escapeHtml(closingSec && closingSec.visual ? closingSec.visual.title : "今天最值得关注的是...") + '</div>\n' +
+      (closingSec && closingSec.visual && closingSec.visual.focus_news_id ? '<div style="color:#64748b;font-size:12px;margin-top:8px;">ID: ' + escapeHtml(closingSec.visual.focus_news_id) + '</div>' : '') +
+      '</div>\n' +
+      '</div>\n' +
+      '<div class="footer-bar">Mock HTML Preview · ' + renderIr.theme + ' · no real render</div>\n' +
+      '</body>\n' +
+      '</html>';
+    return html;
+  }
+
+  // CP28: Validate mock episode HTML
+  function validateMockEpisodeHtml(html) {
+    var warnings = [];
+    var errors = [];
+
+    if (!html || html.length === 0) {
+      errors.push("HTML 为空");
+      return { ok: false, warnings: warnings, errors: errors };
+    }
+
+    if (html.indexOf("<!DOCTYPE html>") === -1 && html.indexOf("<html") === -1) {
+      errors.push("HTML 必须包含 <!DOCTYPE html> 或 <html>");
+    }
+
+    // Check it contains episode title (any visible text is ok for mock)
+    // Check for at least one news card
+    if (html.indexOf("news_segment") === -1 && html.indexOf("section-title") === -1) {
+      warnings.push("HTML 可能不包含新闻内容");
+    }
+
+    // No API key / voice_id
+    if (/api[_-]?key/i.test(html) || /voice[_-]?id/i.test(html)) {
+      errors.push("HTML 中不允许出现 API key 或 voice_id");
+    }
+
+    // No external http links
+    if (/https?:\/\//.test(html) && !/https?:\/\/localhost/.test(html)) {
+      errors.push("HTML 中不允许出现外部 http 链接");
+    }
+
+    return {
+      ok: errors.length === 0,
+      warnings: warnings,
+      errors: errors,
+    };
+  }
+
+  // CP28: Preview mock episode HTML in iframe
+  function previewMockEpisodeHtml() {
+    if (episodeItemList.length === 0) {
+      setStatus("请先加入新闻，再预览合集画面", "error");
+      return;
+    }
+
+    var plan = buildEpisodePlan();
+    var planResult = validateEpisodePlan(plan);
+    if (!planResult.ok) {
+      setStatus("栏目计划有误：" + planResult.errors.join("；"), "error");
+      return;
+    }
+
+    var script = buildEpisodeScriptFromPlan(plan);
+    var scriptResult = validateEpisodeScript(script);
+    if (!scriptResult.ok) {
+      setStatus("栏目脚本有误：" + scriptResult.errors.join("；"), "error");
+      return;
+    }
+
+    var manifest = buildEpisodeAudioManifestFromScript(script);
+    var manifestResult = validateEpisodeAudioManifest(manifest);
+    if (!manifestResult.ok) {
+      setStatus("音频计划有误：" + manifestResult.errors.join("；"), "error");
+      return;
+    }
+
+    var renderIr = buildEpisodeRenderIrFromContracts(plan, script, manifest);
+    var renderIrResult = validateEpisodeRenderIr(renderIr);
+    if (!renderIrResult.ok) {
+      setStatus("视觉计划有误：" + renderIrResult.errors.join("；"), "error");
+      return;
+    }
+
+    var html = buildMockEpisodeHtml(renderIr);
+    var htmlResult = validateMockEpisodeHtml(html);
+    if (!htmlResult.ok) {
+      setStatus("Mock HTML 有误：" + htmlResult.errors.join("；"), "error");
+      return;
+    }
+
+    // Revoke previous Blob URL to avoid memory leak
+    if (latestEpisodePreviewUrl) {
+      URL.revokeObjectURL(latestEpisodePreviewUrl);
+      latestEpisodePreviewUrl = null;
+    }
+
+    // Create Blob and set iframe src
+    var blob = new Blob([html], { type: "text/html" });
+    latestEpisodePreviewUrl = URL.createObjectURL(blob);
+    previewHtml.src = latestEpisodePreviewUrl;
+
+    // Show preview tab
+    switchToPreviewTab();
+    setPreviewMode("html");
+
+    // Show banner
+    autoPreviewBanner.style.display = "block";
+    autoPreviewBanner.textContent = "多新闻合集 Mock 预览";
+
+    setStatus("Mock 预览已生成", "success");
+  }
+
   // ---------- theme showcase (CP20) ----------
   function renderThemeShowcase() {
     if (!themeShowcaseList) return;
@@ -1529,6 +1700,14 @@
   if (btnViewVisualPlan) {
     btnViewVisualPlan.addEventListener("click", function () {
       showEpisodeRenderIr();
+    });
+  }
+
+  // CP28: Preview mock episode HTML button
+  var btnPreviewEpisode = document.getElementById("btn-preview-episode");
+  if (btnPreviewEpisode) {
+    btnPreviewEpisode.addEventListener("click", function () {
+      previewMockEpisodeHtml();
     });
   }
 
