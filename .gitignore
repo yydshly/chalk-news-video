@@ -28,6 +28,10 @@ outputs/jobs/*
 outputs/episode_previews/*.html
 !outputs/episode_previews/.gitkeep
 
+# Episode export artifacts (CP40.2)
+outputs/episode_exports/*
+!outputs/episode_exports/.gitkeep
+
 # Prototype / temp export artifacts (CP40.1)
 .tmp/
 

@@ -410,6 +410,7 @@ WEB_DIR = PROJECT_ROOT / "web"
 OUTPUT_DIR = PROJECT_ROOT / "outputs" / "latest"
 JOBS_DIR = PROJECT_ROOT / "outputs" / "jobs"
 EPISODE_PREVIEWS_DIR = PROJECT_ROOT / "outputs" / "episode_previews"
+EPISODE_EXPORTS_DIR = PROJECT_ROOT / "outputs" / "episode_exports"
 EXAMPLES_DIR = PROJECT_ROOT / "examples"
 
 # Whitelist of allowed artifact names
@@ -1122,6 +1123,134 @@ def api_episode_html_history():
         return JSONResponse({"ok": True, "items": files[:50]})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
+# ---------- episode export (CP40.2) ----------
+
+
+class EpisodeExportRequest(BaseModel):
+    contract: dict
+    style_id: str = "breaking_news_v1"
+    width: int = 720
+    height: int = 1280
+    fps: int = 30
+
+
+@app.post("/api/episode/export")
+def api_episode_export(body: EpisodeExportRequest):
+    """Export an episode_template_v1 contract to MP4.
+
+    CP40.2: No real LLM, no real TTS, no audio mux.
+    Returns mp4_url, html_url, meta_url, and artifact paths.
+    """
+    from src.episode_export import (
+        export_episode_contract_to_mp4,
+        ALLOWED_STYLE_IDS,
+        clamp_export_options,
+    )
+
+    # Validate style_id
+    if body.style_id not in ALLOWED_STYLE_IDS:
+        return JSONResponse({
+            "status": "failed",
+            "error_type": "invalid_style_id",
+            "message": f"Unsupported style_id {body.style_id!r}. Allowed: {', '.join(sorted(ALLOWED_STYLE_IDS))}",
+        }, status_code=400)
+
+    # Validate contract presence
+    if not isinstance(body.contract, dict):
+        return JSONResponse({
+            "status": "failed",
+            "error_type": "invalid_contract",
+            "message": "contract must be an object",
+        }, status_code=400)
+
+    # Clamp dimensions
+    width, height, fps = clamp_export_options(body.width, body.height, body.fps)
+
+    try:
+        result = export_episode_contract_to_mp4(
+            contract=body.contract,
+            style_id=body.style_id,
+            width=width,
+            height=height,
+            fps=fps,
+            audio_path=None,
+        )
+        return JSONResponse({
+            "status": "completed",
+            "export_id": result["export_id"],
+            "style_id": result["style_id"],
+            "width": result["width"],
+            "height": result["height"],
+            "fps": result["fps"],
+            "mp4_path": result["mp4_path"],
+            "mp4_url": result["mp4_url"],
+            "html_url": result["html_url"],
+            "meta_url": result["meta_url"],
+            "contract_url": result["contract_url"],
+            "mp4_size_bytes": result["mp4_size_bytes"],
+            "audio_path": None,
+            "created_at": result["created_at"],
+        })
+    except ValueError as ve:
+        return JSONResponse({
+            "status": "failed",
+            "error_type": "validation_error",
+            "message": str(ve),
+        }, status_code=400)
+    except Exception as exc:
+        # Redact secrets from error messages
+        redacted = _redact_secret_text(str(exc))
+        return JSONResponse({
+            "status": "failed",
+            "error_type": "export_failed",
+            "message": redacted,
+        }, status_code=500)
+
+
+@app.get("/outputs/episode_exports/{export_id}/{filename}")
+def serve_episode_export_file(export_id: str, filename: str):
+    """Serve a whitelisted file from an episode export directory.
+
+    Only allows files in the whitelist and export_ids matching the pattern.
+    """
+    from src.episode_export import (
+        validate_export_id,
+        validate_filename,
+        EPISODE_EXPORT_DIR,
+    )
+
+    # Validate export_id format
+    if not validate_export_id(export_id):
+        raise HTTPException(status_code=404, detail="Export not found")
+
+    # Validate filename whitelist
+    if not validate_filename(filename):
+        raise HTTPException(status_code=404, detail="File not allowed")
+
+    export_dir = EPISODE_EXPORT_DIR / export_id
+    # Security: ensure resolved path is under EPISODE_EXPORT_DIR
+    try:
+        file_path = (export_dir / filename).resolve()
+        if not str(file_path).startswith(str(EPISODE_EXPORT_DIR.resolve())):
+            raise HTTPException(status_code=404, detail="Export not found")
+    except Exception:
+        raise HTTPException(status_code=404, detail="Export not found")
+
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    if filename == "animation.html":
+        return FileResponse(str(file_path), media_type="text/html")
+    elif filename == "output.mp4":
+        return FileResponse(str(file_path), media_type="video/mp4")
+    elif filename == "contract.json":
+        return FileResponse(str(file_path), media_type="application/json")
+    elif filename == "export_meta.json":
+        return FileResponse(str(file_path), media_type="application/json")
+
+    raise HTTPException(status_code=404, detail="Unsupported file type")
 
 
 # ---------- health ----------
