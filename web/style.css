@@ -804,6 +804,74 @@ footer {
   display: none;
 }
 
+/* CP21: Generation Plan Panel */
+.generation-plan-panel {
+  background: #1a1a2e;
+  border: 1px solid #2a2a4a;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.gen-plan-header {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #38bdf8;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #2d3748;
+}
+
+.gen-plan-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 0.8125rem;
+}
+
+.gen-plan-row:last-child {
+  margin-bottom: 0;
+}
+
+.gen-plan-label {
+  color: #64748b;
+  width: 64px;
+  flex-shrink: 0;
+}
+
+.gen-plan-value {
+  color: #e2e8f0;
+  flex: 1;
+}
+
+.gen-plan-news-empty {
+  color: #f87171;
+  font-style: italic;
+}
+
+.gen-plan-status-row {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid #2d3748;
+}
+
+.gen-plan-status-ready {
+  color: #4ade80;
+}
+
+.gen-plan-status-warning {
+  color: #fbbf24;
+}
+
+.gen-plan-status-error {
+  color: #f87171;
+}
+
+.gen-plan-status-working {
+  color: #38bdf8;
+}
+
 /* CP20: Theme Showcase Gallery */
 .theme-showcase-section {
   background: #0f1a1a;

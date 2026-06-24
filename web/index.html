@@ -138,6 +138,35 @@
         </div>
       </fieldset>
 
+      <!-- CP21: Generation Plan Panel -->
+      <div id="generation-plan-panel" class="generation-plan-panel">
+        <div class="gen-plan-header">📋 生成方案</div>
+        <div class="gen-plan-row">
+          <span class="gen-plan-label">新闻</span>
+          <span id="gen-plan-news" class="gen-plan-value gen-plan-news-empty">请选择一条热门 AI 新闻</span>
+        </div>
+        <div class="gen-plan-row">
+          <span class="gen-plan-label">视频风格</span>
+          <span id="gen-plan-theme" class="gen-plan-value">—</span>
+        </div>
+        <div class="gen-plan-row">
+          <span class="gen-plan-label">生成模式</span>
+          <span id="gen-plan-mode" class="gen-plan-value">快速预览</span>
+        </div>
+        <div class="gen-plan-row">
+          <span class="gen-plan-label">预计产物</span>
+          <span id="gen-plan-outputs" class="gen-plan-value">animation.html</span>
+        </div>
+        <div class="gen-plan-row">
+          <span class="gen-plan-label">预计耗时</span>
+          <span id="gen-plan-time" class="gen-plan-value">较快</span>
+        </div>
+        <div id="gen-plan-status-row" class="gen-plan-row gen-plan-status-row">
+          <span class="gen-plan-label">状态</span>
+          <span id="gen-plan-status" class="gen-plan-value gen-plan-status-ready">✓ 已就绪</span>
+        </div>
+      </div>
+
       <!-- Generate Button -->
       <button id="btn-generate" class="btn-primary">生成快速预览</button>
       <p id="status-msg" class="status-msg"></p>

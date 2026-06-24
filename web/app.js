@@ -55,6 +55,15 @@
   const themeShowcaseSection = document.getElementById("theme-showcase-section");
   const themeShowcaseList = document.getElementById("theme-showcase-list");
 
+  // CP21: Generation plan panel DOM refs
+  const genPlanNews = document.getElementById("gen-plan-news");
+  const genPlanTheme = document.getElementById("gen-plan-theme");
+  const genPlanMode = document.getElementById("gen-plan-mode");
+  const genPlanOutputs = document.getElementById("gen-plan-outputs");
+  const genPlanTime = document.getElementById("gen-plan-time");
+  const genPlanStatus = document.getElementById("gen-plan-status");
+  const genPlanStatusRow = document.getElementById("gen-plan-status-row");
+
   // ---------- state ----------
   let lastResult = null;
   let currentEventSource = null;
@@ -131,6 +140,9 @@
 
     // CP18.5: Initialize generation mode UI
     updateGenModeUI();
+
+    // CP21: Initialize generation plan panel
+    updateGenerationPlan();
 
     // CP19: Auto-load hot news if mode is hot_ai
     tryAutoLoadHotNews();
@@ -257,13 +269,22 @@
       } else {
         textInputFields.classList.add("hidden");
       }
+      updateGenerationPlan();
     });
   });
+
+  // Update generation plan when text input changes
+  if (inputNews) {
+    inputNews.addEventListener("input", function () {
+      updateGenerationPlan();
+    });
+  }
 
   // CP18.5: generation mode toggle
   genModeRadios.forEach(function (radio) {
     radio.addEventListener("change", function () {
       updateGenModeUI();
+      updateGenerationPlan();
     });
   });
 
@@ -332,6 +353,7 @@
 
     // Update generate button text based on selection state
     updateGenModeUI();
+    updateGenerationPlan();
   }
 
   function selectHotNewsItem(index) {
@@ -351,6 +373,7 @@
 
     // Update generate button text
     updateGenModeUI();
+    updateGenerationPlan();
   }
 
   // ---------- theme showcase (CP20) ----------
@@ -392,7 +415,69 @@
   if (selectTheme) {
     selectTheme.addEventListener("change", function () {
       renderThemeShowcase();
+      updateGenerationPlan();
     });
+  }
+
+  // ---------- generation plan panel (CP21) ----------
+  function updateGenerationPlan() {
+    const mode = document.querySelector('input[name="mode"]:checked').value;
+    const genMode = document.querySelector('input[name="gen_mode"]:checked').value;
+    const themeId = selectTheme.value;
+    const themeName = (THEME_SHOWCASES[themeId] && THEME_SHOWCASES[themeId].name) ? THEME_SHOWCASES[themeId].name : themeId;
+    const isGenerating = btnGenerate.disabled;
+
+    // News
+    if (mode === "hot_ai") {
+      if (selectedNews && selectedNews.title) {
+        genPlanNews.textContent = selectedNews.title;
+        genPlanNews.classList.remove("gen-plan-news-empty");
+      } else {
+        genPlanNews.textContent = "请选择一条热门 AI 新闻";
+        genPlanNews.classList.add("gen-plan-news-empty");
+      }
+    } else if (mode === "text") {
+      const text = inputNews.value.trim();
+      if (text) {
+        genPlanNews.textContent = "已输入新闻文本";
+        genPlanNews.classList.remove("gen-plan-news-empty");
+      } else {
+        genPlanNews.textContent = "请输入新闻文本";
+        genPlanNews.classList.add("gen-plan-news-empty");
+      }
+    } else {
+      genPlanNews.textContent = "使用示例新闻";
+      genPlanNews.classList.remove("gen-plan-news-empty");
+    }
+
+    // Theme
+    genPlanTheme.textContent = themeName;
+
+    // Gen mode info
+    const modeInfo = {
+      fast: { name: "快速预览", outputs: "animation.html", time: "较快", hint: "适合先看结构和画面" },
+      voice: { name: "语音预览", outputs: "animation.html + dialogue.wav", time: "中等", hint: "适合听真实双人播报" },
+      export: { name: "最终导出 MP4", outputs: "animation.html + dialogue.wav + output.mp4", time: "较慢", hint: "适合生成最终成片" },
+    };
+    const info = modeInfo[genMode] || modeInfo.fast;
+    genPlanMode.textContent = info.name;
+    genPlanOutputs.textContent = info.outputs;
+    genPlanTime.textContent = info.time;
+
+    // Status
+    if (isGenerating) {
+      genPlanStatus.textContent = "⟳ 正在生成...";
+      genPlanStatus.className = "gen-plan-value gen-plan-status-working";
+    } else if (mode === "hot_ai" && !selectedNews) {
+      genPlanStatus.textContent = "⚠ 请先选择新闻";
+      genPlanStatus.className = "gen-plan-value gen-plan-status-warning";
+    } else if (mode === "text" && !inputNews.value.trim() && document.querySelector('input[name="mode"]:checked').value === "text") {
+      genPlanStatus.textContent = "⚠ 请输入新闻文本";
+      genPlanStatus.className = "gen-plan-value gen-plan-status-warning";
+    } else {
+      genPlanStatus.textContent = "✓ 已就绪";
+      genPlanStatus.className = "gen-plan-value gen-plan-status-ready";
+    }
   }
 
   // Load hot news when switching to hot_ai mode
@@ -402,6 +487,7 @@
         loadHotNews();
       }
       updateGenModeUI();
+      updateGenerationPlan();
     });
   });
 
@@ -587,6 +673,7 @@
           appendJobLog("[错误] 未收到结果");
         }
         btnGenerate.disabled = false;
+        updateGenerationPlan();
       });
 
       currentEventSource.addEventListener("error", function (e) {
@@ -601,6 +688,7 @@
         appendJobLog("[失败] " + errorMsg);
         loadHistory();
         btnGenerate.disabled = false;
+        updateGenerationPlan();
       });
 
       currentEventSource.onerror = function () {
@@ -613,6 +701,7 @@
     } catch (e) {
       setStatus("请求失败: " + e.message, "error");
       btnGenerate.disabled = false;
+      updateGenerationPlan();
     }
   });
 
