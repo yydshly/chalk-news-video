@@ -213,3 +213,101 @@ All 5 styles continue to satisfy all CP33.1 security requirements:
 | No `/api/jobs` called | ✓ |
 | No real LLM / TTS / MP4 | ✓ |
 | `outputs/episode_previews/*.html` not committed | ✓ |
+
+---
+
+## CP35.1: Episode Style Layout Differentiation
+
+**Branch:** `fix/cp35.1-episode-style-layout-differentiation`
+**Commit:** `fix(cp35.1): differentiate episode style layouts`
+**Date:** 2026-06-25
+
+### 1. Issue
+
+CP35 implemented 5 visual styles but they differed primarily in color rather than layout structure. They all used the same vertical card flow with a shared hero. CP35.1 refactors the renderer into 5 genuinely distinct layout structures.
+
+### 2. Architecture
+
+`renderEpisodeTemplateHtml(contract)` becomes a dispatcher:
+
+```js
+function renderEpisodeTemplateHtml(contract) {
+  if (templateId === "breaking_news_v1") return renderBreakingNewsEpisodeHtml(contract, st);
+  if (templateId === "data_dashboard_v1") return renderDataDashboardEpisodeHtml(contract, st);
+  if (templateId === "research_briefing_v1") return renderResearchBriefingEpisodeHtml(contract, st);
+  if (templateId === "podcast_cards_v1") return renderPodcastCardsEpisodeHtml(contract, st);
+  return renderTimelineDailyEpisodeHtml(contract, st);
+}
+```
+
+Shared helpers:
+- `renderSharedTimelineMarkersHtml(timeline, st)` — timeline rail markers (all styles)
+- `getSharedCss(st)` — base CSS (all styles)
+
+### 3. Layout Differences Per Style
+
+#### timeline_daily_v1 (baseline)
+- Standard vertical card layout
+- Hero + timeline rail + vertical news cards + closing
+- No special structural modifications
+
+#### breaking_news_v1
+- **Structure**: Breaking banner → Hero → Lead hero card → 2-column supporting grid → Closing
+- Lead card: large (22px headline, 24px padding, prominent border)
+- Supporting cards: compact 2-column grid, smaller fonts
+- Transitions: styled as broadcast-style labels ("继续关注", "最新进展")
+- Hero headline: solid white (no gradient)
+
+#### data_dashboard_v1
+- **Structure**: Dashboard hero with metrics row → thin timeline rail → 2-column dashboard panels → Insight closing
+- Metric row: 4 metric chips (news count, lead count, total time, audio clips)
+- Dashboard panels: monospace font, border-heavy panel styling
+- Closing: labeled "INSIGHT" badge
+- Hero badge: "📊 数据仪表盘"
+
+#### research_briefing_v1
+- **Structure**: Research header → compact chapter bar → memo-style card list → Closing takeaway
+- Lead card: labeled "◆ KEY FINDING", left border accent
+- Other cards: labeled "○ OBSERVATION N", memo-style with top border separator
+- Layout tags as bullet labels with icons (📋, ⚡)
+- Font: solid gray-white (no gradient)
+- Footer: "Research Briefing"
+
+#### podcast_cards_v1
+- **Structure**: Episode cover header → chapters rail → topic cards with host transitions → Episode recap
+- Header: centered episode badge ("EPISODE N"), podcast cover style
+- Chapters rail: horizontal scrollable chapter list
+- Topic cards: numbered circles, rounded corners, warm background
+- Transitions: host bubble style ("好，咱们接着聊")
+- Emphasis shown as warm quote block
+- Footer: "🎙️ Podcast Preview"
+
+### 4. Security (unchanged)
+
+All 5 layouts continue to satisfy:
+- `mock-news-card` class required
+- `data-section-type="news_segment"` required
+- `tl-rail` / `tl-track` present
+- `tl-time` present
+- "开场" and "结尾" present
+- No API key / voice_id
+- No external http/https
+- No `<script>` tags
+- No remote images
+
+### 5. Lightweight Verification Results
+
+| Test | Result |
+|------|--------|
+| All 5 styles render with distinct layouts | ✓ |
+| `breaking_news_v1`: lead card + 2-col grid visible | ✓ |
+| `data_dashboard_v1`: metric chips + 2-col panels visible | ✓ |
+| `research_briefing_v1`: memo/OBSERVATION structure visible | ✓ |
+| `podcast_cards_v1`: episode cover + chapter rail visible | ✓ |
+| All styles pass `validateMockEpisodeHtml` | ✓ |
+| All styles pass `validateEpisodeTemplateContract` | ✓ |
+| No external http/https in any layout | ✓ |
+| No script tags | ✓ |
+| No API key / voice_id | ✓ |
+| No `/api/jobs` called | ✓ |
+| No real LLM / TTS / MP4 | ✓ |

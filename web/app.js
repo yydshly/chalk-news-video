@@ -2056,263 +2056,416 @@
     return t;
   }
 
-  // CP35: Style-aware HTML renderer
+  // CP35.1: Dispatch to per-style layout renderer
   function renderEpisodeTemplateHtml(contract) {
     if (!contract) return "";
+    var templateId = contract.template_id || "timeline_daily_v1";
+    var st = getEpisodeStyleTheme(templateId);
+    if (templateId === "breaking_news_v1") return renderBreakingNewsEpisodeHtml(contract, st);
+    if (templateId === "data_dashboard_v1") return renderDataDashboardEpisodeHtml(contract, st);
+    if (templateId === "research_briefing_v1") return renderResearchBriefingEpisodeHtml(contract, st);
+    if (templateId === "podcast_cards_v1") return renderPodcastCardsEpisodeHtml(contract, st);
+    return renderTimelineDailyEpisodeHtml(contract, st);
+  }
 
+  // CP35.1: Shared helpers used by all layout renderers
+  function renderSharedTimelineMarkersHtml(timeline, st) {
+    if (!timeline || !timeline.markers) return "";
+    var htmlParts = [];
+    timeline.markers.forEach(function (marker) {
+      var dotClass = "tl-dot";
+      if (marker.type === "opening") dotClass = "tl-dot tl-dot-opening";
+      else if (marker.type === "news_segment") dotClass = "tl-dot " + (marker.role === "lead" ? "tl-dot-lead" : "tl-dot-supporting");
+      else if (marker.type === "transition") dotClass = "tl-dot tl-dot-trans";
+      else if (marker.type === "closing") dotClass = "tl-dot tl-dot-closing";
+      htmlParts.push('<div class="tl-marker">' +
+        '<div class="' + dotClass + '"></div>' +
+        '<div class="tl-label"><span class="tl-time">' + marker.timecode + '</span><span class="tl-name">' + escapeHtml(marker.label) + '</span></div>' +
+        '</div>');
+    });
+    return htmlParts.join("");
+  }
+
+  function getSharedCss(st) {
+    return '<style>\n' +
+      '*{margin:0;padding:0;box-sizing:border-box}\n' +
+      'body{background:' + st.bodyBg + ';color:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;' +
+      'display:flex;flex-direction:column;min-height:100vh;padding:0}\n' +
+      '.hero{background:' + st.heroBg + ';padding:32px 40px;border-bottom:1px solid ' + st.heroBorder + ';position:relative;overflow:hidden;}\n' +
+      '.hero::before{content:"";position:absolute;top:0;left:0;right:0;bottom:0;background:repeating-linear-gradient(90deg,transparent,transparent 40px,' + st.heroBorder + ' 40px,' + st.heroBorder + ' 41px);opacity:' + st.heroGridOpacity + ';pointer-events:none;}\n' +
+      '.hero-content{position:relative;z-index:1;}\n' +
+      '.hero-eyebrow{display:flex;gap:12px;align-items:center;margin-bottom:12px;}\n' +
+      '.hero-badge{background:' + st.badgeBg + ';color:' + st.badgeColor + ';padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:0.5px;}\n' +
+      '.hero-theme{color:' + st.accentBlue + ';font-size:12px;background:' + st.heroBorder + ';padding:3px 10px;border-radius:20px;}\n' +
+      '.hero-badge-dur{color:' + st.metaText + ';font-size:12px;}\n' +
+      '.hero h1{font-size:28px;font-weight:800;margin-bottom:8px;}\n' +
+      '.hero-subtitle{color:' + st.accentText + ';font-size:14px;margin-bottom:16px;}\n' +
+      '.hero-stats{display:flex;gap:20px;}\n' +
+      '.hero-stat{text-align:center;}\n' +
+      '.hero-stat-num{font-size:20px;font-weight:700;color:' + st.statColor + ';}\n' +
+      '.hero-stat-label{font-size:11px;color:' + st.metaText + ';}\n' +
+      '.tl-rail{background:' + st.bodyBg + ';padding:16px 40px;border-bottom:1px solid ' + st.heroBorder + ';overflow-x:auto;}\n' +
+      '.tl-track{display:flex;align-items:center;gap:0;min-width:600px;position:relative;padding:8px 0;}\n' +
+      '.tl-track::before{content:"";position:absolute;left:0;right:0;top:50%;height:2px;background:' + st.heroBorder + ';transform:translateY(-50%);z-index:0;}\n' +
+      '.tl-marker{display:flex;flex-direction:column;align-items:center;position:relative;z-index:1;flex:1;min-width:60px;}\n' +
+      '.tl-dot{width:12px;height:12px;border-radius:50%;border:2px solid ' + st.dotSupport + ';background:' + st.bodyBg + ';position:relative;}\n' +
+      '.tl-dot-opening{background:' + st.dotOpening + ';border-color:' + st.dotOpening + ';animation:pulseLine 2s infinite;}\n' +
+      '.tl-dot-lead{background:' + st.dotLead + ';border-color:' + st.dotLead + ';box-shadow:0 0 8px ' + st.dotLead + '80;}\n' +
+      '.tl-dot-supporting{background:' + st.dotSupport + ';border-color:' + st.dotSupport + ';}\n' +
+      '.tl-dot-trans{background:' + st.dotTrans + ';border-color:' + st.dotTrans + ';width:8px;height:8px;}\n' +
+      '.tl-dot-closing{background:' + st.dotClosing + ';border-color:' + st.dotClosing + ';animation:pulseLine 2s infinite;}\n' +
+      '.tl-label{text-align:center;margin-top:4px;}\n' +
+      '.tl-time{color:' + st.metaText + ';font-size:10px;font-family:monospace;display:block;}\n' +
+      '.tl-name{color:' + st.accentText + ';font-size:10px;display:block;white-space:nowrap;}\n' +
+      '.tl-marker-trans .tl-name{color:' + st.metaText + ';}\n' +
+      '.content{padding:24px 40px;flex:1;max-width:900px;margin:0 auto;width:100%;}\n' +
+      '.section-label{color:' + st.metaText + ';font-size:11px;text-transform:uppercase;letter-spacing:1.5px;margin:20px 0 8px 0;display:flex;align-items:center;gap:10px;}\n' +
+      '.section-label::after{content:"";flex:1;height:1px;background:' + st.sectionDivider + ';}\n' +
+      '.mock-news-card-lead{border-left:3px solid ' + st.cardBorderLead + '!important;}\n' +
+      '.card-lead-badge{background:' + st.badgeBg + ';color:' + st.badgeColor + ';padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;margin-left:6px;}\n' +
+      '.footer-bar{background:' + st.footerBg + ';padding:12px 40px;border-top:1px solid ' + st.heroBorder + ';font-size:11px;color:' + st.footerText + ';display:flex;justify-content:space-between;align-items:center;}\n' +
+      '@keyframes fadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}\n' +
+      '@keyframes pulseLine{0%,100%{opacity:1;}50%{opacity:0.5;}}\n' +
+      '@keyframes shimmer{0%{background-position:-200% 0;}100%{background-position:200% 0;}}\n' +
+      '</style>\n';
+  }
+
+  // CP35.1: Layout 1 — timeline_daily_v1 (standard vertical news cards — the baseline)
+  function renderTimelineDailyEpisodeHtml(contract, st) {
     var episode = contract.episode;
     var timeline = contract.timeline;
     var sections = contract.sections;
-    var templateId = contract.template_id || "timeline_daily_v1";
-    var st = getEpisodeStyleTheme(templateId);
     var totalTimeStr = formatTimecode(episode.estimated_duration_sec);
     var themeName = episode.theme_name || "";
-
-    // Render timeline markers HTML
-    function renderTimelineMarkersHtml() {
-      if (!timeline || !timeline.markers) return "";
-      var htmlParts = [];
-
-      timeline.markers.forEach(function (marker) {
-        var dotClass = "tl-dot";
-        if (marker.type === "opening") dotClass = "tl-dot tl-dot-opening";
-        else if (marker.type === "news_segment") dotClass = "tl-dot " + (marker.role === "lead" ? "tl-dot-lead" : "tl-dot-supporting");
-        else if (marker.type === "transition") dotClass = "tl-dot tl-dot-trans";
-        else if (marker.type === "closing") dotClass = "tl-dot tl-dot-closing";
-
-        htmlParts.push('<div class="tl-marker">' +
-          '<div class="' + dotClass + '"></div>' +
-          '<div class="tl-label"><span class="tl-time">' + marker.timecode + '</span><span class="tl-name">' + escapeHtml(marker.label) + '</span></div>' +
-          '</div>');
-      });
-
-      return htmlParts.join("");
-    }
-
-    // Render a single news card HTML — style-aware
-    function renderNewsCardHtml(card) {
-      var isLead = card.is_lead;
-      var borderColor = isLead ? st.cardBorderLead : st.cardBorder;
-      var bgColor = isLead ? st.cardBgLead : st.cardBg;
-      var badgeLeadHtml = isLead ? '<span class="card-lead-badge">★ 主线</span>' : "";
-      var emphasisTag = card.emphasis ? '<span class="card-emphasis-tag" style="color:' + st.cardEmphasisColor + ';font-size:11px;background:' + st.cardBadgeBg + ';padding:2px 6px;border-radius:3px;">' + escapeHtml(card.emphasis) + '</span>' : '';
-      var badgesHtml = card.badges.map(function (b) {
-        return '<span class="card-badge">' + escapeHtml(b) + '</span>';
-      }).join("");
-      var hlSize = templateId === "breaking_news_v1" ? "18px" : "16px";
-
-      return '<div class="mock-news-card' + (isLead ? " mock-news-card-lead" : "") + '" data-section-type="news_segment" style="background:' + bgColor + ';border:1px solid ' + borderColor + ';border-radius:12px;padding:20px;margin:10px 0;animation:fadeUp 0.4s ease-out both;">' +
-        '<div class="card-header-row" style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">' +
-        '<span class="card-rank" style="background:' + st.cardBadgeBg + ';color:' + st.metaText + ';border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;">#' + card.order + '</span>' +
-        '<span class="card-time" style="color:' + st.metaText + ';font-size:11px;font-family:monospace;">' + card.time_range + '</span>' +
-        '<span class="card-dur" style="color:' + st.metaText + ';font-size:11px;">' + card.duration_hint_sec + 's</span>' +
-        badgeLeadHtml +
-        '</div>' +
-        '<div class="card-headline" style="color:#f9fafb;font-size:' + hlSize + ';font-weight:600;margin-bottom:8px;line-height:1.4;">' +
-        escapeHtml(card.headline) + '</div>' +
-        '<div class="card-meta-row" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">' +
-        '<span class="card-layout-tag" style="color:' + st.cardLayoutTagColor + ';font-size:11px;background:' + st.cardBadgeBg + ';padding:2px 6px;border-radius:3px;">' + escapeHtml(card.layout) + '</span>' +
-        emphasisTag +
-        badgesHtml +
-        '</div>' +
-        '<div class="card-footer-row" style="color:' + st.metaText + ';font-size:11px;margin-top:8px;">' +
-        '<span>🎙 ' + card.audio_clip_count + ' 音频片段</span>' +
-        '<span style="margin-left:12px;">📋 ' + escapeHtml(card.is_lead ? "主线" : "补充") + '</span>' +
-        '</div>' +
-        '</div>';
-    }
-
-    // Render a transition row HTML — style-aware
-    function renderTransitionRowHtml(row) {
-      var rowBg = templateId === "podcast_cards_v1" ? st.podcastTransitionBg : "transparent";
-      return '<div class="mock-transition-row" style="display:flex;align-items:center;gap:12px;padding:8px 16px;margin:4px 0;color:' + st.metaText + ';font-size:12px;background:' + rowBg + ';">' +
-        '<span style="flex:1;height:1px;background:' + st.sectionDivider + ';"></span>' +
-        '<span style="white-space:nowrap;">→ ' + escapeHtml(row.text) + ' →</span>' +
-        '<span style="flex:1;height:1px;background:' + st.sectionDivider + ';"></span>' +
-        '</div>';
-    }
-
-    // Breaking news banner
-    var breakingBannerHtml = "";
-    if (templateId === "breaking_news_v1") {
-      breakingBannerHtml = '<div style="background:#dc2626;color:#ffffff;text-align:center;padding:8px;font-size:14px;font-weight:900;letter-spacing:2px;">🔴 BREAKING NEWS — ' + escapeHtml(episode.title) + '</div>';
-    }
-
-    // Assemble news cards + transitions
-    var cardsAndTransitions = [];
-    sections.news_cards.forEach(function (card, i) {
-      cardsAndTransitions.push(renderNewsCardHtml(card));
-      if (i < sections.news_cards.length - 1 && sections.transitions && sections.transitions[i]) {
-        cardsAndTransitions.push(renderTransitionRowHtml(sections.transitions[i]));
-      }
-    });
-
     var hlStyle = st.headlineGradient !== "none"
       ? 'background:' + st.headlineGradient + ';-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;'
       : 'color:#f9fafb;';
 
-    var html = '<!DOCTYPE html>
-' +
-      '<html lang="zh-CN">
-' +
-      '<head>
-' +
-      '<meta charset="UTF-8">
-' +
-      '<meta name="viewport" content="width=device-width, initial-scale=1.0">
-' +
-      '<title>' + escapeHtml(episode.title) + '</title>
-' +
-      '<style>
-' +
-      '*{margin:0;padding:0;box-sizing:border-box}
-' +
-      'body{background:' + st.bodyBg + ';color:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;' +
-      'display:flex;flex-direction:column;min-height:100vh;padding:0}
-' +
-      '.hero{background:' + st.heroBg + ';padding:32px 40px;border-bottom:1px solid ' + st.heroBorder + ';position:relative;overflow:hidden;}
-' +
-      '.hero::before{content:"";position:absolute;top:0;left:0;right:0;bottom:0;background:repeating-linear-gradient(90deg,transparent,transparent 40px,' + st.heroBorder + ' 40px,' + st.heroBorder + ' 41px);opacity:' + st.heroGridOpacity + ';pointer-events:none;}
-' +
-      '.hero-content{position:relative;z-index:1;}
-' +
-      '.hero-eyebrow{display:flex;gap:12px;align-items:center;margin-bottom:12px;}
-' +
-      '.hero-badge{background:' + st.badgeBg + ';color:' + st.badgeColor + ';padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:0.5px;}
-' +
-      '.hero-theme{color:' + st.accentBlue + ';font-size:12px;background:' + st.heroBorder + ';padding:3px 10px;border-radius:20px;}
-' +
-      '.hero-badge-dur{color:' + st.metaText + ';font-size:12px;}
-' +
-      '.hero h1{font-size:28px;font-weight:800;margin-bottom:8px;' + hlStyle + '}
-' +
-      '.hero-subtitle{color:' + st.accentText + ';font-size:14px;margin-bottom:16px;}
-' +
-      '.hero-stats{display:flex;gap:20px;}
-' +
-      '.hero-stat{text-align:center;}
-' +
-      '.hero-stat-num{font-size:20px;font-weight:700;color:' + st.statColor + ';}
-' +
-      '.hero-stat-label{font-size:11px;color:' + st.metaText + ';}
-' +
-      '.tl-rail{background:' + st.bodyBg + ';padding:16px 40px;border-bottom:1px solid ' + st.heroBorder + ';overflow-x:auto;}
-' +
-      '.tl-track{display:flex;align-items:center;gap:0;min-width:600px;position:relative;padding:8px 0;}
-' +
-      '.tl-track::before{content:"";position:absolute;left:0;right:0;top:50%;height:2px;background:' + st.heroBorder + ';transform:translateY(-50%);z-index:0;}
-' +
-      '.tl-marker{display:flex;flex-direction:column;align-items:center;position:relative;z-index:1;flex:1;min-width:60px;}
-' +
-      '.tl-dot{width:12px;height:12px;border-radius:50%;border:2px solid ' + st.dotSupport + ';background:' + st.bodyBg + ';position:relative;}
-' +
-      '.tl-dot-opening{background:' + st.dotOpening + ';border-color:' + st.dotOpening + ';animation:pulseLine 2s infinite;}
-' +
-      '.tl-dot-lead{background:' + st.dotLead + ';border-color:' + st.dotLead + ';box-shadow:0 0 8px ' + st.dotLead + '80;}
-' +
-      '.tl-dot-supporting{background:' + st.dotSupport + ';border-color:' + st.dotSupport + ';}
-' +
-      '.tl-dot-trans{background:' + st.dotTrans + ';border-color:' + st.dotTrans + ';width:8px;height:8px;}
-' +
-      '.tl-dot-closing{background:' + st.dotClosing + ';border-color:' + st.dotClosing + ';animation:pulseLine 2s infinite;}
-' +
-      '.tl-label{text-align:center;margin-top:4px;}
-' +
-      '.tl-time{color:' + st.metaText + ';font-size:10px;font-family:monospace;display:block;}
-' +
-      '.tl-name{color:' + st.accentText + ';font-size:10px;display:block;white-space:nowrap;}
-' +
-      '.tl-marker-trans .tl-name{color:' + st.metaText + ';}
-' +
-      '.content{padding:24px 40px;flex:1;max-width:900px;margin:0 auto;width:100%;}
-' +
-      '.section-label{color:' + st.metaText + ';font-size:11px;text-transform:uppercase;letter-spacing:1.5px;margin:20px 0 8px 0;display:flex;align-items:center;gap:10px;}
-' +
-      '.section-label::after{content:"";flex:1;height:1px;background:' + st.sectionDivider + ';}
-' +
-      '.mock-news-card-lead{border-left:3px solid ' + st.cardBorderLead + '!important;}
-' +
-      '.card-lead-badge{background:' + st.badgeBg + ';color:' + st.badgeColor + ';padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;margin-left:6px;}
-' +
-      '.footer-bar{background:' + st.footerBg + ';padding:12px 40px;border-top:1px solid ' + st.heroBorder + ';font-size:11px;color:' + st.footerText + ';display:flex;justify-content:space-between;align-items:center;}
-' +
-      '@keyframes fadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
-' +
-      '@keyframes pulseLine{0%,100%{opacity:1;}50%{opacity:0.5;}}
-' +
-      '@keyframes shimmer{0%{background-position:-200% 0;}100%{background-position:200% 0;}}
-' +
-      '</style>
-' +
-      '</head>
-' +
-      '<body>
-' +
-      breakingBannerHtml +
-      '<div class="hero">
-' +
-      '<div class="hero-content">' +
-      '<div class="hero-eyebrow">' +
-      '<span class="hero-badge">🔥 合集</span>' +
-      '<span class="hero-theme">' + escapeHtml(themeName) + '</span>' +
-      '<span class="hero-badge-dur">⏱ ' + totalTimeStr + '</span>' +
-      '</div>
-' +
-      '<h1>' + escapeHtml(episode.title) + '</h1>
-' +
-      '<div class="hero-subtitle">' + escapeHtml(episode.subtitle) + '</div>
-' +
-      '<div class="hero-stats">' +
-      '<div class="hero-stat"><div class="hero-stat-num">' + sections.news_cards.length + '</div><div class="hero-stat-label">条新闻</div></div>' +
+    function cardHtml(card) {
+      var isLead = card.is_lead;
+      var bc = isLead ? st.cardBorderLead : st.cardBorder;
+      var bg = isLead ? st.cardBgLead : st.cardBg;
+      var leadBadge = isLead ? '<span class="card-lead-badge">★ 主线</span>' : '';
+      var empTag = card.emphasis ? '<span style="color:' + st.cardEmphasisColor + ';font-size:11px;background:' + st.cardBadgeBg + ';padding:2px 6px;border-radius:3px;">' + escapeHtml(card.emphasis) + '</span>' : '';
+      var badges = card.badges.map(function (b) { return '<span class="card-badge">' + escapeHtml(b) + '</span>'; }).join("");
+      return '<div class="mock-news-card' + (isLead ? ' mock-news-card-lead' : '') + '" data-section-type="news_segment" style="background:' + bg + ';border:1px solid ' + bc + ';border-radius:12px;padding:20px;margin:10px 0;animation:fadeUp 0.4s ease-out both;">' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">' +
+        '<span style="background:' + st.cardBadgeBg + ';color:' + st.metaText + ';border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;">#' + card.order + '</span>' +
+        '<span style="color:' + st.metaText + ';font-size:11px;font-family:monospace;">' + card.time_range + '</span>' +
+        '<span style="color:' + st.metaText + ';font-size:11px;">' + card.duration_hint_sec + 's</span>' + leadBadge + '</div>' +
+        '<div style="color:#f9fafb;font-size:16px;font-weight:600;margin-bottom:8px;line-height:1.4;' + hlStyle + '">' + escapeHtml(card.headline) + '</div>' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">' +
+        '<span style="color:' + st.cardLayoutTagColor + ';font-size:11px;background:' + st.cardBadgeBg + ';padding:2px 6px;border-radius:3px;">' + escapeHtml(card.layout) + '</span>' + empTag + badges + '</div>' +
+        '<div style="color:' + st.metaText + ';font-size:11px;margin-top:8px;">🎙 ' + card.audio_clip_count + ' 片段 &nbsp;📋 ' + (isLead ? '主线' : '补充') + '</div></div>';
+    }
+
+    function transHtml(row) {
+      return '<div style="display:flex;align-items:center;gap:12px;padding:8px 16px;margin:4px 0;color:' + st.metaText + ';font-size:12px;">' +
+        '<span style="flex:1;height:1px;background:' + st.sectionDivider + ';"></span>' +
+        '<span style="white-space:nowrap;">→ ' + escapeHtml(row.text) + ' →</span>' +
+        '<span style="flex:1;height:1px;background:' + st.sectionDivider + ';"></span></div>';
+    }
+
+    var cards = [];
+    sections.news_cards.forEach(function (card, i) {
+      cards.push(cardHtml(card));
+      if (i < sections.news_cards.length - 1 && sections.transitions && sections.transitions[i]) {
+        cards.push(transHtml(sections.transitions[i]));
+      }
+    });
+
+    return '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0">\n<title>' + escapeHtml(episode.title) + '</title>\n' + getSharedCss(st) + '</head>\n<body>\n' +
+      '<div class="hero">\n<div class="hero-content">' +
+      '<div class="hero-eyebrow"><span class="hero-badge">🔥 合集</span><span class="hero-theme">' + escapeHtml(themeName) + '</span><span class="hero-badge-dur">⏱ ' + totalTimeStr + '</span></div>' +
+      '<h1 style="' + hlStyle + '">' + escapeHtml(episode.title) + '</h1>' +
+      '<div class="hero-subtitle">' + escapeHtml(episode.subtitle) + '</div>' +
+      '<div class="hero-stats"><div class="hero-stat"><div class="hero-stat-num">' + sections.news_cards.length + '</div><div class="hero-stat-label">条新闻</div></div>' +
       '<div class="hero-stat"><div class="hero-stat-num">' + totalTimeStr + '</div><div class="hero-stat-label">总时长</div></div>' +
-      '<div class="hero-stat"><div class="hero-stat-num">' + episode.lead_count + '</div><div class="hero-stat-label">主线</div></div>' +
-      '</div>
-' +
-      '</div>
-' +
-      '</div>
-' +
-      '<div class="tl-rail">
-' +
-      '<div class="tl-track">' + renderTimelineMarkersHtml() + '</div>
-' +
-      '</div>
-' +
-      '<div class="content">
-' +
-      '<div class="section-label">开场</div>
-' +
+      '<div class="hero-stat"><div class="hero-stat-num">' + episode.lead_count + '</div><div class="hero-stat-label">主线</div></div></div></div>\n</div>\n' +
+      '<div class="tl-rail"><div class="tl-track">' + renderSharedTimelineMarkersHtml(timeline, st) + '</div></div>\n' +
+      '<div class="content">' +
+      '<div class="section-label">开场</div>' +
       '<div style="background:' + st.openingBg + ';border-radius:12px;padding:20px;margin-bottom:8px;border:1px solid ' + st.heroBorder + ';">' +
       '<div style="font-size:15px;color:#e2e8f0;font-weight:600;margin-bottom:4px;">' + escapeHtml(sections.opening.title) + '</div>' +
-      '<div style="color:' + st.metaText + ';font-size:12px;">' + escapeHtml(sections.opening.subtitle) + '</div>' +
-      '</div>
-' +
-      '<div class="section-label">新闻列表</div>
-' +
-      cardsAndTransitions.join("") +
-      '<div class="section-label">结尾</div>
-' +
+      '<div style="color:' + st.metaText + ';font-size:12px;">' + escapeHtml(sections.opening.subtitle) + '</div></div>\n' +
+      '<div class="section-label">新闻列表</div>\n' + cards.join("") +
+      '<div class="section-label">结尾</div>' +
       '<div style="background:' + st.closingBg + ';border-radius:12px;padding:20px;border:1px solid ' + st.heroBorder + ';">' +
-      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
-      '<span style="background:' + st.closingBadgeBg + ';color:' + st.closingBadgeColor + ';padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;">重点回看</span>' +
-      '</div>
-' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><span style="background:' + st.closingBadgeBg + ';color:' + st.closingBadgeColor + ';padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;">重点回看</span></div>' +
       '<div style="color:#f9fafb;font-size:14px;font-weight:600;margin-bottom:4px;">' + escapeHtml(sections.closing.title) + '</div>' +
-      (sections.closing.focus_news_id ? '<div style="color:' + st.metaText + ';font-size:11px;">📋 主线新闻 ID: ' + escapeHtml(sections.closing.focus_news_id) + '</div>' : '') +
-      '</div>
-' +
-      '</div>
-' +
-      '<div class="footer-bar">' +
-      '<span>Mock Timeline Preview · ' + escapeHtml(themeName) + ' · no real render</span>' +
-      '<span>' + escapeHtml(episode.title) + '</span>' +
-      '</div>
-' +
-      '</body>
-' +
-      '</html>';
+      (sections.closing.focus_news_id ? '<div style="color:' + st.metaText + ';font-size:11px;">📋 主线新闻 ID: ' + escapeHtml(sections.closing.focus_news_id) + '</div>' : '') + '</div>\n' +
+      '</div>\n<div class="footer-bar"><span>Mock Timeline Preview · ' + escapeHtml(themeName) + ' · no real render</span><span>' + escapeHtml(episode.title) + '</span></div>\n</body>\n</html>';
+  }
 
-    return html;
+  // CP35.1: Layout 2 — breaking_news_v1 (news channel big-screen: big lead card + compact supporting grid)
+  function renderBreakingNewsEpisodeHtml(contract, st) {
+    var episode = contract.episode;
+    var timeline = contract.timeline;
+    var sections = contract.sections;
+    var totalTimeStr = formatTimecode(episode.estimated_duration_sec);
+    var themeName = episode.theme_name || "";
+
+    var leadCard = null;
+    var supportCards = [];
+    sections.news_cards.forEach(function (card) {
+      if (card.is_lead && !leadCard) leadCard = card;
+      else supportCards.push(card);
+    });
+    if (!leadCard && sections.news_cards.length > 0) {
+      leadCard = sections.news_cards[0];
+      supportCards = sections.news_cards.slice(1);
+    }
+
+    function supportCardHtml(card, idx) {
+      return '<div class="mock-news-card" data-section-type="news_segment" style="background:' + st.cardBg + ';border:1px solid ' + st.cardBorder + ';border-radius:8px;padding:14px;margin:6px 0;">' +
+        '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">' +
+        '<span style="background:' + st.cardBorder + ';color:' + st.metaText + ';border-radius:3px;padding:1px 6px;font-size:10px;font-weight:700;">#' + card.order + '</span>' +
+        '<span style="color:' + st.metaText + ';font-size:10px;font-family:monospace;">' + card.time_range + '</span></div>' +
+        '<div style="color:#f9fafb;font-size:13px;font-weight:600;line-height:1.3;">' + escapeHtml(card.headline) + '</div>' +
+        '<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;">' +
+        '<span style="color:' + st.cardLayoutTagColor + ';font-size:10px;background:' + st.cardBadgeBg + ';padding:1px 5px;border-radius:3px;">' + escapeHtml(card.layout) + '</span></div></div>';
+    }
+
+    function breakingTransHtml(row) {
+      var texts = ["继续关注", "最新进展", "下一条快讯", "更多详情"];
+      var t = row && row.text ? row.text : texts[Math.floor(Math.random() * texts.length)];
+      return '<div style="text-align:center;padding:6px 0;color:' + st.metaText + ';font-size:11px;font-weight:600;letter-spacing:1px;">— ' + escapeHtml(t) + ' —</div>';
+    }
+
+    var leadHtml = "";
+    if (leadCard) {
+      leadHtml = '<div style="background:' + st.cardBgLead + ';border:2px solid ' + st.cardBorderLead + ';border-radius:12px;padding:24px;margin:16px 0;animation:fadeUp 0.4s ease-out both;">' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">' +
+        '<span style="background:' + st.badgeBg + ';color:' + st.badgeColor + ';padding:3px 10px;border-radius:4px;font-size:11px;font-weight:900;letter-spacing:1px;">★ 主线</span>' +
+        '<span style="color:' + st.metaText + ';font-size:11px;font-family:monospace;">' + leadCard.time_range + '</span>' +
+        '<span style="color:' + st.metaText + ';font-size:11px;">' + leadCard.duration_hint_sec + 's</span></div>' +
+        '<div style="color:#f9fafb;font-size:22px;font-weight:900;line-height:1.3;margin-bottom:12px;">' + escapeHtml(leadCard.headline) + '</div>' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">' +
+        '<span style="color:' + st.cardLayoutTagColor + ';font-size:11px;background:' + st.cardBadgeBg + ';padding:2px 8px;border-radius:4px;">' + escapeHtml(leadCard.layout) + '</span>' +
+        (leadCard.emphasis ? '<span style="color:' + st.cardEmphasisColor + ';font-size:11px;background:' + st.cardBadgeBg + ';padding:2px 8px;border-radius:4px;">' + escapeHtml(leadCard.emphasis) + '</span>' : '') + '</div>' +
+        '<div style="color:' + st.metaText + ';font-size:11px;">🎙 ' + leadCard.audio_clip_count + ' 音频片段</div></div>';
+    }
+
+    var supportGridHtml = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0;">';
+    supportCards.forEach(function (card) {
+      supportGridHtml += supportCardHtml(card);
+    });
+    if (supportCards.length === 0) supportGridHtml = "";
+    else if (supportCards.length === 1) supportGridHtml = supportGridHtml.replace('grid-template-columns:1fr 1fr;', 'grid-template-columns:1fr;');
+
+    return '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0">\n<title>' + escapeHtml(episode.title) + '</title>\n' + getSharedCss(st) + '</head>\n<body>\n' +
+      '<div style="background:' + st.breakingBannerBg + ';color:#ffffff;text-align:center;padding:10px;font-size:16px;font-weight:900;letter-spacing:3px;">🔴 BREAKING NEWS — ' + escapeHtml(episode.title) + '</div>\n' +
+      '<div class="hero">\n<div class="hero-content">' +
+      '<div class="hero-eyebrow"><span class="hero-badge">🔥 合集</span><span class="hero-theme">' + escapeHtml(themeName) + '</span><span class="hero-badge-dur">⏱ ' + totalTimeStr + '</span></div>' +
+      '<h1 style="color:#ffffff;">' + escapeHtml(episode.title) + '</h1>' +
+      '<div class="hero-subtitle">' + escapeHtml(episode.subtitle) + '</div>' +
+      '<div class="hero-stats"><div class="hero-stat"><div class="hero-stat-num">' + sections.news_cards.length + '</div><div class="hero-stat-label">条新闻</div></div>' +
+      '<div class="hero-stat"><div class="hero-stat-num">' + totalTimeStr + '</div><div class="hero-stat-label">总时长</div></div>' +
+      '<div class="hero-stat"><div class="hero-stat-num">' + episode.lead_count + '</div><div class="hero-stat-label">主线</div></div></div></div>\n</div>\n' +
+      '<div class="tl-rail"><div class="tl-track">' + renderSharedTimelineMarkersHtml(timeline, st) + '</div></div>\n' +
+      '<div class="content">' +
+      '<div class="section-label">头条</div>' + leadHtml +
+      (supportCards.length > 0 ? '<div class="section-label">其他快讯</div>' + supportGridHtml + '</div>' : '') +
+      '<div class="section-label">重点回看</div>' +
+      '<div style="background:' + st.closingBg + ';border-radius:12px;padding:20px;border:1px solid ' + st.heroBorder + ';">' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><span style="background:' + st.closingBadgeBg + ';color:' + st.closingBadgeColor + ';padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;">重点回看</span></div>' +
+      '<div style="color:#f9fafb;font-size:14px;font-weight:600;margin-bottom:4px;">' + escapeHtml(sections.closing.title) + '</div>' +
+      (sections.closing.focus_news_id ? '<div style="color:' + st.metaText + ';font-size:11px;">📋 主线新闻 ID: ' + escapeHtml(sections.closing.focus_news_id) + '</div>' : '') + '</div>\n' +
+      '</div>\n<div class="footer-bar"><span>Mock Timeline Preview · ' + escapeHtml(themeName) + ' · no real render</span><span>' + escapeHtml(episode.title) + '</span></div>\n</body>\n</html>';
+  }
+
+  // CP35.1: Layout 3 — data_dashboard_v1 (monitoring dashboard with metric panels and 2-col grid)
+  function renderDataDashboardEpisodeHtml(contract, st) {
+    var episode = contract.episode;
+    var timeline = contract.timeline;
+    var sections = contract.sections;
+    var totalTimeStr = formatTimecode(episode.estimated_duration_sec);
+    var themeName = episode.theme_name || "";
+    var totalAudio = sections.news_cards.reduce(function (s, c) { return s + (c.audio_clip_count || 0); }, 0);
+
+    function metricChip(label, value, unit) {
+      return '<div style="background:' + st.cardBg + ';border:1px solid ' + st.cardBorder + ';border-radius:8px;padding:16px;text-align:center;flex:1;">' +
+        '<div style="font-size:22px;font-weight:900;color:' + st.statColor + ';font-family:monospace;">' + value + '</div>' +
+        '<div style="font-size:11px;color:' + st.metaText + ';margin-top:4px;">' + label + (unit ? ' (' + unit + ')' : '') + '</div></div>';
+    }
+
+    function dashCardHtml(card) {
+      var isLead = card.is_lead;
+      var bc = isLead ? st.cardBorderLead : st.cardBorder;
+      var bg = isLead ? st.cardBgLead : st.cardBg;
+      return '<div class="mock-news-card' + (isLead ? ' mock-news-card-lead' : '') + '" data-section-type="news_segment" style="background:' + bg + ';border:1px solid ' + bc + ';border-radius:8px;padding:16px;margin:6px 0;animation:fadeUp 0.4s ease-out both;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">' +
+        '<div style="display:flex;align-items:center;gap:6px;">' +
+        '<span style="background:' + st.statColor + ';color:' + st.bodyBg + ';border-radius:4px;padding:2px 8px;font-size:11px;font-weight:900;">#' + card.order + '</span>' +
+        '<span style="color:' + st.metaText + ';font-size:10px;font-family:monospace;">' + card.time_range + '</span></div>' +
+        '<span style="color:' + st.metaText + ';font-size:10px;">' + card.duration_hint_sec + 's</span></div>' +
+        '<div style="color:#f9fafb;font-size:14px;font-weight:700;margin-bottom:8px;line-height:1.3;">' + escapeHtml(card.headline) + '</div>' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">' +
+        '<span style="color:' + st.statColor + ';font-size:10px;background:' + st.cardBorder + ';padding:2px 6px;border-radius:3px;font-family:monospace;">' + escapeHtml(card.layout) + '</span>' +
+        (card.emphasis ? '<span style="color:' + st.cardEmphasisColor + ';font-size:10px;background:' + st.cardBorder + ';padding:2px 6px;border-radius:3px;">' + escapeHtml(card.emphasis) + '</span>' : '') + '</div>' +
+        '<div style="display:flex;gap:12px;color:' + st.metaText + ';font-size:10px;font-family:monospace;">' +
+        '<span>🎙 ' + card.audio_clip_count + '</span><span>📋 ' + (isLead ? '主线' : '补充') + '</span></div></div>';
+    }
+
+    var dashCardsHtml = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+    sections.news_cards.forEach(function (card) {
+      dashCardsHtml += dashCardHtml(card);
+    });
+    dashCardsHtml += '</div>';
+
+    return '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0">\n<title>' + escapeHtml(episode.title) + '</title>\n' + getSharedCss(st) + '</head>\n<body>\n' +
+      '<div class="hero" style="border-bottom:2px solid ' + st.statColor + ';">\n<div class="hero-content">' +
+      '<div class="hero-eyebrow"><span class="hero-badge" style="background:' + st.statColor + ';color:' + st.bodyBg + ';">📊 数据仪表盘</span><span class="hero-theme">' + escapeHtml(themeName) + '</span><span class="hero-badge-dur">⏱ ' + totalTimeStr + '</span></div>' +
+      '<h1 style="color:' + st.statColor + ';">' + escapeHtml(episode.title) + '</h1>' +
+      '<div class="hero-subtitle">' + escapeHtml(episode.subtitle) + '</div>' +
+      '<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;">' +
+      metricChip('条新闻', sections.news_cards.length, '') +
+      metricChip('主线', episode.lead_count, '') +
+      metricChip('总时长', totalTimeStr, '') +
+      metricChip('音频片段', totalAudio, '片段') +
+      '</div></div>\n</div>\n' +
+      '<div class="tl-rail" style="padding:10px 40px;"><div class="tl-track" style="min-width:400px;">' + renderSharedTimelineMarkersHtml(timeline, st) + '</div></div>\n' +
+      '<div class="content">' +
+      '<div class="section-label">新闻面板</div>\n' + dashCardsHtml +
+      '<div class="section-label">结语</div>' +
+      '<div style="background:' + st.closingBg + ';border-radius:8px;padding:20px;border:1px solid ' + st.statColor + ';">' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><span style="background:' + st.closingBadgeBg + ';color:' + st.closingBadgeColor + ';padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;">INSIGHT</span></div>' +
+      '<div style="color:#f9fafb;font-size:14px;font-weight:600;margin-bottom:4px;">' + escapeHtml(sections.closing.title) + '</div>' +
+      (sections.closing.focus_news_id ? '<div style="color:' + st.metaText + ';font-size:11px;font-family:monospace;">📋 ' + escapeHtml(sections.closing.focus_news_id) + '</div>' : '') + '</div>\n' +
+      '</div>\n<div class="footer-bar"><span>Mock Dashboard Preview · ' + escapeHtml(themeName) + ' · no real render</span><span>' + escapeHtml(episode.title) + '</span></div>\n</body>\n</html>';
+  }
+
+  // CP35.1: Layout 4 — research_briefing_v1 (research memo / briefing note format)
+  function renderResearchBriefingEpisodeHtml(contract, st) {
+    var episode = contract.episode;
+    var timeline = contract.timeline;
+    var sections = contract.sections;
+    var totalTimeStr = formatTimecode(episode.estimated_duration_sec);
+    var themeName = episode.theme_name || "";
+
+    function briefCardHtml(card, idx) {
+      var isLead = card.is_lead;
+      var bc = isLead ? st.cardBorderLead : st.cardBorder;
+      var bg = isLead ? st.cardBgLead : st.cardBg;
+      var prefix = isLead ? '◆ KEY FINDING' : '○ OBSERVATION ' + (idx + 1);
+      return '<div class="mock-news-card' + (isLead ? ' mock-news-card-lead' : '') + '" data-section-type="news_segment" style="background:' + bg + ';border:1px solid ' + bc + ';border-radius:4px;padding:20px;margin:8px 0;border-left:3px solid ' + bc + ';animation:fadeUp 0.4s ease-out both;">' +
+        '<div style="color:' + st.metaText + ';font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;">' + prefix + '</div>' +
+        '<div style="color:#f9fafb;font-size:15px;font-weight:600;margin-bottom:10px;line-height:1.5;">' + escapeHtml(card.headline) + '</div>' +
+        '<div style="border-top:1px solid ' + st.sectionDivider + ';padding-top:8px;margin-top:8px;">' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">' +
+        '<span style="color:' + st.cardLayoutTagColor + ';font-size:10px;background:' + st.cardBadgeBg + ';padding:2px 6px;border-radius:2px;">📋 ' + escapeHtml(card.layout) + '</span>' +
+        (card.emphasis ? '<span style="color:' + st.cardEmphasisColor + ';font-size:10px;background:' + st.cardBadgeBg + ';padding:2px 6px;border-radius:2px;">⚡ ' + escapeHtml(card.emphasis) + '</span>' : '') +
+        (card.badges || []).map(function (b) { return '<span style="color:' + st.accentText + ';font-size:10px;background:' + st.cardBadgeBg + ';padding:2px 6px;border-radius:2px;">' + escapeHtml(b) + '</span>'; }).join('') + '</div>' +
+        '<div style="color:' + st.metaText + ';font-size:10px;">⏱ ' + card.duration_hint_sec + 's &nbsp; 🎙 ' + card.audio_clip_count + ' clip(s) &nbsp; #' + card.order + '</div></div></div>';
+    }
+
+    function briefTransHtml(row) {
+      return '<div style="text-align:center;padding:4px 0;border-top:1px dashed ' + st.sectionDivider + ';border-bottom:1px dashed ' + st.sectionDivider + ';margin:4px 0;color:' + st.metaText + ';font-size:10px;font-style:italic;letter-spacing:0.5px;">— ' + escapeHtml(row && row.text ? row.text : "接着看下一条") + ' —</div>';
+    }
+
+    var briefItems = [];
+    sections.news_cards.forEach(function (card, i) {
+      briefItems.push(briefCardHtml(card, i));
+      if (i < sections.news_cards.length - 1 && sections.transitions && sections.transitions[i]) {
+        briefItems.push(briefTransHtml(sections.transitions[i]));
+      }
+    });
+
+    return '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0">\n<title>Research Briefing — ' + escapeHtml(episode.title) + '</title>\n' + getSharedCss(st) + '</head>\n<body>\n' +
+      '<div class="hero" style="border-bottom:2px solid ' + st.cardBorder + ';">\n<div class="hero-content">' +
+      '<div style="color:' + st.metaText + ';font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;">📄 RESEARCH BRIEFING</div>' +
+      '<h1 style="color:' + st.accentText + ';font-size:24px;">' + escapeHtml(episode.title) + '</h1>' +
+      '<div style="color:' + st.metaText + ';font-size:13px;margin-bottom:12px;line-height:1.5;">' + escapeHtml(episode.subtitle) + '</div>' +
+      '<div style="display:flex;gap:20px;font-size:11px;color:' + st.metaText + ';font-family:monospace;">' +
+      '<span>📰 ' + sections.news_cards.length + ' observations</span>' +
+      '<span>⏱ ' + totalTimeStr + '</span>' +
+      '<span>◆ ' + episode.lead_count + ' key findings</span></div></div>\n</div>\n' +
+      '<div style="background:' + st.bodyBg + ';padding:0 40px;border-bottom:1px solid ' + st.sectionDivider + ';"><div style="display:flex;gap:24px;padding:8px 0;font-size:10px;color:' + st.metaText + ';overflow-x:auto;white-space:nowrap;">' +
+      '<span>📍 开场</span>' +
+      (sections.news_cards.map(function (c, i) { return '<span>#' + (i + 1) + ' ' + escapeHtml(c.headline).substring(0, 20) + '...</span>'; }).join(' → ')) +
+      '<span>📍 结尾</span></div></div>\n' +
+      '<div class="content" style="max-width:700px;">' +
+      '<div style="background:' + st.openingBg + ';border-left:3px solid ' + st.cardBorder + ';border-radius:4px;padding:16px;margin-bottom:16px;">' +
+      '<div style="color:' + st.metaText + ';font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">📋 OVERVIEW</div>' +
+      '<div style="color:#f9fafb;font-size:14px;font-weight:600;margin-bottom:4px;">' + escapeHtml(sections.opening.title) + '</div>' +
+      '<div style="color:' + st.metaText + ';font-size:12px;">' + escapeHtml(sections.opening.subtitle) + '</div></div>\n' +
+      '<div class="section-label">Key Findings & Observations</div>\n' + briefItems.join("") +
+      '<div style="background:' + st.closingBg + ';border-left:3px solid ' + st.cardBorder + ';border-radius:4px;padding:16px;margin-top:16px;">' +
+      '<div style="color:' + st.metaText + ';font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">🔬 CLOSING TAKEAWAY</div>' +
+      '<div style="color:#f9fafb;font-size:14px;font-weight:600;margin-bottom:4px;">' + escapeHtml(sections.closing.title) + '</div>' +
+      (sections.closing.focus_news_id ? '<div style="color:' + st.metaText + ';font-size:11px;margin-top:6px;">📋 ID: ' + escapeHtml(sections.closing.focus_news_id) + '</div>' : '') + '</div>\n' +
+      '</div>\n<div class="footer-bar"><span>Research Briefing · ' + escapeHtml(themeName) + ' · no real render</span><span>' + escapeHtml(episode.title) + '</span></div>\n</body>\n</html>';
+  }
+
+  // CP35.1: Layout 5 — podcast_cards_v1 (podcast episode format with chapters and warm topic cards)
+  function renderPodcastCardsEpisodeHtml(contract, st) {
+    var episode = contract.episode;
+    var timeline = contract.timeline;
+    var sections = contract.sections;
+    var totalTimeStr = formatTimecode(episode.estimated_duration_sec);
+    var themeName = episode.theme_name || "";
+
+    function topicCardHtml(card, idx) {
+      var isLead = card.is_lead;
+      var bc = isLead ? st.cardBorderLead : st.cardBorder;
+      var bg = isLead ? st.cardBgLead : st.cardBg;
+      var epNum = String(idx + 1).padStart(2, '0');
+      return '<div class="mock-news-card' + (isLead ? ' mock-news-card-lead' : '') + '" data-section-type="news_segment" style="background:' + bg + ';border:1px solid ' + bc + ';border-radius:16px;padding:20px;margin:10px 0;animation:fadeUp 0.4s ease-out both;">' +
+        '<div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;">' +
+        '<div style="background:' + st.badgeBg + ';color:' + st.badgeColor + ';border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;flex-shrink:0;">' + epNum + '</div>' +
+        '<div style="flex:1;">' +
+        '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
+        '<span style="color:' + st.cardLayoutTagColor + ';font-size:11px;font-weight:600;">' + escapeHtml(card.layout) + '</span>' +
+        (isLead ? '<span style="background:' + st.badgeBg + ';color:' + st.badgeColor + ';padding:1px 6px;border-radius:10px;font-size:9px;font-weight:700;">★ 主线</span>' : '') + '</div>' +
+        '<div style="color:' + st.metaText + ';font-size:10px;font-family:monospace;">' + card.time_range + ' · ' + card.duration_hint_sec + 's</div></div></div>' +
+        '<div style="color:#f9fafb;font-size:15px;font-weight:600;line-height:1.5;margin-bottom:10px;">' + escapeHtml(card.headline) + '</div>' +
+        (card.emphasis ? '<div style="background:' + st.podcastTransitionBg + ';border-radius:8px;padding:8px 12px;margin-bottom:8px;color:' + st.accentText + ';font-size:12px;font-style:italic;">💬 ' + escapeHtml(card.emphasis) + '</div>' : '') +
+        '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;">' +
+        (card.badges || []).map(function (b) { return '<span style="background:' + st.cardBadgeBg + ';color:' + st.accentText + ';font-size:10px;padding:2px 6px;border-radius:10px;">' + escapeHtml(b) + '</span>'; }).join('') + '</div>' +
+        '<div style="color:' + st.metaText + ';font-size:10px;">🎙 ' + card.audio_clip_count + ' clips &nbsp; ' + (isLead ? '📌 主线' : '📎 补充') + '</div></div>';
+    }
+
+    function hostTransHtml(row) {
+      var texts = ["好，咱们接着聊", "来，看看下一条", "下个话题", "继续"];
+      var t = row && row.text ? row.text : texts[Math.floor(Math.random() * texts.length)];
+      return '<div style="text-align:center;padding:10px 20px;margin:4px 20px;background:' + st.podcastTransitionBg + ';border-radius:20px;color:' + st.accentText + ';font-size:12px;font-style:italic;">🎙️ ' + escapeHtml(t) + '</div>';
+    }
+
+    var epNum = Math.floor(Math.random() * 90) + 10;
+    var cards = [];
+    sections.news_cards.forEach(function (card, i) {
+      cards.push(topicCardHtml(card, i));
+      if (i < sections.news_cards.length - 1 && sections.transitions && sections.transitions[i]) {
+        cards.push(hostTransHtml(sections.transitions[i]));
+      }
+    });
+
+    return '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0">\n<title>Ep.' + epNum + ' — ' + escapeHtml(episode.title) + '</title>\n' + getSharedCss(st) + '</head>\n<body>\n' +
+      '<div style="background:' + st.heroBg + ';padding:40px;text-align:center;border-bottom:1px solid ' + st.heroBorder + ';">' +
+      '<div style="display:inline-block;background:' + st.badgeBg + ';color:' + st.badgeColor + ';padding:4px 16px;border-radius:20px;font-size:11px;font-weight:700;margin-bottom:16px;">🎙️ EPISODE ' + epNum + '</div>' +
+      '<h1 style="color:#f9fafb;font-size:26px;font-weight:800;margin-bottom:8px;line-height:1.3;">' + escapeHtml(episode.title) + '</h1>' +
+      '<div style="color:' + st.accentText + ';font-size:14px;margin-bottom:16px;">' + escapeHtml(episode.subtitle) + '</div>' +
+      '<div style="display:flex;justify-content:center;gap:24px;font-size:12px;color:' + st.metaText + ';">' +
+      '<span>📰 ' + sections.news_cards.length + ' topics</span>' +
+      '<span>⏱ ' + totalTimeStr + '</span>' +
+      '<span>◆ ' + episode.lead_count + ' featured</span></div></div>\n' +
+      '<div style="background:' + st.bodyBg + ';padding:16px 40px;border-bottom:1px solid ' + st.heroBorder + ';"><div style="display:flex;gap:20px;overflow-x:auto;padding:4px 0;">' +
+      '<span style="color:' + st.metaText + ';font-size:11px;font-weight:700;white-space:nowrap;padding:4px 0;">📑 CHAPTERS:</span>' +
+      '<span style="color:' + st.accentText + ';font-size:11px;white-space:nowrap;padding:4px 8px;background:' + st.cardBadgeBg + ';border-radius:10px;">🎙️ 开场</span>' +
+      sections.news_cards.map(function (c, i) {
+        return '<span style="color:' + st.metaText + ';font-size:11px;white-space:nowrap;padding:4px 8px;">#' + (i + 1) + ' ' + escapeHtml(c.headline).substring(0, 15) + '...</span>';
+      }).join('') +
+      '<span style="color:' + st.accentText + ';font-size:11px;white-space:nowrap;padding:4px 8px;background:' + st.cardBadgeBg + ';border-radius:10px;">📍 结尾</span></div></div>\n' +
+      '<div class="content" style="max-width:700px;margin:0 auto;">' +
+      '<div style="text-align:center;padding:20px;color:' + st.metaText + ';font-size:13px;font-style:italic;border-bottom:1px solid ' + st.sectionDivider + ';margin-bottom:16px;">' +
+      '🎙️ ' + escapeHtml(sections.opening.title) + ' — ' + escapeHtml(sections.opening.subtitle) + '</div>\n' +
+      cards.join("") +
+      '<div style="background:' + st.closingBg + ';border-radius:16px;padding:24px;text-align:center;margin-top:16px;">' +
+      '<div style="color:' + st.accentText + ';font-size:11px;font-weight:700;letter-spacing:1px;margin-bottom:8px;">📍 本期回顾</div>' +
+      '<div style="color:#f9fafb;font-size:15px;font-weight:600;margin-bottom:8px;">' + escapeHtml(sections.closing.title) + '</div>' +
+      (sections.closing.focus_news_id ? '<div style="color:' + st.metaText + ';font-size:11px;">📋 主线新闻 ID: ' + escapeHtml(sections.closing.focus_news_id) + '</div>' : '') +
+      '<div style="margin-top:12px;color:' + st.metaText + ';font-size:11px;">— End of Episode ' + epNum + ' —</div></div>\n' +
+      '</div>\n<div class="footer-bar"><span>🎙️ Podcast Preview · ' + escapeHtml(themeName) + ' · no real render</span><span>' + escapeHtml(episode.title) + '</span></div>\n</body>\n</html>';
   }
 
   // CP34: Thin wrapper — buildMockEpisodeHtml delegates to contract pipeline
