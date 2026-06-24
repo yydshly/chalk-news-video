@@ -319,6 +319,89 @@ python -m src.server --host 127.0.0.1 --port 8777
 - 不做云部署
 - 不做 Remotion（CP17）
 
+**Checkpoint 14 — Job History / Output Isolation（当前）**：
+
+每个任务拥有独立输出目录，不再相互覆盖。
+
+```bash
+python -m src.server --host 127.0.0.1 --port 8777
+```
+
+**新增 API 路由**：
+
+| 方法 | 路由 | 说明 |
+|---|---|---|
+| GET | `/api/history` | 返回历史任务列表 |
+| GET | `/api/jobs/{job_id}/artifacts/{name}` | 获取 job 专属 artifact JSON |
+| GET | `/outputs/jobs/{job_id}/{filename}` | 预览 job 专属文件 |
+
+**GET /api/history 返回**：
+
+```json
+{
+  "ok": true,
+  "items": [
+    {
+      "job_id": "job_abc123",
+      "status": "succeeded",
+      "stage": "succeeded",
+      "theme": "podcast",
+      "dialogue": true,
+      "exported": true,
+      "created_at": "...",
+      "animation_html": "/outputs/jobs/job_abc123/animation.html",
+      "output_mp4": "/outputs/jobs/job_abc123/output.mp4"
+    }
+  ]
+}
+```
+
+**Job 输出目录结构**：
+
+```
+outputs/jobs/job_xxx/
+├── meta.json
+├── input_news.json
+├── semantic_ir.json
+├── dialogue_script.json
+├── dialogue_manifest.json
+├── render_ir.json
+├── animation.html
+└── output.mp4
+```
+
+**meta.json 示例**：
+
+```json
+{
+  "job_id": "job_xxx",
+  "status": "succeeded",
+  "theme": "podcast",
+  "dialogue": true,
+  "exported": true,
+  "error": null
+}
+```
+
+**pipeline --output-dir**：
+
+```bash
+python -m src.pipeline --auto --mock --output-dir outputs/jobs/job_xxx
+```
+
+所有产物写入指定目录，不影响 `outputs/latest`（保留 CP12.1 兼容）。
+
+**历史 Gallery**：
+- 前端新增「历史作品」tab
+- 展示所有任务的 job_id / theme / status / exported
+- 支持预览 animation / MP4 / artifacts
+- 服务重启后内存中的历史记录会丢失（内存 store）
+
+**CP14 限制（明确不做）**：
+- 不做数据库持久化（CP14+）
+- 不做 job 删除接口
+- 不做多用户隔离
+
 ## 项目定位
 
 V0.11: News → LLM → semantic_ir → dual-host dialogue → video（含双角色音频）。

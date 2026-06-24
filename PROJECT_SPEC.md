@@ -964,6 +964,85 @@ FastAPI 后端，监听 `127.0.0.1:8777`。
 - 单用户本地工具，服务重启后丢失
 - 不做持久化
 
+## Checkpoint 14 — Job History / Output Isolation
+
+### 职责边界
+
+- **做**：每个 job 独立输出目录、历史 Gallery、job-specific artifact API
+- **不做**：数据库持久化、job 删除、多用户隔离
+
+### Job Output Directory
+
+每个 job 的输出写入 `outputs/jobs/{job_id}/`：
+
+| 文件 | 说明 |
+|------|------|
+| `meta.json` | job 元数据（status/theme/error） |
+| `input_news.json` | 新闻输入 |
+| `semantic_ir.json` | LLM 生成的语义 IR |
+| `dialogue_script.json` | 对话脚本 |
+| `dialogue_manifest.json` | 对话音频 manifest |
+| `render_ir.json` | 渲染用 IR |
+| `animation.html` | 动画预览 |
+| `output.mp4` | 导出视频（no_export=false 时） |
+
+### meta.json 契约
+
+```json
+{
+  "job_id": "job_abc123",
+  "status": "succeeded",
+  "theme": "podcast",
+  "dialogue": true,
+  "exported": true,
+  "error": null
+}
+```
+
+### 新增 API
+
+| 方法 | 路由 | 说明 |
+|---|---|---|
+| GET | `/api/history` | 返回所有 job（按 created_at 倒序） |
+| GET | `/api/jobs/{job_id}/artifacts/{name}` | 读取 job 输出目录下的 JSON artifact |
+| GET | `/outputs/jobs/{job_id}/{filename}` | 预览 animation.html / output.mp4 |
+
+### history API 契约
+
+```json
+{
+  "ok": true,
+  "items": [
+    {
+      "job_id": "...",
+      "status": "succeeded|failed|queued|running",
+      "stage": "...",
+      "theme": "...",
+      "dialogue": true,
+      "exported": true,
+      "created_at": "ISO8601",
+      "animation_html": "/outputs/jobs/{job_id}/animation.html",
+      "output_mp4": "/outputs/jobs/{job_id}/output.mp4"
+    }
+  ]
+}
+```
+
+### pipeline --output-dir
+
+```bash
+python -m src.pipeline --auto --mock --output-dir outputs/jobs/job_xxx
+```
+
+所有产物写入指定目录，默认 `outputs/latest`（向后兼容）。
+
+### 前端 History Gallery
+
+- 新增「历史作品」tab
+- 显示所有 job：job_id / theme / status / exported / created_at
+- 支持预览 animation / MP4 / artifacts
+- 服务重启后内存 history 丢失（内存 store）
+
 ## 文件清单（V0.11 新增 / 修改）
 
 新增（CP10）：

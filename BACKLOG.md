@@ -278,17 +278,30 @@
 - [x] `web/style.css`：.progress-wrap / .progress-bar / .progress-text / .job-log 样式
 - [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
 
-## Checkpoint 14 — Web Studio 配置面板
+## Checkpoint 14 — Job History / Output Isolation
+
+- [x] `src/pipeline.py`：新增 `--output-dir` 参数，默认 `outputs/latest`
+- [x] `src/server.py`：每个 job 使用独立输出目录 `outputs/jobs/{job_id}`
+- [x] `src/server.py`：新增 `/api/history` 返回历史任务列表
+- [x] `src/server.py`：新增 `/api/jobs/{job_id}/artifacts/{name}` 读取 job 专属 artifact
+- [x] `src/server.py`：新增 `/outputs/jobs/{job_id}/{filename}` 预览 job 专属文件
+- [x] `src/server.py`：生成完成后写入 `meta.json`
+- [x] `web/app.js`：新增历史 Gallery 展示
+- [x] `web/app.js`：job done/error 后刷新 history
+- [x] `web/index.html`：新增「历史作品」tab
+- [x] `web/style.css`：新增 history panel 样式
+- [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
+
+## Checkpoint 14.1 — Job 删除 / 清理
+
+- DELETE `/api/jobs/{job_id}` 删除 job 输出目录
+- 清理历史记录接口
+
+## Checkpoint 15 — Web Studio 配置面板
 
 - 真实 LLM / TTS API Key 配置
 - Theme gallery 预览
 - 前端配置持久化（localStorage）
-
-## Checkpoint 15 — 预览图库 / Job History
-
-- 历史 job 记录
-- 缩略图预览
-- job output isolation
 
 ## Checkpoint 16 — Remotion / 视觉升级
 
@@ -302,4 +315,5 @@
 - 数字人（CP16+）
 - lip-sync（CP9+）
 - 自动选题 / 多新闻合并
+- 数据库 / Redis / Celery
 - 数据库 / Redis / Celery

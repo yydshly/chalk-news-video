@@ -1,4 +1,4 @@
-/* Chalk News Video Studio — CP13 app.js */
+/* Chalk News Video Studio — CP14 app.js */
 
 (function () {
   "use strict";
@@ -12,6 +12,7 @@
   const checkDialogue = document.getElementById("check-dialogue");
   const checkExport = document.getElementById("check-export");
   const btnGenerate = document.getElementById("btn-generate");
+  const btnRefreshHistory = document.getElementById("btn-refresh-history");
   const statusMsg = document.getElementById("status-msg");
   const tabBtns = document.querySelectorAll(".tab-btn");
   const tabContents = document.querySelectorAll(".tab-content");
@@ -25,6 +26,7 @@
   const progressBar = document.getElementById("progress-bar");
   const progressText = document.getElementById("progress-text");
   const jobLog = document.getElementById("job-log");
+  const historyList = document.getElementById("history-list");
 
   // ---------- state ----------
   let lastResult = null;
@@ -38,7 +40,6 @@
       if (!resp.ok) throw new Error("Failed to load themes");
       const data = await resp.json();
 
-      // Populate theme select
       selectTheme.innerHTML = "";
       data.themes.forEach(function (theme) {
         const opt = document.createElement("option");
@@ -47,7 +48,6 @@
         selectTheme.appendChild(opt);
       });
 
-      // Set default
       if (data.default_theme) {
         selectTheme.value = data.default_theme;
       }
@@ -56,6 +56,9 @@
     } catch (e) {
       setStatus("加载主题失败: " + e.message, "error");
     }
+
+    // Load history on startup
+    loadHistory();
   }
 
   // ---------- mode toggle ----------
@@ -80,6 +83,10 @@
       btn.classList.add("active");
       const content = document.getElementById("tab-" + tabId);
       if (content) content.classList.add("active");
+
+      if (tabId === "history") {
+        loadHistory();
+      }
     });
   });
 
@@ -97,7 +104,6 @@
       return;
     }
 
-    // Stop any existing event source
     if (currentEventSource) {
       currentEventSource.close();
       currentEventSource = null;
@@ -123,7 +129,6 @@
     }
 
     try {
-      // Create async job
       const resp = await fetch("/api/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -142,9 +147,8 @@
       const eventsUrl = data.events_url;
 
       setStatus("生成中...", "info");
-      appendJobLog("[任务已创建] " + data.message);
+      appendJobLog("[任务已创建] " + data.job_id);
 
-      // Open SSE connection
       currentEventSource = new EventSource(eventsUrl);
 
       currentEventSource.addEventListener("progress", function (e) {
@@ -165,6 +169,8 @@
           appendJobLog("[完成] 生成成功");
           showPreview(d.result);
           loadArtifacts(d.result);
+          // Refresh history after job completes
+          loadHistory();
         } else {
           setStatus("生成结果异常", "error");
           appendJobLog("[错误] 未收到结果");
@@ -173,16 +179,20 @@
       });
 
       currentEventSource.addEventListener("error", function (e) {
-        const d = JSON.parse(e.data);
+        let errorMsg = "生成失败";
+        try {
+          const d = JSON.parse(e.data);
+          errorMsg = d.error || "生成失败";
+        } catch (err) {}
         currentEventSource.close();
         currentEventSource = null;
-        setStatus("错误: " + (d.error || "生成失败"), "error");
-        appendJobLog("[失败] " + (d.error || "未知错误"));
+        setStatus("错误: " + errorMsg, "error");
+        appendJobLog("[失败] " + errorMsg);
+        loadHistory(); // Refresh history to show failed job
         btnGenerate.disabled = false;
       });
 
       currentEventSource.onerror = function () {
-        // Only close if not reconnecting
         if (currentEventSource && currentEventSource.readyState === EventSource.CLOSED) {
           currentEventSource.close();
           currentEventSource = null;
@@ -194,6 +204,164 @@
       btnGenerate.disabled = false;
     }
   });
+
+  // ---------- history ----------
+  btnRefreshHistory.addEventListener("click", function () {
+    loadHistory();
+  });
+
+  async function loadHistory() {
+    if (!historyList) return;
+    historyList.innerHTML = '<div class="history-loading">加载中...</div>';
+
+    try {
+      const resp = await fetch("/api/history");
+      const data = await resp.json();
+
+      if (!data.ok) {
+        historyList.innerHTML = '<div class="history-empty">加载失败</div>';
+        return;
+      }
+
+      const items = data.items || [];
+
+      if (items.length === 0) {
+        historyList.innerHTML = '<div class="history-empty">暂无历史作品</div>';
+        return;
+      }
+
+      historyList.innerHTML = "";
+
+      items.forEach(function (job) {
+        const item = createHistoryItem(job);
+        historyList.appendChild(item);
+      });
+    } catch (e) {
+      historyList.innerHTML = '<div class="history-empty">加载失败: ' + e.message + '</div>';
+    }
+  }
+
+  function createHistoryItem(job) {
+    const div = document.createElement("div");
+    div.className = "history-item";
+
+    const statusClass = job.status === "succeeded" ? "status-success" :
+                        job.status === "failed" ? "status-error" : "status-pending";
+
+    const exportedLabel = job.exported ? "已导出" : "未导出";
+    const dialogueLabel = job.dialogue ? "对话" : "单人";
+
+    const dateStr = job.created_at ? job.created_at.replace("T", " ").slice(0, 19) : "";
+
+    let linksHtml = "";
+    if (job.status === "succeeded" && job.result) {
+      if (job.animation_html) {
+        linksHtml += '<button class="btn-history-action" data-action="preview" data-job="' + job.job_id + '">预览 animation</button> ';
+      }
+      if (job.output_mp4) {
+        linksHtml += '<button class="btn-history-action" data-action="video" data-job="' + job.job_id + '">预览 MP4</button> ';
+      }
+      linksHtml += '<button class="btn-history-action" data-action="artifacts" data-job="' + job.job_id + '">查看 artifacts</button>';
+    }
+
+    div.innerHTML =
+      '<div class="history-item-header">' +
+        '<span class="history-job-id">' + job.job_id + '</span>' +
+        '<span class="history-badge ' + statusClass + '">' + job.status + '</span>' +
+      '</div>' +
+      '<div class="history-item-meta">' +
+        '<span>主题: ' + (job.theme || "-") + '</span> ' +
+        '<span>模式: ' + dialogueLabel + '</span> ' +
+        '<span>' + exportedLabel + '</span>' +
+      '</div>' +
+      '<div class="history-item-time">' + dateStr + '</div>' +
+      '<div class="history-item-message">' + (job.message || "") + '</div>' +
+      (job.error ? '<div class="history-item-error">' + job.error.slice(0, 100) + '</div>' : '') +
+      '<div class="history-item-actions">' + linksHtml + '</div>';
+
+    // Attach event listeners
+    div.querySelectorAll(".btn-history-action").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        const action = btn.getAttribute("data-action");
+        const jobId = btn.getAttribute("data-job");
+        handleHistoryAction(action, jobId, job);
+      });
+    });
+
+    return div;
+  }
+
+  function handleHistoryAction(action, jobId, job) {
+    if (action === "preview") {
+      // Show animation in iframe
+      previewHtml.src = job.animation_html + "?t=" + Date.now();
+      previewVideo.src = "about:blank";
+      downloadLinks.innerHTML = "";
+      if (job.animation_html) {
+        addDownloadLink(job.animation_html, "📄 animation.html");
+      }
+      if (job.output_mp4) {
+        addDownloadLink(job.output_mp4, "🎬 output.mp4");
+      }
+      if (exportHint) {
+        exportHint.textContent = job.exported ? "已导出 MP4" : "本次未导出 MP4";
+      }
+      // Switch to preview tab
+      tabBtns.forEach(function (b) { b.classList.remove("active"); });
+      tabContents.forEach(function (c) { c.classList.remove("active"); });
+      document.querySelector('[data-tab="preview"]').classList.add("active");
+      document.getElementById("tab-preview").classList.add("active");
+
+    } else if (action === "video") {
+      if (job.output_mp4) {
+        previewVideo.src = job.output_mp4 + "?t=" + Date.now();
+        previewHtml.src = job.animation_html ? job.animation_html + "?t=" + Date.now() : "about:blank";
+        downloadLinks.innerHTML = "";
+        if (job.animation_html) {
+          addDownloadLink(job.animation_html, "📄 animation.html");
+        }
+        addDownloadLink(job.output_mp4, "🎬 output.mp4");
+        if (exportHint) {
+          exportHint.textContent = "已导出 MP4";
+        }
+        tabBtns.forEach(function (b) { b.classList.remove("active"); });
+        tabContents.forEach(function (c) { c.classList.remove("active"); });
+        document.querySelector('[data-tab="preview"]').classList.add("active");
+        document.getElementById("tab-preview").classList.add("active");
+      }
+
+    } else if (action === "artifacts") {
+      // Load artifacts from this job
+      loadJobArtifacts(job);
+      tabBtns.forEach(function (b) { b.classList.remove("active"); });
+      tabContents.forEach(function (c) { c.classList.remove("active"); });
+      document.querySelector('[data-tab="render_ir"]').classList.add("active");
+      document.getElementById("tab-render_ir").classList.add("active");
+    }
+  }
+
+  async function loadJobArtifacts(job) {
+    const jobId = job.job_id;
+    const artifacts = [
+      { name: "render_ir", el: jsonRenderIr },
+      { name: "semantic_ir", el: jsonSemanticIr },
+      { name: "dialogue_script", el: jsonDialogueScript },
+    ];
+
+    for (const art of artifacts) {
+      try {
+        const resp = await fetch("/api/jobs/" + jobId + "/artifacts/" + art.name);
+        if (resp.ok) {
+          const data = await resp.json();
+          art.el.textContent = JSON.stringify(data, null, 2);
+        } else {
+          art.el.textContent = "(未生成)";
+        }
+      } catch (e) {
+        art.el.textContent = "(加载失败)";
+      }
+    }
+  }
 
   // ---------- helpers ----------
   function setStatus(msg, type) {
@@ -220,15 +388,6 @@
     }
   }
 
-  function appendJobLog(msg) {
-    if (jobLog) {
-      const ts = new Date().toLocaleTimeString();
-      jobLog.textContent += "[" + ts + "] " + msg + "\n";
-      // Auto-scroll to bottom
-      jobLog.scrollTop = jobLog.scrollHeight;
-    }
-  }
-
   function resetProgress() {
     if (progressBar) {
       progressBar.style.width = "0%";
@@ -247,22 +406,26 @@
     }
   }
 
+  function appendJobLog(msg) {
+    if (jobLog) {
+      const ts = new Date().toLocaleTimeString();
+      jobLog.textContent += "[" + ts + "] " + msg + "\n";
+      jobLog.scrollTop = jobLog.scrollHeight;
+    }
+  }
+
   function showPreview(result) {
     const ts = "t=" + Date.now();
 
-    // iframe: always show animation.html
     if (result.animation_html) {
       previewHtml.src = result.animation_html + "?" + ts;
     }
 
-    // Clear export hint
     if (exportHint) {
       exportHint.textContent = "";
     }
 
-    // video and download links based on exported flag
     if (result.exported === true && result.output_mp4) {
-      // MP4 was exported
       previewVideo.src = result.output_mp4 + "?" + ts;
       downloadLinks.innerHTML = "";
       addDownloadLink(result.animation_html, "📄 animation.html");
@@ -271,7 +434,6 @@
         exportHint.textContent = "已导出 MP4";
       }
     } else {
-      // No MP4 exported
       previewVideo.src = "about:blank";
       downloadLinks.innerHTML = "";
       if (result.animation_html) {
@@ -282,7 +444,6 @@
       }
     }
 
-    // Switch to preview tab
     tabBtns.forEach(function (b) { b.classList.remove("active"); });
     tabContents.forEach(function (c) { c.classList.remove("active"); });
     document.querySelector('[data-tab="preview"]').classList.add("active");

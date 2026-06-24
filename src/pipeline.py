@@ -69,32 +69,35 @@ def run_auto_pipeline(args):
     Without TTS:
         generate_ir → validate_ir → layout → save render_ir → render_html → export_video
     """
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_dir = Path(args.output_dir) if getattr(args, "output_dir", None) else OUTPUT_DIR
+    audio_dir = output_dir / "audio"
+
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     # Clean up artifacts from previous runs to avoid stale file reuse
     for artifact in [
-        OUTPUT_DIR / "semantic_ir.json",
-        OUTPUT_DIR / "semantic_ir.invalid.json",
-        OUTPUT_DIR / "debug_validation_issues.json",
-        OUTPUT_DIR / "debug_repair_prompt.txt",
-        OUTPUT_DIR / "debug_repair_response.txt",
-        OUTPUT_DIR / "narration_manifest.json",
-        OUTPUT_DIR / "dialogue_manifest.json",
-        OUTPUT_DIR / "dialogue_script.json",
-        OUTPUT_DIR / "dialogue_script.invalid.json",
-        OUTPUT_DIR / "debug_dialogue_prompt.txt",
-        OUTPUT_DIR / "debug_dialogue_response.txt",
-        OUTPUT_DIR / "debug_dialogue_validation_issues.json",
-        OUTPUT_DIR / "debug_repair_prompt.txt",
-        OUTPUT_DIR / "debug_repair_response.txt",
+        output_dir / "semantic_ir.json",
+        output_dir / "semantic_ir.invalid.json",
+        output_dir / "debug_validation_issues.json",
+        output_dir / "debug_repair_prompt.txt",
+        output_dir / "debug_repair_response.txt",
+        output_dir / "narration_manifest.json",
+        output_dir / "dialogue_manifest.json",
+        output_dir / "dialogue_script.json",
+        output_dir / "dialogue_script.invalid.json",
+        output_dir / "debug_dialogue_prompt.txt",
+        output_dir / "debug_dialogue_response.txt",
+        output_dir / "debug_dialogue_validation_issues.json",
+        output_dir / "debug_repair_prompt.txt",
+        output_dir / "debug_repair_response.txt",
     ]:
         if artifact.exists():
             artifact.unlink()
 
     # Clean audio directory if TTS is enabled
-    if args.tts and AUDIO_DIR.exists():
+    if args.tts and audio_dir.exists():
         import shutil
-        shutil.rmtree(AUDIO_DIR)
+        shutil.rmtree(audio_dir)
 
     # ---- Stage 1: determine news path ----
     if args.mock or args.news:
@@ -110,7 +113,7 @@ def run_auto_pipeline(args):
             fetch_news.fetch_latest_news,
             source_id=args.source,
         )
-        news_path = OUTPUT_DIR / "latest_news.json"
+        news_path = output_dir / "latest_news.json"
         save_json(news_dict, news_path)
         print(f"[auto:fetch_news] wrote {news_path}")
 
@@ -118,7 +121,7 @@ def run_auto_pipeline(args):
     generate_cmd = [
         sys.executable, "-m", "src.generate_ir",
         "--news", str(news_path),
-        "--output", str(OUTPUT_DIR / "semantic_ir.json"),
+        "--output", str(output_dir / "semantic_ir.json"),
         "--validate",
     ]
     if args.mock:
@@ -142,7 +145,7 @@ def run_auto_pipeline(args):
             print(f"[auto:generate_ir] exited with code {result.returncode}", file=sys.stderr)
         sys.exit(result.returncode)
 
-    semantic_ir_path = OUTPUT_DIR / "semantic_ir.json"
+    semantic_ir_path = output_dir / "semantic_ir.json"
     if not semantic_ir_path.exists():
         print(f"[auto:generate_ir] output not found: {semantic_ir_path}", file=sys.stderr)
         sys.exit(1)
@@ -165,7 +168,7 @@ def run_auto_pipeline(args):
     if args.tts:
         if args.dialogue:
             # CP7.1 main path: dialogue_script → dialogue_manifest
-            dialogue_script_path = OUTPUT_DIR / "dialogue_script.json"
+            dialogue_script_path = output_dir / "dialogue_script.json"
             if not dialogue_script_path.exists():
                 # Auto-generate dialogue_script
                 print(f"[auto:dialogue] dialogue_script.json not found, generating...")
@@ -207,7 +210,7 @@ def run_auto_pipeline(args):
                     "--expert-profile", args.expert_profile,
                 ]
                 print(f"[auto:tts] generating dialogue audio: host={args.host_profile}, expert={args.expert_profile}")
-            manifest_path = OUTPUT_DIR / "dialogue_manifest.json"
+            manifest_path = output_dir / "dialogue_manifest.json"
         elif args.dialogue_legacy:
             # CP7 legacy path: semantic_ir.beats[].speaker → dialogue_manifest
             print(f"[auto:dialogue] using legacy semantic_ir speaker mode (compatibility preview)")
@@ -219,7 +222,7 @@ def run_auto_pipeline(args):
                 "--host-profile", args.host_profile,
                 "--expert-profile", args.expert_profile,
             ]
-            manifest_path = OUTPUT_DIR / "dialogue_manifest.json"
+            manifest_path = output_dir / "dialogue_manifest.json"
         else:
             # CP6 single-voice narration mode
             print(f"[auto:tts] generating narration with profile={args.tts_profile}")
@@ -228,7 +231,7 @@ def run_auto_pipeline(args):
                 "--semantic-ir", str(semantic_ir_path),
                 "--profile", args.tts_profile,
             ]
-            manifest_path = OUTPUT_DIR / "narration_manifest.json"
+            manifest_path = output_dir / "narration_manifest.json"
 
         narration_result = subprocess.run(narration_cmd, capture_output=False)
         if narration_result.returncode != 0:
@@ -263,10 +266,10 @@ def run_auto_pipeline(args):
 
     # ---- Stage 4c: apply dialogue visual cues (CP9) ----
     if args.dialogue and manifest is not None:
-        dialogue_manifest_path = OUTPUT_DIR / "dialogue_manifest.json"
+        dialogue_manifest_path = output_dir / "dialogue_manifest.json"
         if dialogue_manifest_path.exists():
             dialogue_manifest = load_json(dialogue_manifest_path)
-            dialogue_script_path = OUTPUT_DIR / "dialogue_script.json"
+            dialogue_script_path = output_dir / "dialogue_script.json"
             dialogue_script = load_json(dialogue_script_path) if dialogue_script_path.exists() else None
             print(f"[auto:layout] applying dialogue visual cues (CP9)")
             render_ir = apply_dialogue_visual_cues(render_ir, dialogue_manifest, dialogue_script)
@@ -285,19 +288,19 @@ def run_auto_pipeline(args):
     render_ir = apply_theme_layout(render_ir)
 
     # Save render_ir BEFORE render_html so timing is committed
-    render_ir_path = save_json(render_ir, OUTPUT_DIR / "render_ir.json")
+    render_ir_path = save_json(render_ir, output_dir / "render_ir.json")
     print(f"[auto:layout] wrote {render_ir_path}")
 
     # ---- Stage 5: render_html ----
     print(f"[auto:render_html] rendering animation.html")
-    html_path = render_html.render_html(render_ir, OUTPUT_DIR / "animation.html")
+    html_path = render_html.render_html(render_ir, output_dir / "animation.html")
     print(f"[auto:render_html] wrote {html_path}")
 
     # ---- Stage 6: export_video (optional) ----
     fps = render_ir.get("fps", 30)
     width = render_ir["canvas"]["width"]
     height = render_ir["canvas"]["height"]
-    video_path = OUTPUT_DIR / "output.mp4"
+    video_path = output_dir / "output.mp4"
 
     if args.no_export:
         print(f"[auto:export] SKIPPED (--no-export)")
@@ -424,6 +427,10 @@ def main(argv=None):
     auto_group.add_argument(
         "--no-export", action="store_true",
         help="Skip video export (output.mp4). Useful for fast iteration.",
+    )
+    auto_group.add_argument(
+        "--output-dir", type=str, default=None,
+        help="Output directory for all pipeline artifacts. Default: outputs/latest. (CP14)",
     )
     auto_group.add_argument(
         "--theme", type=str, default="chalkboard",

@@ -10,7 +10,7 @@
 <div class="container">
   <header>
     <h1>🎬 Chalk News Video Studio</h1>
-    <p class="subtitle">CP12 — Local Web Studio V1</p>
+    <p class="subtitle">CP14 — Local Web Studio V1</p>
   </header>
 
   <main class="layout">
@@ -81,6 +81,7 @@
         <button class="tab-btn" data-tab="render_ir">render_ir</button>
         <button class="tab-btn" data-tab="semantic_ir">semantic_ir</button>
         <button class="tab-btn" data-tab="dialogue_script">dialogue_script</button>
+        <button class="tab-btn" data-tab="history">历史作品</button>
       </div>
 
       <!-- Tab Content: Preview -->
@@ -111,11 +112,19 @@
       <div id="tab-dialogue_script" class="tab-content">
         <pre id="json-dialogue_script" class="json-pre"></pre>
       </div>
+
+      <!-- Tab Content: History (CP14) -->
+      <div id="tab-history" class="tab-content">
+        <div class="history-toolbar">
+          <button id="btn-refresh-history" class="btn-small">刷新历史</button>
+        </div>
+        <div id="history-list" class="history-list"></div>
+      </div>
     </section>
   </main>
 
   <footer>
-    <p>CP12 Local Web Studio · mock 模式 · 不上传任何数据</p>
+    <p>CP14 Local Web Studio · mock 模式 · 不上传任何数据</p>
   </footer>
 </div>
 

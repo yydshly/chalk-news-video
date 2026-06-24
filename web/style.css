@@ -325,6 +325,132 @@ input[type="checkbox"] {
   margin: 8px 0;
 }
 
+/* History Panel (CP14) */
+.history-toolbar {
+  margin-bottom: 12px;
+}
+
+.btn-small {
+  background: #2d3748;
+  color: #e2e8f0;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-small:hover {
+  background: #3d4a5c;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.history-loading,
+.history-empty {
+  color: #64748b;
+  font-size: 0.875rem;
+  text-align: center;
+  padding: 20px;
+}
+
+.history-item {
+  background: #0f1117;
+  border: 1px solid #2d3748;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.history-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.history-job-id {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-family: monospace;
+}
+
+.history-badge {
+  font-size: 0.6875rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.status-success {
+  background: #064e3b;
+  color: #4ade80;
+}
+
+.status-error {
+  background: #7f1d1d;
+  color: #f87171;
+}
+
+.status-pending {
+  background: #1e293b;
+  color: #38bdf8;
+}
+
+.history-item-meta {
+  font-size: 0.8125rem;
+  color: #94a3b8;
+  margin-bottom: 4px;
+}
+
+.history-item-meta span {
+  margin-right: 12px;
+}
+
+.history-item-time {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.history-item-message {
+  font-size: 0.8125rem;
+  color: #cbd5e1;
+  margin-bottom: 4px;
+}
+
+.history-item-error {
+  font-size: 0.75rem;
+  color: #f87171;
+  margin-bottom: 4px;
+}
+
+.history-item-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.btn-history-action {
+  background: #2d3748;
+  color: #e2e8f0;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-history-action:hover {
+  background: #3d4a5c;
+}
+
 /* JSON Pre */
 .json-pre {
   background: #0f1117;
