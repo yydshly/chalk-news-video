@@ -80,6 +80,8 @@
   let selectedNews = null;       // CP19: user-selected hot news item
   let hotNewsItems = [];         // CP19: list of hot news candidates
   let episodeItemList = [];       // CP23: episode playlist items
+  let latestEpisodePlan = null;    // CP24: most recent episode plan
+  let latestEpisodeScript = null;  // CP25: most recent episode script
 
   // CP20: Theme showcase data
   const THEME_SHOWCASES = {
@@ -625,6 +627,146 @@
     };
   }
 
+  // CP25: Build episode script from episode plan (mock rules, no real LLM)
+  function buildEpisodeScriptFromPlan(plan) {
+    if (!plan || !plan.items || plan.items.length === 0) {
+      return null;
+    }
+
+    var leadItem = null;
+    plan.items.forEach(function (item) {
+      if (item.role === "lead") leadItem = item;
+    });
+
+    var segments = plan.items.map(function (item, index) {
+      var isLead = item.role === "lead";
+      var beats = [
+        {
+          type: "headline",
+          text: "第 " + (index + 1) + " 条，" + item.title + "。",
+        },
+        {
+          type: "context",
+          text: isLead
+            ? "这条是今天的主线新闻，热度和讨论度都比较高。"
+            : "这条可以作为补充观察，帮助我们理解今天的 AI 动向。",
+        },
+        {
+          type: "takeaway",
+          text: "后续值得关注它是否会带来产品、模型或市场层面的变化。",
+        },
+      ];
+      return {
+        order: item.order,
+        type: "news_segment",
+        news_id: item.id,
+        headline: item.title,
+        role: item.role,
+        beats: beats,
+        duration_hint_sec: 35,
+      };
+    });
+
+    var transitions = [];
+    for (var i = 0; i < plan.items.length - 1; i++) {
+      transitions.push({
+        after_order: plan.items[i].order,
+        text: "接着看下一条。",
+      });
+    }
+
+    var script = {
+      version: "episode_script_v1",
+      episode_title: plan.title || "今日 AI 前沿速览",
+      theme: plan.theme,
+      generation_mode: plan.generation_mode,
+      estimated_duration_sec: 180,
+      opening: {
+        type: "opening",
+        text: "今天我们快速看几条值得关注的 AI 新闻。",
+        duration_hint_sec: 12,
+      },
+      segments: segments,
+      transitions: transitions,
+      closing: leadItem ? {
+        type: "closing",
+        focus_news_id: leadItem.id,
+        text: "今天最值得关注的是：" + leadItem.title + "。",
+      } : null,
+      constraints: {
+        min_segments: 2,
+        max_segments: 5,
+        target_duration_sec: 180,
+        tone: "清晰、克制、新闻解说",
+      },
+    };
+
+    return script;
+  }
+
+  // CP25: Validate episode script
+  function validateEpisodeScript(script) {
+    var warnings = [];
+    var errors = [];
+
+    if (!script) {
+      errors.push("脚本为空");
+      return { ok: false, warnings: warnings, errors: errors };
+    }
+
+    if (script.version !== "episode_script_v1") {
+      errors.push("version 必须为 episode_script_v1");
+    }
+
+    if (!script.opening || !script.opening.text) {
+      errors.push("opening.text 不能为空");
+    }
+
+    if (!script.segments || script.segments.length < 1) {
+      errors.push("至少需要 1 个 segment");
+    }
+
+    if (script.segments && script.segments.length > 5) {
+      errors.push("最多支持 5 个 segment");
+    }
+
+    var leadCount = 0;
+    var leadSegment = null;
+    script.segments && script.segments.forEach(function (seg, i) {
+      if (!seg.news_id) errors.push("第 " + (i + 1) + " 个 segment 缺少 news_id");
+      if (!seg.headline) errors.push("第 " + (i + 1) + " 个 segment 缺少 headline");
+      if (!seg.beats || seg.beats.length < 3) {
+        errors.push("第 " + (i + 1) + " 个 segment 至少需要 3 个 beats");
+      }
+      if (seg.role === "lead") {
+        leadCount++;
+        leadSegment = seg;
+      }
+    });
+
+    if (leadCount !== 1) {
+      errors.push("必须有且只有 1 个 lead segment，当前有 " + leadCount + " 个");
+    }
+
+    if (script.closing && leadSegment) {
+      if (script.closing.focus_news_id !== leadSegment.news_id) {
+        errors.push("closing.focus_news_id 必须等于 lead segment 的 news_id");
+      }
+    }
+
+    // No API key / voice_id leakage check
+    var scriptStr = JSON.stringify(script);
+    if (/api[_-]?key/i.test(scriptStr) || /voice[_-]?id/i.test(scriptStr)) {
+      errors.push("脚本中不允许出现 API key 或 voice_id");
+    }
+
+    return {
+      ok: errors.length === 0,
+      warnings: warnings,
+      errors: errors,
+    };
+  }
+
   // Show episode plan in the episode_plan tab
   function showEpisodePlan() {
     if (episodeItemList.length === 0) {
@@ -634,6 +776,9 @@
 
     var plan = buildEpisodePlan();
     var result = validateEpisodePlan(plan);
+
+    // CP24: Save latest plan
+    latestEpisodePlan = plan;
 
     // Switch to episode_plan tab
     tabBtns.forEach(function (b) { b.classList.remove("active"); });
@@ -656,6 +801,51 @@
       setStatus("栏目计划已生成（" + result.warnings.join("；") + "）", "info");
     } else {
       setStatus("栏目计划已生成，可进入下一步", "success");
+    }
+  }
+
+  // CP25: Show episode script preview
+  function showEpisodeScript() {
+    if (episodeItemList.length === 0) {
+      setStatus("请先加入新闻，再生成栏目脚本", "error");
+      return;
+    }
+
+    var plan = buildEpisodePlan();
+    var planResult = validateEpisodePlan(plan);
+
+    // If plan has errors, block script generation
+    if (!planResult.ok) {
+      setStatus("栏目计划有误，无法生成脚本：" + planResult.errors.join("；"), "error");
+      return;
+    }
+
+    var script = buildEpisodeScriptFromPlan(plan);
+    var scriptResult = validateEpisodeScript(script);
+
+    // CP25: Save latest script
+    latestEpisodeScript = script;
+
+    // Switch to episode_script tab
+    tabBtns.forEach(function (b) { b.classList.remove("active"); });
+    tabContents.forEach(function (c) { c.classList.remove("active"); });
+    var tabBtn = document.querySelector('[data-tab="episode_script"]');
+    var tabContent = document.getElementById("tab-episode_script");
+    if (tabBtn) tabBtn.classList.add("active");
+    if (tabContent) tabContent.classList.add("active");
+
+    var jsonEl = document.getElementById("json-episode_script");
+    if (jsonEl) {
+      var output = JSON.stringify({ script: script, validation: scriptResult }, null, 2);
+      jsonEl.textContent = output;
+    }
+
+    if (!scriptResult.ok) {
+      setStatus("栏目脚本有误：" + scriptResult.errors.join("；"), "error");
+    } else if (scriptResult.warnings.length > 0) {
+      setStatus("栏目脚本已生成（" + scriptResult.warnings.join("；") + "）", "info");
+    } else {
+      setStatus("栏目脚本草案已生成", "success");
     }
   }
 
@@ -824,6 +1014,14 @@
   if (btnViewEpisodePlan) {
     btnViewEpisodePlan.addEventListener("click", function () {
       showEpisodePlan();
+    });
+  }
+
+  // CP25: View episode script button
+  var btnViewEpisodeScript = document.getElementById("btn-view-episode-script");
+  if (btnViewEpisodeScript) {
+    btnViewEpisodeScript.addEventListener("click", function () {
+      showEpisodeScript();
     });
   }
 
