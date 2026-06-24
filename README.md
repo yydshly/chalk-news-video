@@ -530,6 +530,22 @@ python -m src.server --host 127.0.0.1 --port 8777
 - failed job 在 `/api/history` 可见，`/api/jobs/{id}/artifacts/meta` 可读
 - failed job meta 不包含任何 secret value
 
+**Checkpoint 15.2 — Real LLM/TTS E2E 验证（当前）**：
+
+- `_validate_provider_selection()`：unknown provider 时立即返回错误，不走后续流程
+- 真实 LLM provider（minimax_m3_openai）+ mock TTS（mock_dialogue）E2E 验证
+- 验证命令包含 `--profile minimax_m3_openai --repair --repair-attempts 2 --dialogue-profile mock_dialogue`
+- 验证命令不包含 API key / voice_id / sk-
+- 缺 env 时 failed job error 只包含 env var name，不包含 value
+- unknown provider 时创建 failed job，error 包含 "Unknown LLM/TTS provider"
+
+**CP15.2 验收**：
+- unknown provider `curl -X POST /api/jobs -d '{"llm_provider":"not_exist","tts_provider":"mock_dialogue","mock":false}'` → failed job + error 包含 "Unknown LLM provider"
+- real LLM + mock TTS：job succeeded，`semantic_ir.json` / `dialogue_script.json` 由真实 LLM 生成
+- real LLM 缺 env：failed job error 只包含 `MINIMAX_API_KEY`（无 value）
+- `/api/providers` 显示 provider ready 状态正确，missing_env 去重
+- API key / voice_id 不泄露到任何 API 响应或 artifact
+
 ## 项目定位
 
 V0.11: News → LLM → semantic_ir → dual-host dialogue → video（含双角色音频）。

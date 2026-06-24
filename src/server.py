@@ -263,14 +263,18 @@ def _validate_provider_selection(body: GenerateRequest) -> tuple[bool, Optional[
     # Check LLM provider readiness
     if llm_provider != "mock":
         llm_status = _get_provider_status_by_id("llm", llm_provider)
-        if llm_status and not llm_status["ready"]:
+        if llm_status is None:
+            return False, f"Unknown LLM provider: {llm_provider}"
+        if not llm_status["ready"]:
             missing = ", ".join(llm_status["missing_env"])
             return False, f"Provider '{llm_provider}' is not ready. Missing env: {missing}"
 
     # Check TTS provider readiness (only for real TTS providers)
     if tts_provider not in ("mock", "mock_dialogue"):
         tts_status = _get_provider_status_by_id("tts", tts_provider)
-        if tts_status and not tts_status["ready"]:
+        if tts_status is None:
+            return False, f"Unknown TTS provider: {tts_provider}"
+        if not tts_status["ready"]:
             missing = ", ".join(tts_status["missing_env"])
             return False, f"Provider '{tts_provider}' is not ready. Missing env: {missing}"
 

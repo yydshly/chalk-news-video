@@ -1132,12 +1132,13 @@ ALLOWED_ARTIFACTS = {
 - `endpoint_path_env`：仅在 profile 无 `endpoint_path` 时要求
 - `voice_id_env`：仅在 profile 无 `voice_id` 时要求
 
-### _validate_provider_selection（CP15.1）
+### _validate_provider_selection（CP15.1 / CP15.2）
 
 1. 有效 `llm_provider`：`body.llm_provider` or (`body.mock=true` → "mock" : "minimax_m3_openai")
 2. 有效 `tts_provider`：`body.tts_provider` or (`dialogue=true` → "mock_dialogue" : "mock")
-3. 非 mock LLM provider 检查 readiness，缺 env 则返回错误
-4. 非 mock/mock_dialogue TTS provider 检查 readiness，缺 env 则返回错误
+3. 非 mock LLM provider：先检查 provider 是否存在（unknown → 立即失败），再检查 readiness，缺 env 则返回错误
+4. 非 mock/mock_dialogue TTS provider：先检查 provider 是否存在（unknown → 立即失败），再检查 readiness，缺 env 则返回错误
+5. unknown provider 时返回错误信息包含 "Unknown LLM provider" 或 "Unknown TTS provider"，不泄露 secret
 
 ### Failed Provider Job（CP15.1）
 

@@ -328,9 +328,13 @@
 
 ## Checkpoint 15.2 — Real LLM/TTS E2E 验证
 
-- 真实 API key 配置后完整链路跑通
-- 验证 minimax_m3_openai + mock_dialogue
-- 验证 minimax_dialogue TTS
+- [x] `_validate_provider_selection()`：unknown provider 时立即返回错误
+- [x] 真实 LLM + mock TTS E2E 验证
+- [x] unknown provider failed job 验收
+- [x] API key / voice_id 不泄露验收
+- [ ] 真实 TTS E2E（CP15.3）
+
+## Checkpoint 15.3 — 真实 MiniMax TTS E2E
 
 ## Checkpoint 14.2 — Job 删除 / 清理
 
