@@ -324,3 +324,8 @@ Anchor is slightly smaller and better positioned. Main card starts at `left:100p
 | `validateMockEpisodeHtml` still passes | ✅ |
 | No external links / CDN / script | ✅ |
 
+---
+
+## CP38 Note: Scene Timeline / Shot Playback Mock Added
+
+CP38 (`feat/cp38-scene-timeline-playback-mock`) adds a CSS-driven **shot-by-shot playback mock** to the CP37.1 cartoon anchor stage. Elements now enter sequentially via `animation-delay` instead of all at once. See [CP38_SCENE_TIMELINE_PLAYBACK_MOCK.md](./CP38_SCENE_TIMELINE_PLAYBACK_MOCK.md) for full details.

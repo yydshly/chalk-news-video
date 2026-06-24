@@ -2503,6 +2503,21 @@
       svg + '</div>';
   }
 
+  // CP38: Build shot timeline for breaking_news_v1 stage playback mock
+  function buildBreakingNewsShotTimeline(contract) {
+    var sections = contract.sections || {};
+    var cardCount = (sections.news_cards || []).length;
+    var totalSec = contract.episode ? (contract.episode.estimated_duration_sec || 30) : 30;
+
+    return [
+      { shot_id: "opening", label: "开场", start_sec: 0, duration_sec: 3, layer_targets: ["stage-title-area", "stage-topbar"] },
+      { shot_id: "anchor_intro", label: "主持人导入", start_sec: 1, duration_sec: 3, layer_targets: ["stage-anchor-layer"] },
+      { shot_id: "lead_news", label: "主新闻", start_sec: 3, duration_sec: 6, layer_targets: ["stage-main-card", "stage-subtitle-bar"] },
+      { shot_id: "supporting_news", label: "补充快讯", start_sec: 7, duration_sec: 6, layer_targets: ["stage-supporting"] },
+      { shot_id: "closing", label: "结尾", start_sec: 11, duration_sec: 3, layer_targets: ["stage-closing-chip", "stage-timeline"] },
+    ];
+  }
+
   // CP36: Layout 2 — breaking_news_v1 fixed video stage (9:16 vertical video canvas)
   function renderBreakingNewsStageEpisodeHtml(contract, st) {
     var episode = contract.episode;
@@ -2589,7 +2604,7 @@
       '.stage-closing-dot{width:6px;height:6px;border-radius:50%;background:#dc2626;}\n' +
       // CP37: Cartoon anchor layer
       '.stage-anchor-layer{position:absolute;left:8px;bottom:112px;width:86px;height:130px;' +
-      'z-index:16;pointer-events:none;}\n' +
+      'z-index:16;pointer-events:none;opacity:0;}\n' +
       '.cartoon-anchor-svg{width:100%;height:100%;filter:drop-shadow(0 6px 18px rgba(0,0,0,.6));}\n' +
       // Anchor action animations (body float + arm movement)
       '@keyframes anchorFloat{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}\n' +
@@ -2631,6 +2646,37 @@
       // Focused: pupils shift right slightly
       '.anchor-expression-focused .anchor-pupil{animation:focusPupil 3s ease-in-out infinite;}\n' +
       '@keyframes focusPupil{0%,100%{transform:translate(0,0);}50%{transform:translate(1.5px,0);}}\n' +
+      // CP38: Shot entrance animations (staggered by shot timeline)
+      // Shot 1 - Opening: topbar + title-area fade in
+      '.stage-topbar{animation:shotFadeIn 0.5s 0.1s ease-out both;}\n' +
+      '.stage-title-area{animation:shotFadeIn 0.6s 0.2s ease-out both;}\n' +
+      '.stage-opening-label{animation:shotFadeIn 0.4s 0.15s ease-out both;}\n' +
+      '@keyframes shotFadeIn{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}\n' +
+      // Shot 2 - Anchor intro: anchor slides + fades in
+      '.stage-anchor-layer{opacity:0;animation:anchorEnter 0.7s 1.0s ease-out forwards,anchorFloat 2.2s 1.8s ease-in-out infinite;transform-origin:60px 176px;}\n' +
+      '@keyframes anchorEnter{from{opacity:0;transform:translateX(-14px) translateY(8px);}to{opacity:1;transform:translateX(0) translateY(0);}}\n' +
+      // Shot 3 - Lead news: card + subtitle bar enter
+      '.stage-main-card{opacity:0;animation:shotCardIn 0.6s 2.5s ease-out both;}\n' +
+      '@keyframes shotCardIn{from{opacity:0;transform:translateY(14px) scale(0.97);}to{opacity:1;transform:translateY(0) scale(1);}}\n' +
+      '.stage-subtitle-bar{opacity:0;animation:shotFadeIn 0.5s 3.2s ease-out both;}\n' +
+      // Shot 4 - Supporting cards: staggered entries
+      '.stage-supporting{opacity:0;animation:shotFadeIn 0.5s 5.0s ease-out both;}\n' +
+      '.stage-support-card:nth-child(1){animation:shotCardIn 0.5s 5.2s ease-out both;}\n' +
+      '.stage-support-card:nth-child(2){animation:shotCardIn 0.5s 5.55s ease-out both;}\n' +
+      '.stage-support-card:nth-child(3){animation:shotCardIn 0.5s 5.9s ease-out both;}\n' +
+      // Shot 5 - Closing: closing chip + timeline progress
+      '.stage-closing-chip{opacity:0;animation:shotFadeIn 0.5s 9.5s ease-out both;}\n' +
+      '.stage-recap{animation:shotFadeIn 0.4s 0.3s ease-out both;}\n' +
+      // CP38: Mock progress bar (fills over ~12s, fills once then stays)
+      '.stage-progress-wrap{position:absolute;bottom:6px;left:16px;right:16px;z-index:25;height:4px;}\n' +
+      '.stage-progress-track{width:100%;height:100%;background:rgba(255,255,255,.15);border-radius:999px;overflow:hidden;}\n' +
+      '.stage-progress-fill{width:0%;height:100%;background:linear-gradient(90deg,#dc2626,#f87171);' +
+      'border-radius:999px;animation:mockProgressFill 12s linear forwards;}\n' +
+      '@keyframes mockProgressFill{0%{width:0%;}100%{width:100%;}}\n' +
+      // CP38: Shot label (small, non-intrusive)
+      '.stage-shot-label{position:absolute;top:38px;left:50%;transform:translateX(-50%);z-index:22;' +
+      'background:rgba(0,0,0,.55);border-radius:20px;padding:2px 10px;font-size:8px;color:#fca5a5;' +
+      'white-space:nowrap;letter-spacing:0.5px;opacity:0;animation:shotFadeIn 0.4s 0.1s ease-out both;}\n' +
       '</style>\n';
 
     // Build lead card HTML
@@ -2692,6 +2738,8 @@
       '<div class="stage-topbar">' +
       '<span class="stage-breaking-badge">🔴 BREAKING NEWS</span>' +
       '<span class="stage-meta">' + sections.news_cards.length + ' 条 · ' + totalTimeStr + '</span></div>\n' +
+      // CP38: Shot label (shot flow indicator)
+      '<div class="stage-shot-label">SHOT FLOW · 开场 → 主持人 → 主新闻 → 快讯 → 结尾</div>\n' +
       // Recap chip (top right)
       recapHtml + '\n' +
       // Opening label
@@ -2712,6 +2760,8 @@
       closingHtml + '\n' +
       // Timeline rail
       timelineHtml + '\n' +
+      // CP38: Mock progress bar (overlaid at bottom)
+      '<div class="stage-progress-wrap"><div class="stage-progress-track"><div class="stage-progress-fill"></div></div></div>\n' +
       '</div>\n</div>\n</body>\n</html>';
   }
 
