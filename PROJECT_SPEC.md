@@ -898,6 +898,72 @@ FastAPI 后端，监听 `127.0.0.1:8777`。
 - output.mp4 video 预览
 - JSON artifact 展示（render_ir / semantic_ir / dialogue_script）
 
+## Checkpoint 13 — Async Jobs / Progress Stream
+
+### 职责边界
+
+- **做**：异步任务创建 / 状态查询 / SSE 进度流
+- **不做**：多用户隔离 / 数据库 / Redis / Celery / 云部署
+
+### Job 数据结构
+
+```python
+{
+    "job_id": "job_abc123",
+    "status": "queued|running|succeeded|failed",
+    "stage": "queued|semantic_ir|tts|...",
+    "message": "正在生成 semantic_ir",
+    "progress": 0-100,
+    "created_at": "ISO8601",
+    "updated_at": "ISO8601",
+    "result": None | GenerateResponse,
+    "error": None | str,
+    "events": [],  # 内部用，不暴露
+    "request": {...}  # 原始请求
+}
+```
+
+### JobStatus 契约
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `job_id` | string | 任务 ID |
+| `status` | string | queued/running/succeeded/failed |
+| `stage` | string | 当前阶段标识 |
+| `message` | string | 人类可读状态消息 |
+| `progress` | int | 0-100 进度百分比 |
+| `result` | object\|null | 成功时为 GenerateResponse |
+| `error` | string\|null | 失败时为错误信息 |
+
+### SSE Event 类型
+
+| 事件 | data 字段 | 说明 |
+|------|-----------|------|
+| `progress` | status, stage, message, progress | 进度更新 |
+| `done` | status, result | 任务成功完成 |
+| `error` | status, error | 任务失败 |
+
+### 阶段进度映射
+
+| stage | progress | 触发条件 |
+|-------|----------|----------|
+| queued | 0 | 任务创建 |
+| preparing_input | 5 | stdout 含 `[auto:fetch_news]` |
+| semantic_ir | 25 | stdout 含 `[auto:generate_ir]` |
+| validate_ir | 35 | stdout 含 `[auto:validate_ir]` |
+| dialogue_script | 40 | stdout 含 `[auto:dialogue]` |
+| tts | 55 | stdout 含 `[auto:tts]` |
+| layout | 62 | stdout 含 `[auto:layout]` |
+| render_html | 82 | stdout 含 `[auto:render_html]` |
+| export_video | 92 | stdout 含 `[auto:export]` |
+| succeeded | 100 | 任务成功 |
+
+### Job Store
+
+- 内存 dict：JOBS = {}
+- 单用户本地工具，服务重启后丢失
+- 不做持久化
+
 ## 文件清单（V0.11 新增 / 修改）
 
 新增（CP10）：

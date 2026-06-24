@@ -224,6 +224,101 @@ mode 也支持 `"text"`，此时需提供 `title` 和 `news_text`。
 - 不是 Remotion（CP12+）
 - 不暴露 .env 或真实 API key
 
+**Checkpoint 13 — Async Jobs / Progress Stream（当前）**：
+
+异步任务 + SSE 进度推送，前端不再阻塞等待。
+
+```bash
+python -m src.server --host 127.0.0.1 --port 8777
+```
+
+**新增 API 路由**：
+
+| 方法 | 路由 | 说明 |
+|---|---|---|
+| POST | `/api/jobs` | 创建异步生成任务 |
+| GET | `/api/jobs/{job_id}` | 查询任务状态和结果 |
+| GET | `/api/jobs/{job_id}/events` | SSE 进度流 |
+
+**POST /api/jobs 请求体**：同 `/api/generate`
+
+```json
+{
+  "mode": "sample",
+  "theme": "podcast",
+  "dialogue": true,
+  "mock": true,
+  "no_export": false
+}
+```
+
+**POST /api/jobs 返回**：
+
+```json
+{
+  "ok": true,
+  "job_id": "job_abc123",
+  "status_url": "/api/jobs/job_abc123",
+  "events_url": "/api/jobs/job_abc123/events"
+}
+```
+
+**GET /api/jobs/{job_id} 返回**：
+
+```json
+{
+  "ok": true,
+  "job": {
+    "job_id": "job_abc123",
+    "status": "succeeded",
+    "stage": "succeeded",
+    "message": "完成",
+    "progress": 100,
+    "created_at": "...",
+    "updated_at": "...",
+    "result": { "ok": true, "exported": true, ... },
+    "error": null
+  }
+}
+```
+
+**SSE 事件类型**：
+
+| 事件 | 说明 |
+|------|------|
+| `progress` | 进度更新，含 stage/message/progress |
+| `done` | 任务成功，含 result |
+| `error` | 任务失败，含 error |
+
+**阶段进度映射**：
+
+| stage | progress | 说明 |
+|-------|----------|------|
+| `queued` | 0 | 任务已创建 |
+| `preparing_input` | 5 | 准备输入 |
+| `semantic_ir` | 25 | 生成 semantic_ir |
+| `validate_ir` | 35 | 校验 |
+| `dialogue_script` | 40 | 生成对话脚本 |
+| `tts` | 55 | 生成 TTS |
+| `layout` | 62 | 计算布局 |
+| `render_html` | 82 | 渲染 HTML |
+| `export_video` | 92 | 导出 MP4 |
+| `succeeded` | 100 | 完成 |
+
+**Job Store**：
+- 内存存储，单用户本地工具
+- 服务重启后任务记录丢失
+- 不做数据库 / Redis / Celery
+
+**同步兼容路由**：
+- `POST /api/generate` 仍保留，同步阻塞返回（CP12.1 兼容）
+
+**CP13 限制（明确不做）**：
+- 不做多用户 / 任务隔离
+- 不做数据库 / Redis / Celery
+- 不做云部署
+- 不做 Remotion（CP17）
+
 ## 项目定位
 
 V0.11: News → LLM → semantic_ir → dual-host dialogue → video（含双角色音频）。

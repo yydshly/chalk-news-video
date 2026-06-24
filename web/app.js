@@ -1,4 +1,4 @@
-/* Chalk News Video Studio — CP12 app.js */
+/* Chalk News Video Studio — CP13 app.js */
 
 (function () {
   "use strict";
@@ -22,9 +22,13 @@
   const jsonSemanticIr = document.getElementById("json-semantic_ir");
   const jsonDialogueScript = document.getElementById("json-dialogue_script");
   const exportHint = document.getElementById("export-hint");
+  const progressBar = document.getElementById("progress-bar");
+  const progressText = document.getElementById("progress-text");
+  const jobLog = document.getElementById("job-log");
 
   // ---------- state ----------
   let lastResult = null;
+  let currentEventSource = null;
 
   // ---------- init ----------
   async function init() {
@@ -79,7 +83,7 @@
     });
   });
 
-  // ---------- generate ----------
+  // ---------- generate (async job) ----------
   btnGenerate.addEventListener("click", async function () {
     const mode = document.querySelector('input[name="mode"]:checked').value;
     const theme = selectTheme.value;
@@ -93,9 +97,17 @@
       return;
     }
 
+    // Stop any existing event source
+    if (currentEventSource) {
+      currentEventSource.close();
+      currentEventSource = null;
+    }
+
     btnGenerate.disabled = true;
-    setStatus("生成中，请稍候...", "info");
+    setStatus("正在创建任务...", "info");
     clearPreview();
+    clearJobLog();
+    resetProgress();
 
     const payload = {
       mode: mode,
@@ -111,27 +123,74 @@
     }
 
     try {
-      const resp = await fetch("/api/generate", {
+      // Create async job
+      const resp = await fetch("/api/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      const result = await resp.json();
+      const data = await resp.json();
 
-      if (!result.ok) {
-        setStatus("错误: " + (result.error || "生成失败"), "error");
+      if (!data.ok) {
+        setStatus("错误: " + (data.error || "创建任务失败"), "error");
         btnGenerate.disabled = false;
         return;
       }
 
-      lastResult = result;
-      setStatus("生成成功！", "success");
-      showPreview(result);
-      await loadArtifacts(result);
+      const jobId = data.job_id;
+      const eventsUrl = data.events_url;
+
+      setStatus("生成中...", "info");
+      appendJobLog("[任务已创建] " + data.message);
+
+      // Open SSE connection
+      currentEventSource = new EventSource(eventsUrl);
+
+      currentEventSource.addEventListener("progress", function (e) {
+        const d = JSON.parse(e.data);
+        updateProgress(d.progress, d.message);
+        appendJobLog("[" + d.stage + "] " + d.message);
+      });
+
+      currentEventSource.addEventListener("done", function (e) {
+        const d = JSON.parse(e.data);
+        currentEventSource.close();
+        currentEventSource = null;
+
+        if (d.result) {
+          lastResult = d.result;
+          setStatus("生成成功！", "success");
+          updateProgress(100, "完成");
+          appendJobLog("[完成] 生成成功");
+          showPreview(d.result);
+          loadArtifacts(d.result);
+        } else {
+          setStatus("生成结果异常", "error");
+          appendJobLog("[错误] 未收到结果");
+        }
+        btnGenerate.disabled = false;
+      });
+
+      currentEventSource.addEventListener("error", function (e) {
+        const d = JSON.parse(e.data);
+        currentEventSource.close();
+        currentEventSource = null;
+        setStatus("错误: " + (d.error || "生成失败"), "error");
+        appendJobLog("[失败] " + (d.error || "未知错误"));
+        btnGenerate.disabled = false;
+      });
+
+      currentEventSource.onerror = function () {
+        // Only close if not reconnecting
+        if (currentEventSource && currentEventSource.readyState === EventSource.CLOSED) {
+          currentEventSource.close();
+          currentEventSource = null;
+        }
+      };
+
     } catch (e) {
       setStatus("请求失败: " + e.message, "error");
-    } finally {
       btnGenerate.disabled = false;
     }
   });
@@ -150,6 +209,42 @@
     jsonRenderIr.textContent = "";
     jsonSemanticIr.textContent = "";
     jsonDialogueScript.textContent = "";
+    if (exportHint) {
+      exportHint.textContent = "";
+    }
+  }
+
+  function clearJobLog() {
+    if (jobLog) {
+      jobLog.textContent = "";
+    }
+  }
+
+  function appendJobLog(msg) {
+    if (jobLog) {
+      const ts = new Date().toLocaleTimeString();
+      jobLog.textContent += "[" + ts + "] " + msg + "\n";
+      // Auto-scroll to bottom
+      jobLog.scrollTop = jobLog.scrollHeight;
+    }
+  }
+
+  function resetProgress() {
+    if (progressBar) {
+      progressBar.style.width = "0%";
+    }
+    if (progressText) {
+      progressText.textContent = "";
+    }
+  }
+
+  function updateProgress(progress, message) {
+    if (progressBar) {
+      progressBar.style.width = Math.min(100, Math.max(0, progress)) + "%";
+    }
+    if (progressText) {
+      progressText.textContent = message || "";
+    }
   }
 
   function showPreview(result) {

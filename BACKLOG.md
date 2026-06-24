@@ -265,16 +265,32 @@
 
 ## Checkpoint 13 — 异步任务 / Progress Stream
 
-- 异步任务队列
-- Server-Sent Events (SSE) progress 更新
-- 任务历史记录
+- [x] `src/server.py`：新增 `/api/jobs` POST 创建异步任务
+- [x] `src/server.py`：新增 `/api/jobs/{job_id}` GET 查询状态
+- [x] `src/server.py`：新增 `/api/jobs/{job_id}/events` SSE 流
+- [x] `src/server.py`：内存 job store（JOBS dict）
+- [x] `src/server.py`：后台线程执行 `_run_job`
+- [x] `src/server.py`：stdout 解析进度（STAGE_PATTERNS）
+- [x] `src/server.py`：同步兼容 `/api/generate`（CP12.1 契约不变）
+- [x] `web/app.js`：EventSource 接收 SSE 进度
+- [x] `web/app.js`：进度条 + 日志展示
+- [x] `web/index.html`：progress-bar / progress-text / job-log 元素
+- [x] `web/style.css`：.progress-wrap / .progress-bar / .progress-text / .job-log 样式
+- [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
 
-## Checkpoint 14 — 预览图库 / History
+## Checkpoint 14 — Web Studio 配置面板
 
-- 历史生成记录
+- 真实 LLM / TTS API Key 配置
+- Theme gallery 预览
+- 前端配置持久化（localStorage）
+
+## Checkpoint 15 — 预览图库 / Job History
+
+- 历史 job 记录
 - 缩略图预览
+- job output isolation
 
-## Checkpoint 15 — Remotion / 视觉升级
+## Checkpoint 16 — Remotion / 视觉升级
 
 - Remotion 数字人
 - 前端 UI（网页端配置和播放）
@@ -282,7 +298,8 @@
 
 ## 不做（Out of Scope）
 
-- Remotion（CP15+）
-- 数字人（CP15+）
+- Remotion（CP16+）
+- 数字人（CP16+）
 - lip-sync（CP9+）
 - 自动选题 / 多新闻合并
+- 数据库 / Redis / Celery
