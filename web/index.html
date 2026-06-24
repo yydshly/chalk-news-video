@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chalk News Video Studio</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>🎬 Chalk News Video Studio</h1>
+    <p class="subtitle">CP12 — Local Web Studio V1</p>
+  </header>
+
+  <main class="layout">
+    <!-- Left: Input Panel -->
+    <section class="panel input-panel">
+      <h2>输入配置</h2>
+
+      <!-- News Mode -->
+      <fieldset>
+        <legend>新闻来源</legend>
+        <label class="radio-label">
+          <input type="radio" name="mode" value="sample" checked>
+          使用示例新闻
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="mode" value="text">
+          粘贴新闻文本
+        </label>
+      </fieldset>
+
+      <!-- Text input fields (hidden by default) -->
+      <div id="text-input-fields" class="hidden">
+        <label for="input-title">标题</label>
+        <input type="text" id="input-title" placeholder="新闻标题（可选）" />
+
+        <label for="input-news">新闻正文</label>
+        <textarea id="input-news" rows="8" placeholder="在此粘贴新闻文本..."></textarea>
+      </div>
+
+      <!-- Theme -->
+      <label for="select-theme">主题</label>
+      <select id="select-theme">
+        <option value="chalkboard">chalkboard — 绿色黑板</option>
+        <option value="podcast">podcast — 双人播客</option>
+        <option value="research_desk">research_desk — 深夜研究室</option>
+        <option value="notebook">notebook — 手写笔记</option>
+      </select>
+
+      <!-- Options -->
+      <label class="checkbox-label">
+        <input type="checkbox" id="check-dialogue" checked>
+        启用对话模式（双人）
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" id="check-export" checked>
+        导出 MP4 视频
+      </label>
+
+      <!-- Generate Button -->
+      <button id="btn-generate" class="btn-primary">生成视频</button>
+      <p id="status-msg" class="status-msg"></p>
+    </section>
+
+    <!-- Right: Result Panel -->
+    <section class="panel result-panel">
+      <h2>预览结果</h2>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="preview">视频预览</button>
+        <button class="tab-btn" data-tab="render_ir">render_ir</button>
+        <button class="tab-btn" data-tab="semantic_ir">semantic_ir</button>
+        <button class="tab-btn" data-tab="dialogue_script">dialogue_script</button>
+      </div>
+
+      <!-- Tab Content: Preview -->
+      <div id="tab-preview" class="tab-content active">
+        <div class="preview-wrapper">
+          <div class="preview-label">animation.html</div>
+          <iframe id="preview-html" class="preview-iframe" src=""></iframe>
+        </div>
+        <div class="preview-wrapper">
+          <div class="preview-label">output.mp4</div>
+          <video id="preview-video" class="preview-video" controls></video>
+        </div>
+        <div id="download-links"></div>
+      </div>
+
+      <!-- Tab Content: render_ir -->
+      <div id="tab-render_ir" class="tab-content">
+        <pre id="json-render_ir" class="json-pre"></pre>
+      </div>
+
+      <!-- Tab Content: semantic_ir -->
+      <div id="tab-semantic_ir" class="tab-content">
+        <pre id="json-semantic_ir" class="json-pre"></pre>
+      </div>
+
+      <!-- Tab Content: dialogue_script -->
+      <div id="tab-dialogue_script" class="tab-content">
+        <pre id="json-dialogue_script" class="json-pre"></pre>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>CP12 Local Web Studio · mock 模式 · 不上传任何数据</p>
+  </footer>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

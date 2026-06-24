@@ -812,6 +812,77 @@ JS 读取 `THEME.layout.nodes`：
 
 subtitle text font-size 从 `RENDER_IR.subtitles.font_size` 读取（CP11 新增）。
 
+## Checkpoint 12 — Local Web Studio V1
+
+### 职责边界
+
+- **做**：本地 Web 界面、主题选择、视频生成触发、结果预览
+- **不做**：登录/计费、异步任务、云部署、Remotion
+
+### src/server.py
+
+FastAPI 后端，监听 `127.0.0.1:8777`。
+
+| 路由 | 方法 | 说明 |
+|---|---|---|
+| `/` | GET | `web/index.html` |
+| `/app.js` | GET | `web/app.js` |
+| `/style.css` | GET | `web/style.css` |
+| `/api/health` | GET | `{"ok": true, "project": "chalk-news-video"}` |
+| `/api/themes` | GET | 返回 `{default_theme, themes[]}` |
+| `/api/generate` | POST | 触发 pipeline，返回 artifact 路径 |
+| `/api/artifacts/{name}` | GET | 返回 semantic_ir / dialogue_script / dialogue_manifest / render_ir JSON |
+| `/outputs/latest/{filename}` | GET | 预览 animation.html / output.mp4 |
+
+### POST /api/generate
+
+请求体：
+
+```json
+{
+  "mode": "sample",
+  "theme": "podcast",
+  "dialogue": true,
+  "mock": true,
+  "no_export": false
+}
+```
+
+- `mode=sample`：使用 `examples/sample_news.json`
+- `mode=text`：将 `title` + `news_text` 写入 `outputs/latest/input_news.json`，临时作为新闻输入
+- CP12 只支持 `mock=true`
+
+返回：
+
+```json
+{
+  "ok": true,
+  "output_mp4": "/outputs/latest/output.mp4",
+  "animation_html": "/outputs/latest/animation.html",
+  "render_ir": "/api/artifacts/render_ir",
+  "semantic_ir": "/api/artifacts/semantic_ir",
+  "dialogue_script": "/api/artifacts/dialogue_script"
+}
+```
+
+### 安全约束
+
+- 只允许访问白名单内的 artifact 名称（semantic_ir / dialogue_script / dialogue_manifest / render_ir）
+- 只允许预览白名单内的文件（animation.html / output.mp4）
+- 不暴露 .env / debug prompt / debug response
+- 不允许路径穿越
+
+### 前端功能
+
+- 新闻来源：示例 / 粘贴文本
+- 主题选择：chalkboard / podcast / research_desk / notebook
+- 对话模式开关
+- 导出 MP4 开关
+- 生成按钮 + 状态提示
+- animation.html iframe 预览
+- output.mp4 video 预览
+- JSON artifact 展示（render_ir / semantic_ir / dialogue_script）
+
 ## 文件清单（V0.11 新增 / 修改）
 
 新增（CP10）：
@@ -844,6 +915,13 @@ subtitle text font-size 从 `RENDER_IR.subtitles.font_size` 读取（CP11 新增
 
 新增（CP11）：
 - `examples/invalid.themes.yaml`（新增 `broken_layout` invalid layout 测试）
+
+新增（CP12）：
+- `src/server.py`（FastAPI 后端）
+- `web/index.html`（Studio 主页）
+- `web/app.js`（前端交互）
+- `web/style.css`（样式）
+- `requirements.txt`（新增 fastapi / uvicorn）
 
 修改（CP11）：
 - `config/themes.yaml`（新增 layout 段：variant/canvas/title/nodes/dialogue）

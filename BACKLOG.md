@@ -240,7 +240,31 @@
 - [x] `examples/invalid.themes.yaml`：新增 `broken_layout` invalid layout 测试
 - [x] README.md / BACKLOG.md 更新
 
-## Checkpoint 12 — Remotion / 视觉升级
+## Checkpoint 12 — Local Web Studio V1
+
+- [x] `src/server.py`（FastAPI 后端：health / themes / generate / artifacts / preview）
+- [x] `web/index.html`（Studio 主页：输入配置 / 预览 / artifacts）
+- [x] `web/app.js`（前端交互：generate / tab 切换 / JSON 展示）
+- [x] `web/style.css`（深色双栏布局）
+- [x] `requirements.txt`（新增 fastapi / uvicorn）
+- [x] 支持 mode=sample / mode=text
+- [x] 支持 theme 切换 / dialogue 开关 / export 开关
+- [x] artifact JSON 预览（render_ir / semantic_ir / dialogue_script）
+- [x] animation.html / output.mp4 预览和下载
+- [x] README.md / BACKLOG.md 更新
+
+## Checkpoint 13 — 异步任务 / Progress Stream
+
+- 异步任务队列
+- Server-Sent Events (SSE) progress 更新
+- 任务历史记录
+
+## Checkpoint 14 — 预览图库 / History
+
+- 历史生成记录
+- 缩略图预览
+
+## Checkpoint 15 — Remotion / 视觉升级
 
 - Remotion 数字人
 - 前端 UI（网页端配置和播放）
@@ -248,7 +272,7 @@
 
 ## 不做（Out of Scope）
 
-- Remotion（CP12+）
-- 数字人（CP12+）
+- Remotion（CP15+）
+- 数字人（CP15+）
 - lip-sync（CP9+）
 - 自动选题 / 多新闻合并

@@ -150,6 +150,49 @@ python -m src.pipeline --auto --mock --tts --dialogue --dialogue-profile mock_di
 - 不做 lip-sync
 - 不改 semantic_ir / dialogue_script / dialogue_manifest schema
 
+**Checkpoint 12 — Local Web Studio V1（当前）**：
+
+本地 Web 界面，通过浏览器访问 http://127.0.0.1:8777 。
+
+```bash
+# 安装依赖后启动
+pip install fastapi uvicorn
+python -m src.server --host 127.0.0.1 --port 8777
+```
+
+**API 路由**：
+
+| 方法 | 路由 | 说明 |
+|---|---|---|
+| GET | `/` | Web Studio 主页 |
+| GET | `/app.js` | 前端 JS |
+| GET | `/style.css` | 样式 |
+| GET | `/api/health` | 健康检查 |
+| GET | `/api/themes` | 可用主题列表 |
+| POST | `/api/generate` | 触发视频生成 |
+| GET | `/api/artifacts/{name}` | 获取 JSON artifact |
+| GET | `/outputs/latest/{filename}` | 预览 animation.html / output.mp4 |
+
+**POST /api/generate 请求体**：
+
+```json
+{
+  "mode": "sample",
+  "theme": "podcast",
+  "dialogue": true,
+  "mock": true,
+  "no_export": false
+}
+```
+
+mode 也支持 `"text"`，此时需提供 `title` 和 `news_text`。
+
+**CP12 限制（明确不做）**：
+- 不做登录 / 计费 / 云部署
+- 不做异步任务队列（CP13）
+- 不是 Remotion（CP12+）
+- 不暴露 .env 或真实 API key
+
 ## 项目定位
 
 V0.11: News → LLM → semantic_ir → dual-host dialogue → video（含双角色音频）。
