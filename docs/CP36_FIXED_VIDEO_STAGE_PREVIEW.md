@@ -297,9 +297,15 @@ Old `renderBreakingNewsEpisodeHtml` (CP35.1 web layout) is retained in codebase 
 - Still HTML mock — not a real video render
 - No real playback time轴
 - No real subtitles (mock text only)
-- No cartoon anchor / presenter
 - Only `breaking_news_v1` in stage mode; other 4 styles remain web layout
 - No Remotion integration
 - No MP4 export
 - No real audio track
 - No character animation
+
+---
+
+## CP37 Note: Cartoon Anchor Layer Added
+
+CP37 (`feat/cp37-contextual-cartoon-anchor-layer`) adds a **contextual cartoon anchor layer** to the CP36 fixed video stage. The anchor is rendered as an inline SVG/CSS character in the bottom-left of the 9:16 stage, with expression and action driven by keyword-based context inference. See [CP37_CONTEXTUAL_CARTOON_ANCHOR_LAYER.md](./CP37_CONTEXTUAL_CARTOON_ANCHOR_LAYER.md) for full details.
+

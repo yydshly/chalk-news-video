@@ -2274,6 +2274,214 @@
       '</div>\n<div class="footer-bar"><span>Mock Timeline Preview · ' + escapeHtml(themeName) + ' · no real render</span><span>' + escapeHtml(episode.title) + '</span></div>\n</body>\n</html>';
   }
 
+  // CP37: Cartoon anchor helpers — context inference and SVG rendering
+  // ----------------------------------------------------------------
+
+  // Infer news context type from contract using keyword rules (no LLM)
+  function inferNewsContextFromContract(contract) {
+    var episode = contract.episode || {};
+    var sections = contract.sections || {};
+    var cards = sections.news_cards || [];
+
+    // Build a combined text blob for keyword scanning
+    var text = [
+      episode.title || "",
+      episode.subtitle || "",
+      sections.opening ? sections.opening.title : "",
+      sections.closing ? sections.closing.title : "",
+    ].concat(cards.map(function (c) {
+      return [c.headline || "", c.emphasis || "", (c.badges || []).join(" "), c.layout || ""].join(" ");
+    })).join(" ").toLowerCase();
+
+    var context_type = "general";
+    var severity = "normal";
+
+    if (/breaking|outage|security|risk|lawsuit|ban|regulation|alert|emergency|crisis|scandal/i.test(text)) {
+      context_type = "alert";
+      severity = "high";
+    } else if (/launch|release|announce|unveil|model|product|feature| debut|coming soon/i.test(text)) {
+      context_type = "launch";
+      severity = "normal";
+    } else if (/benchmark|score|ranking|leaderboard|funding|valuation|revenue|profit|market|percent|%/i.test(text)) {
+      context_type = "data";
+      severity = "normal";
+    } else if (/research|paper|arxiv|study|reasoning|method|dataset|experiment|result|finding/i.test(text)) {
+      context_type = "research";
+      severity = "low";
+    }
+
+    return { context_type: context_type, severity: severity };
+  }
+
+  // Map context_type + severity to anchor cue
+  function inferEpisodeAnchorCue(contract) {
+    var ctx = inferNewsContextFromContract(contract);
+    var context_type = ctx.context_type;
+    var severity = ctx.severity;
+
+    var expression = "neutral";
+    var action = "talk";
+    var position = "left";
+    var tone = "normal";
+
+    if (context_type === "alert") {
+      expression = severity === "high" ? "serious" : "focused";
+      action = "alert_point";
+      tone = "breaking";
+    } else if (context_type === "launch") {
+      expression = "excited";
+      action = "introduce";
+      tone = "energetic";
+    } else if (context_type === "data") {
+      expression = "focused";
+      action = "point_right";
+      tone = "analytical";
+    } else if (context_type === "research") {
+      expression = "thinking";
+      action = "explain";
+      tone = "calm";
+    }
+
+    return { role: "anchor", position: position, expression: expression, action: action, tone: tone };
+  }
+
+  // Generate inline SVG for cartoon anchor with CSS animation classes
+  function renderCartoonAnchorSvg(anchorCue) {
+    var expr = anchorCue.expression || "neutral";
+    var act = anchorCue.action || "talk";
+
+    // Eye shape by expression
+    var eyeShapes = {
+      neutral: '<ellipse class="anchor-eye anchor-eye-left" cx="48" cy="65" rx="5" ry="5" fill="#1a1a2e"/><ellipse class="anchor-eye anchor-eye-right" cx="72" cy="65" rx="5" ry="5" fill="#1a1a2e"/>',
+      serious: '<ellipse class="anchor-eye anchor-eye-left" cx="48" cy="65" rx="5" ry="4" fill="#1a1a2e"/><ellipse class="anchor-eye anchor-eye-right" cx="72" cy="65" rx="5" ry="4" fill="#1a1a2e"/>',
+      excited: '<ellipse class="anchor-eye anchor-eye-left" cx="48" cy="65" rx="6" ry="6" fill="#1a1a2e"/><ellipse class="anchor-eye anchor-eye-right" cx="72" cy="65" rx="6" ry="6" fill="#1a1a2e"/>',
+      focused: '<ellipse class="anchor-eye anchor-eye-left" cx="48" cy="65" rx="5" ry="5" fill="#1a1a2e"/><ellipse class="anchor-eye anchor-eye-right" cx="72" cy="65" rx="5" ry="5" fill="#1a1a2e"/>',
+      thinking: '<ellipse class="anchor-eye anchor-eye-left" cx="48" cy="65" rx="5" ry="4" fill="#1a1a2e"/><ellipse class="anchor-eye anchor-eye-right" cx="72" cy="65" rx="5" ry="4" fill="#1a1a2e"/>',
+    };
+    var eyes = eyeShapes[expr] || eyeShapes.neutral;
+
+    // Mouth shape by expression
+    var mouthShapes = {
+      neutral: '<path class="anchor-mouth" d="M52 82 Q60 88 68 82" stroke="#1a1a2e" stroke-width="2.5" fill="none" stroke-linecap="round"/>',
+      serious: '<path class="anchor-mouth" d="M52 83 Q60 86 68 83" stroke="#1a1a2e" stroke-width="2.5" fill="none" stroke-linecap="round"/>',
+      excited: '<ellipse class="anchor-mouth anchor-mouth-open" cx="60" cy="82" rx="7" ry="5" fill="#1a1a2e"/>',
+      focused: '<path class="anchor-mouth" d="M52 82 Q60 87 68 82" stroke="#1a1a2e" stroke-width="2.5" fill="none" stroke-linecap="round"/>',
+      thinking: '<path class="anchor-mouth" d="M55 84 Q60 83 65 84" stroke="#1a1a2e" stroke-width="2" fill="none" stroke-linecap="round"/>',
+    };
+    var mouth = mouthShapes[expr] || mouthShapes.neutral;
+
+    // Eyebrow by expression
+    var browShapes = {
+      neutral: '<path class="anchor-brow" d="M43 58 Q48 56 53 58" stroke="#5c3d2e" stroke-width="2" fill="none" stroke-linecap="round"/><path class="anchor-brow" d="M67 58 Q72 56 77 58" stroke="#5c3d2e" stroke-width="2" fill="none" stroke-linecap="round"/>',
+      serious: '<path class="anchor-brow" d="M43 56 Q48 53 53 56" stroke="#5c3d2e" stroke-width="2.5" fill="none" stroke-linecap="round"/><path class="anchor-brow" d="M67 56 Q72 53 77 56" stroke="#5c3d2e" stroke-width="2.5" fill="none" stroke-linecap="round"/>',
+      excited: '<path class="anchor-brow" d="M43 56 Q48 53 53 56" stroke="#5c3d2e" stroke-width="2" fill="none" stroke-linecap="round"/><path class="anchor-brow" d="M67 56 Q72 53 77 56" stroke="#5c3d2e" stroke-width="2" fill="none" stroke-linecap="round"/>',
+      focused: '<path class="anchor-brow" d="M43 57 Q48 55 53 57" stroke="#5c3d2e" stroke-width="2" fill="none" stroke-linecap="round"/><path class="anchor-brow" d="M67 57 Q72 55 77 57" stroke="#5c3d2e" stroke-width="2" fill="none" stroke-linecap="round"/>',
+      thinking: '<path class="anchor-brow" d="M43 59 Q48 57 53 59" stroke="#5c3d2e" stroke-width="2" fill="none" stroke-linecap="round"/><path class="anchor-brow" d="M67 57 Q72 55 77 57" stroke="#5c3d2e" stroke-width="2" fill="none" stroke-linecap="round"/>',
+    };
+    var brows = browShapes[expr] || browShapes.neutral;
+
+    // Hair color by tone
+    var hairColor = "#2d1b0e";
+    var skinColor = "#f5c9a0";
+    var suitColor = "#1a1a2e";
+    var tieColor = "#dc2626";
+
+    var svgContent = '<svg class="cartoon-anchor-svg" viewBox="0 0 120 180" aria-hidden="true" ' +
+      'style="width:100%;height:100%;overflow:visible;">' +
+
+      // Shadow under character
+      '<ellipse cx="60" cy="176" rx="28" ry="4" fill="rgba(0,0,0,.3)"/>' +
+
+      // Body / suit jacket
+      '<rect x="30" y="105" width="60" height="68" rx="8" fill="' + suitColor + '"/>' +
+
+      // Suit lapels
+      '<path d="M50 105 L60 130 L70 105" fill="#252540" stroke="none"/>' +
+
+      // Tie
+      '<path d="M57 105 L63 105 L61 140 L60 145 L59 140 Z" fill="' + tieColor + '"/>' +
+
+      // Left arm
+      '<path class="anchor-arm anchor-arm-left" d="M30 108 Q14 125 18 150" stroke="' + suitColor + '" stroke-width="14" fill="none" stroke-linecap="round"/>' +
+      '<circle cx="18" cy="152" r="7" fill="#f5c9a0"/>' +
+
+      // Right arm (animated per action)
+      '<path class="anchor-arm anchor-arm-right" d="M90 108 Q106 125 102 150" stroke="' + suitColor + '" stroke-width="14" fill="none" stroke-linecap="round"/>' +
+      '<circle cx="102" cy="152" r="7" fill="#f5c9a0"/>' +
+
+      // Neck
+      '<rect x="52" y="93" width="16" height="14" fill="' + skinColor + '"/>' +
+
+      // Head
+      '<ellipse cx="60" cy="68" rx="30" ry="32" fill="' + skinColor + '"/>' +
+
+      // Hair (top/back)
+      '<path d="M32 58 Q35 30 60 26 Q85 30 88 58 Q85 45 60 42 Q35 45 32 58Z" fill="' + hairColor + '"/>' +
+
+      // Ears
+      '<ellipse cx="31" cy="68" rx="5" ry="7" fill="' + skinColor + '"/>' +
+      '<ellipse cx="89" cy="68" rx="5" ry="7" fill="' + skinColor + '"/>' +
+
+      // Eyes (white + iris)
+      '<circle cx="48" cy="65" r="7" fill="#fff"/>' +
+      '<circle cx="72" cy="65" r="7" fill="#fff"/>' +
+      '<circle class="anchor-pupil" cx="49" cy="65" r="3.5" fill="#2d1b0e"/>' +
+      '<circle class="anchor-pupil" cx="73" cy="65" r="3.5" fill="#2d1b0e"/>' +
+      // Eye shine
+      '<circle cx="50" cy="64" r="1.2" fill="#fff"/>' +
+      '<circle cx="74" cy="64" r="1.2" fill="#fff"/>' +
+      eyes +
+
+      // Eyebrows
+      brows +
+
+      // Nose
+      '<path d="M58 74 Q60 78 62 74" stroke="#c9a882" stroke-width="1.5" fill="none" stroke-linecap="round"/>' +
+
+      // Mouth
+      mouth +
+
+      // Cheek blush (for excited)
+      (expr === "excited" ? '<ellipse cx="38" cy="76" rx="6" ry="4" fill="#fca5a5" opacity=".5"/><ellipse cx="82" cy="76" rx="6" ry="4" fill="#fca5a5" opacity=".5"/>' : '') +
+
+      '</svg>';
+
+    return svgContent;
+  }
+
+  // Generate anchor CSS animation classes
+  function getAnchorActionClass(action) {
+    var map = {
+      talk: "anchor-action-talk",
+      point_right: "anchor-action-point-right",
+      alert_point: "anchor-action-alert-point",
+      introduce: "anchor-action-introduce",
+      explain: "anchor-action-explain",
+    };
+    return map[action] || "anchor-action-talk";
+  }
+
+  function getAnchorExpressionClass(expression) {
+    var map = {
+      neutral: "anchor-expression-neutral",
+      serious: "anchor-expression-serious",
+      excited: "anchor-expression-excited",
+      focused: "anchor-expression-focused",
+      thinking: "anchor-expression-thinking",
+    };
+    return map[expression] || "anchor-expression-neutral";
+  }
+
+  // Render full anchor layer HTML (SVG + wrapper div with CSS)
+  function renderCartoonAnchorLayer(anchorCue) {
+    var actionClass = getAnchorActionClass(anchorCue.action);
+    var expressionClass = getAnchorExpressionClass(anchorCue.expression);
+    var svg = renderCartoonAnchorSvg(anchorCue);
+
+    return '<div class="stage-anchor-layer ' + actionClass + ' ' + expressionClass + '">' +
+      svg + '</div>';
+  }
+
   // CP36: Layout 2 — breaking_news_v1 fixed video stage (9:16 vertical video canvas)
   function renderBreakingNewsStageEpisodeHtml(contract, st) {
     var episode = contract.episode;
@@ -2313,7 +2521,7 @@
       '.stage-episode-title{color:#fff;font-size:14px;font-weight:800;line-height:1.3;' +
       'text-shadow:0 2px 8px rgba(0,0,0,.8);margin-bottom:4px;}\n' +
       '.stage-episode-subtitle{color:#fca5a5;font-size:10px;opacity:.9;line-height:1.3;}\n' +
-      '.stage-main-card{position:absolute;top:120px;left:14px;right:14px;z-index:12;' +
+      '.stage-main-card{position:absolute;top:132px;left:108px;right:14px;z-index:12;' +
       'background:rgba(20,0,0,.88);border:1px solid #dc2626;border-radius:14px;' +
       'padding:16px;animation:cardEnter 0.5s ease-out both;}\n' +
       '@keyframes cardEnter{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}\n' +
@@ -2358,6 +2566,33 @@
       '.stage-closing-chip{position:absolute;bottom:96px;left:14px;z-index:15;' +
       'display:flex;align-items:center;gap:6px;font-size:9px;color:#fca5a5;}\n' +
       '.stage-closing-dot{width:6px;height:6px;border-radius:50%;background:#dc2626;}\n' +
+      // CP37: Cartoon anchor layer
+      '.stage-anchor-layer{position:absolute;left:10px;bottom:110px;width:90px;height:130px;' +
+      'z-index:16;pointer-events:none;}\n' +
+      '.cartoon-anchor-svg{width:100%;height:100%;filter:drop-shadow(0 8px 20px rgba(0,0,0,.5));}\n' +
+      // Anchor action animations (body float + arm movement)
+      '@keyframes anchorFloat{0%,100%{transform:translateY(0);}50%{transform:translateY(-4px);}}\n' +
+      '@keyframes anchorAlert{0%,100%{transform:rotate(0deg);}25%{transform:rotate(-5deg);}75%{transform:rotate(3deg);}}\n' +
+      '@keyframes armWave{0%,100%{transform:rotate(0deg);}50%{transform:rotate(-8deg);}}\n' +
+      '@keyframes armPoint{0%,100%{transform:rotate(0deg);}50%{transform:rotate(-6deg);}}\n' +
+      '@keyframes armIntroduce{0%,100%{transform:rotate(0deg) scale(1);}50%{transform:rotate(-4deg) scale(1.03);}}\n' +
+      '@keyframes mouthOpen{0%,100%{transform:scaleY(1);}50%{transform:scaleY(1.4);}}\n' +
+      '@keyframes pupilLook{0%,100%{transform:translate(0,0);}25%{transform:translate(1px,0);}75%{transform:translate(-1px,0);}}\n' +
+      // All actions use floating base
+      '.anchor-action-talk{animation:anchorFloat 2.5s ease-in-out infinite;transform-origin:center bottom;}\n' +
+      '.anchor-action-talk .anchor-arm-right{animation:armWave 2s ease-in-out infinite;transform-origin:90px 108px;}\n' +
+      '.anchor-action-talk .anchor-mouth{animation:mouthOpen 1.2s ease-in-out infinite;transform-origin:60px 82px;}\n' +
+      '.anchor-action-point-right{animation:anchorFloat 2.5s ease-in-out infinite;transform-origin:center bottom;}\n' +
+      '.anchor-action-point-right .anchor-arm-right{animation:armPoint 1.5s ease-in-out infinite;transform-origin:90px 108px;}\n' +
+      '.anchor-action-alert-point{animation:anchorAlert 1.2s ease-in-out infinite;transform-origin:center 140px;}\n' +
+      '.anchor-action-alert-point .anchor-arm-right{animation:armPoint .8s ease-in-out infinite;transform-origin:90px 108px;}\n' +
+      '.anchor-action-introduce{animation:anchorFloat 2.5s ease-in-out infinite;transform-origin:center bottom;}\n' +
+      '.anchor-action-introduce .anchor-arm-right{animation:armIntroduce 2s ease-in-out infinite;transform-origin:90px 108px;}\n' +
+      '.anchor-action-explain{animation:anchorFloat 3s ease-in-out infinite;transform-origin:center bottom;}\n' +
+      '.anchor-action-explain .anchor-arm-right{animation:armWave 2.5s ease-in-out infinite;transform-origin:90px 108px;}\n' +
+      '.anchor-pupil{animation:pupilLook 4s ease-in-out infinite;}\n' +
+      // Expression-specific tweaks
+      '.anchor-expression-excited .cartoon-anchor-svg{filter:drop-shadow(0 8px 20px rgba(0,0,0,.5)) brightness(1.05);}\n' +
       '</style>\n';
 
     // Build lead card HTML
@@ -2405,6 +2640,10 @@
     // Opening label
     var openingHtml = '<div class="stage-opening-label">📍 开场</div>';
 
+    // CP37: Cartoon anchor layer — infer context and render SVG character
+    var anchorCue = inferEpisodeAnchorCue(contract);
+    var anchorLayerHtml = renderCartoonAnchorLayer(anchorCue);
+
     return '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n' +
       '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
       '<title>' + escapeHtml(episode.title) + '</title>\n' + stageCss + '</head>\n<body>\n' +
@@ -2429,6 +2668,8 @@
       supportHtml + '\n' +
       // Subtitle bar
       subtitleBarHtml + '\n' +
+      // CP37: Cartoon anchor layer
+      anchorLayerHtml + '\n' +
       // Closing chip
       closingHtml + '\n' +
       // Timeline rail
