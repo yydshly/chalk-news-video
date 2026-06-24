@@ -49,6 +49,15 @@ python -m src.pipeline --auto --mock --tts --dialogue --dialogue-profile mock_di
 - 不做 lip-sync
 - 不破坏 CP8.1 voice mapping
 
+**Checkpoint 9.1 — dialogue visual hardening**：
+
+- `src/dialogue_visual._normalize_style_speakers()`：正确处理 `dialogue_script.style.speakers` list 格式
+- `render_ir.dialogue.speakers.*.panel`：新增 panel 布局字段（x/y/w/h），外置到 render_ir
+- `template.html`：JS 初始化时从 `DIALOGUE.speakers.host.panel` / `expert.panel` 读取位置，不再硬编码
+- `examples/sample.dialogue.custom_speakers.json`：自定义 speaker name 测试 fixture（提问者/分析员）
+- speaker name 优先从 `dialogue_script.style.speakers` 读取，支持自定义
+- `dialogue.turns` 仍然不含 audio_path / voice_id
+
 ## 项目定位
 
 V0.11: News → LLM → semantic_ir → dual-host dialogue → video（含双角色音频）。

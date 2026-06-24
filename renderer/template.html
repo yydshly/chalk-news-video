@@ -169,6 +169,29 @@
   // CP9: Show speaker panels only when dialogue is enabled
   if (DIALOGUE && DIALOGUE.enabled) {
     speakerPanels.setAttribute("opacity", "1");
+
+    // CP9.1: Apply panel layout from render_ir.dialogue.speakers
+    if (DIALOGUE.speakers) {
+      const hostPanel = DIALOGUE.speakers.host ? DIALOGUE.speakers.host.panel : null;
+      const expertPanel = DIALOGUE.speakers.expert ? DIALOGUE.speakers.expert.panel : null;
+
+      if (hostPanel) {
+        speakerHostCard.setAttribute("transform",
+          "translate(" + (hostPanel.x || 60) + ", " + (hostPanel.y || 160) + ")");
+        // Update card width if panel w is set
+        const hostRect = speakerHostCard.querySelector("rect");
+        if (hostRect && hostPanel.w) hostRect.setAttribute("width", String(hostPanel.w));
+        if (hostRect && hostPanel.h) hostRect.setAttribute("height", String(hostPanel.h));
+      }
+      if (expertPanel) {
+        speakerExpertCard.setAttribute("transform",
+          "translate(" + (expertPanel.x || 1040) + ", " + (expertPanel.y || 160) + ")");
+        // Update card width if panel w is set
+        const expertRect = speakerExpertCard.querySelector("rect");
+        if (expertRect && expertPanel.w) expertRect.setAttribute("width", String(expertPanel.w));
+        if (expertRect && expertPanel.h) expertRect.setAttribute("height", String(expertPanel.h));
+      }
+    }
   }
 
   // ---------- helpers ----------

@@ -531,8 +531,18 @@ CP11：Remotion / 视觉升级
     "enabled": true,
     "style": "podcast_overlay_v1",
     "speakers": {
-      "host": { "name": "主持人", "role": "questioner", "side": "left" },
-      "expert": { "name": "讲解员", "role": "explainer", "side": "right" }
+      "host": {
+        "name": "主持人",
+        "role": "questioner",
+        "side": "left",
+        "panel": { "x": 60, "y": 160, "w": 180, "h": 90 }
+      },
+      "expert": {
+        "name": "讲解员",
+        "role": "explainer",
+        "side": "right",
+        "panel": { "x": 1040, "y": 160, "w": 180, "h": 90 }
+      }
     },
     "turns": [
       {
@@ -558,12 +568,21 @@ CP11：Remotion / 视觉升级
 | `dialogue.turns` 不含 `voice`/`voice_id` | 只保留 speaker 角色 |
 | `dialogue.enabled=true` 仅在 `--dialogue` 且 manifest 有 turns | 单人口播/无声模式不出现 |
 | `speakers` 名称优先从 `dialogue_script.style.speakers` 读取 | 无则用默认值 |
+| `speakers.*.panel` 布局外置到 render_ir | JS 读取，不再硬编码 HTML |
+
+### _normalize_style_speakers（CP9.1）
+
+`src/dialogue_visual._normalize_style_speakers(dialogue_script)`：
+- `dialogue_script.style.speakers` 可以是 `list[{id, name, role}]` 或 `dict{host, expert}` 格式
+- 统一转换为 `{host: {name, role, side, panel}, expert: {...}}` dict
+- 自定义 speaker name/role 正确读取；未定义的字段 fallback 到默认值
+- panel 布局默认为 `{x:60, y:160, w:180, h:90}`（host）和 `{x:1040, y:160, w:180, h:90}`（expert）
 
 ### apply_dialogue_visual_cues
 
 `src/dialogue_visual.apply_dialogue_visual_cues(render_ir, dialogue_manifest, dialogue_script)`：
 - dialogue_manifest 无 turns → ValueError
-- 从 dialogue_script.style.speakers 读取 speaker 名称，无则用默认值
+- 调用 `_normalize_style_speakers()` 读取 speaker 名称和 panel 布局
 - 清洗 audio_path、voice、voice_id 后写入 render_ir.dialogue
 - 不修改 semantic_ir 或 dialogue_manifest
 

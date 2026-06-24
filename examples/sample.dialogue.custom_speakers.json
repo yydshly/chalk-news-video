@@ -1,0 +1,144 @@
+{
+  "schema_version": "0.1",
+  "source_semantic_ir": {
+    "title": "示例：AI 模型的'幻觉'问题",
+    "schema_version": "0.1"
+  },
+  "style": {
+    "format": "two_speaker_explainer",
+    "tone": "clear_curious",
+    "language": "zh",
+    "speakers": [
+      {"id": "host", "name": "提问者", "role": "questioner"},
+      {"id": "expert", "name": "分析员", "role": "explainer"}
+    ]
+  },
+  "turns": [
+    {
+      "id": "d1",
+      "speaker": "host",
+      "beat_id": "b1",
+      "reveal": "title",
+      "text": "今天我们来聊一个有趣的话题。",
+      "function": "hook",
+      "duration_hint": 2.0
+    },
+    {
+      "id": "d2",
+      "speaker": "expert",
+      "beat_id": "b1",
+      "reveal": "title",
+      "text": "这条新闻讨论的是 AI 模型的'幻觉'问题。",
+      "function": "explain",
+      "duration_hint": 3.5
+    },
+    {
+      "id": "d3",
+      "speaker": "host",
+      "beat_id": "b2",
+      "reveal": "n1",
+      "text": "那 AI 为什么会产生幻觉？",
+      "function": "question",
+      "duration_hint": 2.0
+    },
+    {
+      "id": "d4",
+      "speaker": "expert",
+      "beat_id": "b2",
+      "reveal": "n1",
+      "text": "因为它从海量网络数据中学习，既有真实信息也有错误内容。",
+      "function": "explain",
+      "duration_hint": 4.0
+    },
+    {
+      "id": "d5",
+      "speaker": "host",
+      "beat_id": "b3",
+      "reveal": "c1",
+      "text": "数据里的噪声具体指什么？",
+      "function": "question",
+      "duration_hint": 2.0
+    },
+    {
+      "id": "d6",
+      "speaker": "expert",
+      "beat_id": "b3",
+      "reveal": "c1",
+      "text": "就是错误、矛盾和伪造的内容，模型无法分辨真假。",
+      "function": "clarify",
+      "duration_hint": 3.5
+    },
+    {
+      "id": "d7",
+      "speaker": "host",
+      "beat_id": "b4",
+      "reveal": "e1",
+      "text": "那模型是怎么处理这些数据的？",
+      "function": "question",
+      "duration_hint": 2.0
+    },
+    {
+      "id": "d8",
+      "speaker": "expert",
+      "beat_id": "b4",
+      "reveal": "e1",
+      "text": "它用统计模式去猜测下一个最可能的 token。",
+      "function": "explain",
+      "duration_hint": 3.5
+    },
+    {
+      "id": "d9",
+      "speaker": "host",
+      "beat_id": "b5",
+      "reveal": "n2",
+      "text": "所以它其实并不理解事实？",
+      "function": "question",
+      "duration_hint": 2.0
+    },
+    {
+      "id": "d10",
+      "speaker": "expert",
+      "beat_id": "b5",
+      "reveal": "n2",
+      "text": "对，它遇到不确定的问题时会输出'听起来合理'的内容。",
+      "function": "explain",
+      "duration_hint": 4.0
+    },
+    {
+      "id": "d11",
+      "speaker": "host",
+      "beat_id": "b6",
+      "reveal": "e2",
+      "text": "这种'猜测式生成'会有什么后果？",
+      "function": "question",
+      "duration_hint": 2.5
+    },
+    {
+      "id": "d12",
+      "speaker": "expert",
+      "beat_id": "b6",
+      "reveal": "e2",
+      "text": "这就是幻觉产生的温床。",
+      "function": "clarify",
+      "duration_hint": 2.5
+    },
+    {
+      "id": "d13",
+      "speaker": "host",
+      "beat_id": "b7",
+      "reveal": "n3",
+      "text": "最后一个问题：这种情况什么时候最严重？",
+      "function": "question",
+      "duration_hint": 2.5
+    },
+    {
+      "id": "d14",
+      "speaker": "expert",
+      "beat_id": "b7",
+      "reveal": "n3",
+      "text": "当用户问冷门话题或训练数据覆盖不足时，问题就彻底爆发。",
+      "function": "explain",
+      "duration_hint": 4.5
+    }
+  ]
+}

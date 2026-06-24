@@ -1,6 +1,7 @@
 """Dialogue visual cues: add speaker panels and turn subtitles to render_ir.
 
 Checkpoint 9: dialogue_visual adds a dialogue overlay layer to render_ir.
+CP9.1: Harden speaker metadata reading (style.speakers is a list, not a dict).
 
 This layer is consumed by the renderer (template.html) to show:
 1. Left/right speaker cards (host/expert)
@@ -18,22 +19,94 @@ Rules:
 - Silent mode should NOT have dialogue.enabled=true
 """
 
-from .utils import load_json
+import warnings
 
+
+# Default panel layout (1280x720 canvas)
+_DEFAULT_PANEL = {"x": 60, "y": 160, "w": 180, "h": 90}
+_DEFAULT_EXPERT_PANEL = {"x": 1040, "y": 160, "w": 180, "h": 90}
 
 # Default speaker names when dialogue_script is not available
-DEFAULT_SPEAKERS = {
+_DEFAULT_SPEAKERS = {
     "host": {
         "name": "主持人",
         "role": "questioner",
         "side": "left",
+        "panel": _DEFAULT_PANEL,
     },
     "expert": {
         "name": "讲解员",
         "role": "explainer",
         "side": "right",
+        "panel": _DEFAULT_EXPERT_PANEL,
     },
 }
+
+
+def _normalize_style_speakers(dialogue_script: dict | None) -> dict:
+    """Normalize dialogue_script.style.speakers to a dict keyed by speaker id.
+
+    dialogue_script.style.speakers can be:
+    - A list of {id, name, role} objects (standard format)
+    - A dict {host: {...}, expert: {...}} (legacy/compat format)
+
+    Returns:
+        Dict with host/expert keys, each containing name/role/side/panel.
+    """
+    if dialogue_script is None:
+        return dict(_DEFAULT_SPEAKERS)
+
+    style = dialogue_script.get("style", {})
+    style_speakers = style.get("speakers")
+
+    if style_speakers is None:
+        return dict(_DEFAULT_SPEAKERS)
+
+    # Normalize to list format for uniform handling
+    if isinstance(style_speakers, list):
+        # Standard format: list of {id, name, role} objects
+        speakers_list = style_speakers
+    elif isinstance(style_speakers, dict):
+        # Legacy dict format: {host: {...}, expert: {...}}
+        speakers_list = [
+            {"id": "host", **style_speakers.get("host", {})},
+            {"id": "expert", **style_speakers.get("expert", {})},
+        ]
+    else:
+        warnings.warn(
+            f"style.speakers is neither list nor dict (type={type(style_speakers).__name__}), "
+            f"using defaults"
+        )
+        return dict(_DEFAULT_SPEAKERS)
+
+    # Build result dict from list
+    result = {}
+    for item in speakers_list:
+        if not isinstance(item, dict):
+            continue
+        sid = item.get("id", "")
+        if sid not in ("host", "expert"):
+            warnings.warn(f"Unknown speaker id '{sid}' in style.speakers, skipping")
+            continue
+        default = _DEFAULT_SPEAKERS[sid]
+        result[sid] = {
+            "name": item.get("name") or default["name"],
+            "role": item.get("role") or default["role"],
+            "side": item.get("side") or default["side"],
+            "panel": {
+                "x": item.get("panel", {}).get("x") or default["panel"]["x"],
+                "y": item.get("panel", {}).get("y") or default["panel"]["y"],
+                "w": item.get("panel", {}).get("w") or default["panel"]["w"],
+                "h": item.get("panel", {}).get("h") or default["panel"]["h"],
+            },
+        }
+
+    # Ensure both host and expert are present
+    for key in ("host", "expert"):
+        if key not in result:
+            result[key] = dict(_DEFAULT_SPEAKERS[key])
+
+    return result
 
 
 def apply_dialogue_visual_cues(
@@ -65,29 +138,24 @@ def apply_dialogue_visual_cues(
             f"dialogue_manifest turns is empty or invalid — cannot apply dialogue visual cues"
         )
 
-    # Resolve speaker names from dialogue_script.style.speakers
-    speakers = {}
-    if dialogue_script:
-        style_speakers = dialogue_script.get("style", {}).get("speakers", {})
-        for key, default in DEFAULT_SPEAKERS.items():
-            if key in style_speakers:
-                sp = style_speakers[key]
-                speakers[key] = {
-                    "name": sp.get("name", default["name"]),
-                    "role": sp.get("role", default["role"]),
-                    "side": sp.get("side", default["side"]),
-                }
-            else:
-                speakers[key] = default
-    else:
-        speakers = dict(DEFAULT_SPEAKERS)
+    # Resolve speaker names and panel layout from dialogue_script
+    speakers = _normalize_style_speakers(dialogue_script)
 
     # Build clean turns list for render_ir (strip audio_path and voice fields)
     clean_turns = []
     for turn in manifest_turns:
+        speaker = turn.get("speaker", "host")
+        # Warn on unknown speaker, but allow through (fallback to host visual)
+        if speaker not in ("host", "expert"):
+            warnings.warn(
+                f"Unknown turn speaker '{speaker}' at turn {turn.get('turn_id')}, "
+                f"treating as host for visual purposes"
+            )
+            speaker = "host"
+
         clean_turn = {
             "turn_id": turn.get("turn_id", ""),
-            "speaker": turn.get("speaker", "host"),
+            "speaker": speaker,
             "beat_id": turn.get("beat_id", ""),
             "reveal": turn.get("reveal", ""),
             "text": turn.get("text", ""),
