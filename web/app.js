@@ -64,6 +64,13 @@
   const genPlanStatus = document.getElementById("gen-plan-status");
   const genPlanStatusRow = document.getElementById("gen-plan-status-row");
 
+  // CP23: Episode planner DOM refs
+  const episodePlanner = document.getElementById("episode-planner");
+  const episodeItemsList = document.getElementById("episode-items");
+  const episodeCount = document.getElementById("episode-count");
+  const episodeEmpty = document.getElementById("episode-empty");
+  const episodeStructure = document.getElementById("episode-structure");
+
   // ---------- state ----------
   let lastResult = null;
   let currentEventSource = null;
@@ -72,6 +79,7 @@
   let latestSucceededJob = null;
   let selectedNews = null;       // CP19: user-selected hot news item
   let hotNewsItems = [];         // CP19: list of hot news candidates
+  let episodeItemList = [];       // CP23: episode playlist items
 
   // CP20: Theme showcase data
   const THEME_SHOWCASES = {
@@ -327,9 +335,13 @@
 
     hotNewsList.innerHTML = "";
     hotNewsItems.forEach(function (item, index) {
+      const isInEpisode = episodeItemList.some(function (e) { return e.id === item.id; });
       const div = document.createElement("div");
       div.className = "hot-news-item";
       div.setAttribute("data-index", index);
+
+      const joinBtnClass = isInEpisode ? "hot-news-item-select-btn hot-news-item-joined-btn" : "hot-news-item-select-btn";
+      const joinBtnText = isInEpisode ? "已加入" : "加入合集";
 
       div.innerHTML =
         '<span class="hot-news-item-rank">#' + (index + 1) + '</span>' +
@@ -340,7 +352,10 @@
           '<span>' + (item.points || 0) + ' pts</span> ' +
           '<span>' + (item.comments || 0) + ' comments</span>' +
         '</div>' +
-        '<button class="hot-news-item-select-btn" type="button">选择这条</button>';
+        '<div class="hot-news-item-actions-row">' +
+          '<button class="hot-news-item-select-btn" type="button">选择这条</button>' +
+          '<button class="hot-news-item-join-btn ' + joinBtnClass + '" type="button" data-episode-item-id="' + (item.id || "") + '">' + joinBtnText + '</button>' +
+        '</div>';
 
       div.querySelector(".hot-news-item-select-btn").addEventListener("click", function (ev) {
         ev.stopPropagation();
@@ -349,6 +364,14 @@
 
       div.addEventListener("click", function () {
         selectHotNewsItem(index);
+      });
+
+      const joinBtn = div.querySelector(".hot-news-item-join-btn");
+      joinBtn.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        if (!isInEpisode) {
+          addNewsToEpisode(item);
+        }
       });
 
       hotNewsList.appendChild(div);
@@ -377,6 +400,114 @@
     // Update generate button text
     updateGenModeUI();
     updateGenerationPlan();
+  }
+
+  // ---------- episode planner (CP23) ----------
+  const MAX_EPISODE_ITEMS = 5;
+
+  function addNewsToEpisode(item) {
+    if (episodeItemList.length >= MAX_EPISODE_ITEMS) {
+      setStatus("当前最多支持 " + MAX_EPISODE_ITEMS + " 条新闻", "error");
+      return;
+    }
+    if (episodeItemList.some(function (e) { return e.id === item.id; })) {
+      return; // Already in episode
+    }
+    episodeItemList.push({
+      id: item.id,
+      title: item.title,
+      url: item.url,
+      source: item.source,
+      final_score: item.final_score,
+      points: item.points,
+      comments: item.comments,
+    });
+    renderEpisodePlanner();
+    renderHotNews(); // Update join button states
+  }
+
+  function removeNewsFromEpisode(id) {
+    episodeItemList = episodeItemList.filter(function (e) { return e.id !== id; });
+    renderEpisodePlanner();
+    renderHotNews(); // Update join button states
+  }
+
+  function moveEpisodeItem(id, direction) {
+    const idx = episodeItemList.findIndex(function (e) { return e.id === id; });
+    if (idx === -1) return;
+    const newIdx = idx + direction;
+    if (newIdx < 0 || newIdx >= episodeItemList.length) return;
+    const item = episodeItemList.splice(idx, 1)[0];
+    episodeItemList.splice(newIdx, 0, item);
+    renderEpisodePlanner();
+  }
+
+  function renderEpisodePlanner() {
+    if (!episodeItemsList) return;
+
+    episodeCount.textContent = episodeItemList.length + " 条";
+
+    if (episodeItemList.length === 0) {
+      episodeItemsList.style.display = "none";
+      episodeEmpty.style.display = "block";
+      episodeStructure.innerHTML = "";
+    } else {
+      episodeEmpty.style.display = "none";
+      episodeItemsList.style.display = "flex";
+
+      episodeItemsList.innerHTML = "";
+      episodeItemList.forEach(function (item, index) {
+        const div = document.createElement("div");
+        div.className = "episode-item";
+
+        div.innerHTML =
+          '<span class="episode-item-rank">#' + (index + 1) + '</span>' +
+          '<span class="episode-item-title" title="' + escapeHtml(item.title || "") + '">' + escapeHtml(item.title || "") + '</span>' +
+          '<span class="episode-item-meta">' + escapeHtml(item.source || "") + ' ★' + (item.final_score || 0).toFixed(1) + '</span>' +
+          '<div class="episode-item-actions">' +
+            (index > 0 ? '<button class="episode-item-btn" data-action="up" data-id="' + (item.id || "") + '">↑</button>' : '<button class="episode-item-btn" disabled>↑</button>') +
+            (index < episodeItemList.length - 1 ? '<button class="episode-item-btn" data-action="down" data-id="' + (item.id || "") + '">↓</button>' : '<button class="episode-item-btn" disabled>↓</button>') +
+            '<button class="episode-item-btn remove" data-action="remove" data-id="' + (item.id || "") + '">移除</button>' +
+          '</div>';
+
+        div.querySelectorAll(".episode-item-btn").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            const action = btn.getAttribute("data-action");
+            const id = btn.getAttribute("data-id");
+            if (action === "up") moveEpisodeItem(id, -1);
+            else if (action === "down") moveEpisodeItem(id, 1);
+            else if (action === "remove") removeNewsFromEpisode(id);
+          });
+        });
+
+        episodeItemsList.appendChild(div);
+      });
+
+      // Render episode structure preview
+      renderEpisodeStructure();
+    }
+  }
+
+  function renderEpisodeStructure() {
+    if (episodeItemList.length === 0) {
+      episodeStructure.innerHTML = "";
+      return;
+    }
+
+    const topNews = episodeItemList.reduce(function (best, item) {
+      return (!best || (item.final_score || 0) > (best.final_score || 0)) ? item : best;
+    }, null);
+
+    let html = '<div class="episode-structure-title">📋 栏目结构</div>';
+    html += '<div style="color:#64748b;margin-bottom:4px">开场：今日 AI 前沿速览</div>';
+    episodeItemList.forEach(function (item, i) {
+      html += '<div class="episode-structure-news">' + (i + 1) + '. ' + escapeHtml(item.title || "") + '</div>';
+    });
+    if (topNews) {
+      html += '<div class="episode-structure-closing">结尾：今天最值得关注的是：' + escapeHtml(topNews.title || "") + '</div>';
+    }
+
+    episodeStructure.innerHTML = html;
   }
 
   // ---------- theme showcase (CP20) ----------
