@@ -365,7 +365,21 @@
 - [x] server.py：支持 `mode=real_fixture`
 - [x] `src/llm/json_utils.py`：`extract_json_object` 增强容错（brace counting）
 - [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
-- [ ] real LLM + mock TTS E2E 完整成功
+- [x] real LLM + mock TTS E2E 完整成功
+
+## Checkpoint 15.2.5 — 热门 AI 新闻发现层 + hot_ai E2E（当前）
+
+- [x] `src/fetch_hot_ai_news.py`：从 HN Firebase API 获取 AI 相关热门新闻
+- [x] 关键词过滤：至少匹配一个 AI 相关关键词（OpenAI/LLM/Claude/Gemini 等）
+- [x] 热度评分：`points * 1.0 + comments * 2.0 + recency_bonus + keyword_bonus`
+- [x] 输出 `hot_ai_candidates.json`（20 条候选）
+- [x] 输出 `latest_news.json`（top 1，选中新闻）
+- [x] server.py：`mode=hot_ai` 支持，调用 `fetch_hot_ai_news`
+- [x] ALLOWED_ARTIFACTS 新增 `hot_ai_candidates`、`latest_news`
+- [x] 不抓取全文（无 paywall bypass、无版权内容）
+- [x] mode=hot_ai + minimax_m3_openai + mock_dialogue E2E 验收通过
+- [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
+- [ ] 多源聚合与去重（CP15.2.6）
 
 ## Checkpoint 15.3 — 真实 MiniMax TTS E2E
 

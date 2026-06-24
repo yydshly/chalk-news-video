@@ -343,6 +343,8 @@ ALLOWED_ARTIFACTS = {
     "dialogue_manifest",
     "render_ir",
     "meta",
+    "hot_ai_candidates",
+    "latest_news",
 }
 
 # Whitelist of allowed output files for preview
@@ -737,6 +739,29 @@ def _run_pipeline(body: GenerateRequest, job_id: str, output_dir: Path) -> tuple
         news_path = str(EXAMPLES_DIR / "sample_news.json")
     elif mode == "real_fixture":
         news_path = str(EXAMPLES_DIR / "real_news_fixture.json")
+    elif mode == "hot_ai":
+        # CP15.2.5: Fetch hot AI news from Hacker News into job output_dir
+        latest_news_path = output_dir / "latest_news.json"
+        candidates_path = output_dir / "hot_ai_candidates.json"
+        try:
+            from .fetch_hot_ai_news import fetch_hot_ai_news
+            _emit_job_event(job_id, "progress", {
+                "status": "running",
+                "stage": "preparing_input",
+                "message": "正在抓取热门 AI 新闻",
+                "progress": 5,
+            })
+            fetch_hot_ai_news(
+                source="hn",
+                hours=72,
+                limit=20,
+                output_path=latest_news_path,
+                candidates_output_path=candidates_path,
+            )
+        except Exception as e:
+            redacted = _redact_secret_text(str(e))
+            return 1, "", f"fetch_hot_ai_news failed: {redacted}"
+        news_path = str(latest_news_path)
     elif mode == "text":
         if not news_text.strip():
             return 1, "", "news_text is required when mode=text."
@@ -759,7 +784,7 @@ def _run_pipeline(body: GenerateRequest, job_id: str, output_dir: Path) -> tuple
         except Exception as e:
             return 1, "", f"Failed to write news file: {e}"
     else:
-        return 1, "", f"Invalid mode: {mode}. Use 'sample', 'real_fixture', or 'text'."
+        return 1, "", f"Invalid mode: {mode}. Use 'sample', 'real_fixture', 'text', or 'hot_ai'."
 
     cmd = _build_pipeline_cmd(body, news_path, output_dir)
 

@@ -1107,12 +1107,13 @@ ALLOWED_ARTIFACTS = {
 | `tts_provider` | string\|null | mock/mock_dialogue/minimax_dialogue |
 | `repair` | bool | 失败时自动 LLM 修复 |
 | `repair_attempts` | int | 最大修复尝试次数 |
-| `mode` | string | sample/real_fixture/text（CP15.2.4 新增 real_fixture） |
+| `mode` | string | sample/real_fixture/text/hot_ai（CP15.2.5 新增 hot_ai） |
 
 **兼容规则**：
 - `mode=sample`：使用 `examples/sample_news.json`（字段结构示例，不适合真实 LLM）
 - `mode=real_fixture`：使用 `examples/real_news_fixture.json`（真实新闻风格 fixture）
 - `mode=text`：使用 `body.news_text` 内容
+- `mode=hot_ai`：从 Hacker News 抓取 AI 相关热门新闻（CP15.2.5）
 - `llm_provider` 未传：mock=true → mock，否则 → minimax_m3_openai
 - `tts_provider` 未传：dialogue=true → mock_dialogue，否则 → mock
 
@@ -1293,3 +1294,69 @@ pipeline.py generate_ir 失败时（CP15.2.2 / CP15.2.3）：
 - `src/fetch_news.py` / `src/config_loader.py` / `src/utils.py`
 - `schema/semantic_ir.schema.json`
 - `examples/sample.semantic.json`
+
+### News Discovery Layer — hot_ai 模式（CP15.2.5）
+
+**新增文件**：
+- `src/fetch_hot_ai_news.py`：从 Hacker News Firebase API 获取 AI 相关热门新闻
+
+**hot_ai 抓取流程**：
+1. 从 `https://hacker-news.firebaseio.com/v0/topstories.json` 获取 HN top 500 story IDs
+2. 批量获取 story items（最多 100 条）
+3. 关键词过滤：title 必须匹配至少一个 AI 关键词（OpenAI/LLM/Claude/Gemini/agent/GPU 等）
+4. 热度评分：`score = points * 1.0 + comments * 2.0 + recency_bonus + keyword_bonus`
+   - recency_bonus：24h 内 +30，48h 内 +15，72h 内 +5
+   - keyword_bonus：major 关键词（OpenAI/Anthropic/Claude 等）匹配每个 +10，最高 +30
+5. 按评分降序，取 top 20 作为候选，top 1 作为选中新闻
+
+**输出文件**：
+- `hot_ai_candidates.json`：20 条候选新闻（含 score/matched_keywords/rank_reason）
+- `latest_news.json`：top 1 选中新闻（兼容 pipeline 格式）
+
+**内容限制**：
+- content 仅包含 HN metadata（title/url/points/comments/matched keywords/rank reason）
+- 不抓取目标 URL 全文
+- 不绕过 paywall
+- 不保存版权内容全文
+- 不使用登录/认证
+
+**hot_ai_candidates.json schema（CP15.2.5）**：
+```json
+{
+  "source": "hn",
+  "fetched_at": "2026-06-24T05:33:53+00:00",
+  "hours": 72,
+  "keywords": ["AI", "LLM", "OpenAI", ...],
+  "count": 20,
+  "items": [
+    {
+      "id": "hn_<objectID>",
+      "title": "...",
+      "url": "...",
+      "hn_url": "https://news.ycombinator.com/item?id=...",
+      "source_id": "hacker_news",
+      "source_name": "Hacker News",
+      "published_at": "2026-06-23T15:11:17+00:00",
+      "points": 272,
+      "comments": 356,
+      "score": 742.0,
+      "matched_keywords": ["AI", "OpenAI"],
+      "rank_reason": "score=742 points=272 comments=356 matched=AI"
+    }
+  ]
+}
+```
+
+**latest_news.json 扩展字段（CP15.2.5）**：
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `score` | float | HN 热度评分 |
+| `comments` | int | HN 评论数 |
+| `rank_reason` | string | 排名原因说明 |
+
+**新增文件（CP15.2.5）**：
+- `src/fetch_hot_ai_news.py`（HN hot AI news fetcher）
+
+**修改文件（CP15.2.5）**：
+- `src/server.py`（`mode=hot_ai` 支持，`ALLOWED_ARTIFACTS` 新增 hot_ai_candidates/latest_news）
+- README.md / PROJECT_SPEC.md / BACKLOG.md（CP15.2.5 更新）

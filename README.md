@@ -601,6 +601,25 @@ python -m src.server --host 127.0.0.1 --port 8777
 - semantic_ir / dialogue_script / dialogue_manifest / render_ir / animation.html 全部生成
 - `examples/sample_news.json` 仅作为字段结构示例，不用于真实 LLM 测试
 
+**Checkpoint 15.2.5 — 热门 AI 新闻发现层 + hot_ai E2E（当前）**：
+
+- `src/fetch_hot_ai_news.py`：从 HN Firebase API 获取 AI 相关热门新闻
+  - 关键词过滤：至少匹配一个 AI 相关关键词（OpenAI/LLM/Claude/Gemini 等）
+  - 热度评分：`points * 1.0 + comments * 2.0 + recency_bonus + keyword_bonus`
+  - 输出 `hot_ai_candidates.json`（20 条候选）
+  - 输出 `latest_news.json`（top 1，选中新闻）
+  - 不抓取全文（无 paywall bypass、无版权内容）
+- server.py：`mode=hot_ai` 支持，调用 `fetch_hot_ai_news` 生成最新新闻
+- ALLOWED_ARTIFACTS 新增 `hot_ai_candidates`、`latest_news`
+
+**CP15.2.5 验收**：
+
+- `python -m src.fetch_hot_ai_news --source hn --hours 72 --limit 20 --output outputs/latest/latest_news.json --candidates-output outputs/latest/hot_ai_candidates.json` → 候选数量 > 0
+- `mode=hot_ai` + minimax_m3_openai + mock_dialogue → job succeeded
+- hot_ai_candidates.json / latest_news.json / semantic_ir / dialogue_script / render_ir / animation.html 全部生成
+- latest_news.title 是真实热门 AI 新闻标题（关键词过滤生效）
+- 不抓取付费墙全文、不绕过反爬、不提交版权新闻全文
+
 ## 项目定位
 
 V0.11: News → LLM → semantic_ir → dual-host dialogue → video（含双角色音频）。
