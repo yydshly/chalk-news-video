@@ -10,7 +10,7 @@
 <div class="container">
   <header>
     <h1>🎬 Chalk News Video Studio</h1>
-    <p class="subtitle">CP18.5 — Local Web Studio V1</p>
+    <p class="subtitle">CP24 — Local Web Studio V1</p>
   </header>
 
   <main class="layout">
@@ -78,6 +78,7 @@
           从左侧热门新闻中加入 2-4 条，组成今日 AI 新闻合集
         </div>
         <div id="episode-structure" class="episode-structure"></div>
+        <button id="btn-view-episode-plan" class="btn-small" type="button" style="margin-top:8px;width:100%">查看栏目计划</button>
       </div>
 
       <!-- CP20: Theme Showcase Gallery -->
@@ -203,6 +204,7 @@
         <button class="tab-btn" data-tab="semantic_ir">semantic_ir</button>
         <button class="tab-btn" data-tab="dialogue_script">dialogue_script</button>
         <button class="tab-btn" data-tab="history">历史作品</button>
+        <button class="tab-btn" data-tab="episode_plan">栏目计划</button>
       </div>
 
       <!-- Tab Content: Preview -->
@@ -253,11 +255,16 @@
         </div>
         <div id="history-list" class="history-list"></div>
       </div>
+
+      <!-- Tab Content: Episode Plan (CP24) -->
+      <div id="tab-episode_plan" class="tab-content">
+        <pre id="json-episode_plan" class="json-pre"></pre>
+      </div>
     </section>
   </main>
 
   <footer>
-    <p>CP19 Local Web Studio · 不上传任何数据 · API Key 不暴露</p>
+    <p>CP24 Local Web Studio · 不上传任何数据 · API Key 不暴露</p>
   </footer>
 </div>
 

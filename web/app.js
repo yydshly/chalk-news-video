@@ -510,6 +510,154 @@
     episodeStructure.innerHTML = html;
   }
 
+  // ---------- episode plan contract (CP24) ----------
+  function buildEpisodePlan() {
+    const theme = selectTheme.value;
+    const genMode = document.querySelector('input[name="gen_mode"]:checked').value;
+
+    const items = episodeItemList.map(function (item, index) {
+      const isLead = index === 0 || (item.final_score || 0) >= (episodeItemList.reduce(function (max, i) {
+        return (i.final_score || 0) > (max.final_score || 0) ? i : max;
+      }, episodeItemList[0] || {}).final_score || 0) && index === 0;
+      return {
+        order: index + 1,
+        id: item.id,
+        title: item.title,
+        url: item.url,
+        source: item.source,
+        final_score: item.final_score,
+        points: item.points,
+        comments: item.comments,
+        role: isLead ? "lead" : "supporting",
+      };
+    });
+
+    // Re-determine lead: highest score or first
+    if (items.length > 0) {
+      const maxScoreItem = items.reduce(function (best, item) {
+        return (!best || (item.final_score || 0) > (best.final_score || 0)) ? item : best;
+      }, null);
+      if (maxScoreItem) {
+        maxScoreItem.role = "lead";
+      }
+      // Only first item can be lead if scores are tied or first has highest
+      items.forEach(function (item, i) {
+        if (i > 0 && item.id === maxScoreItem.id) {
+          item.role = "supporting";
+        }
+      });
+    }
+
+    const topNews = episodeItemList.reduce(function (best, item) {
+      return (!best || (item.final_score || 0) > (best.final_score || 0)) ? item : best;
+    }, null);
+
+    const segments = items.map(function (item) {
+      return {
+        order: item.order,
+        type: "news_segment",
+        news_id: item.id,
+        headline: item.title,
+      };
+    });
+
+    const plan = {
+      version: "episode_plan_v1",
+      title: "今日 AI 前沿速览",
+      subtitle: "多条热门 AI 新闻合集",
+      theme: theme,
+      generation_mode: genMode,
+      items: items,
+      structure: {
+        opening: "今日 AI 前沿速览",
+        segments: segments,
+        closing: topNews ? {
+          type: "summary",
+          focus_news_id: topNews.id,
+          focus_title: topNews.title,
+        } : null,
+      },
+      constraints: {
+        min_items: 2,
+        max_items: 5,
+        recommended_items: "2-4",
+        target_duration_sec: 180,
+      },
+    };
+
+    return plan;
+  }
+
+  function validateEpisodePlan(plan) {
+    var warnings = [];
+    var errors = [];
+
+    if (!plan.items || plan.items.length === 0) {
+      errors.push("至少需要 1 条新闻才能生成栏目计划");
+      return { ok: false, warnings: warnings, errors: errors };
+    }
+
+    if (plan.items.length < 2) {
+      warnings.push("建议至少加入 2 条新闻形成栏目");
+    }
+
+    if (plan.items.length > 5) {
+      errors.push("最多支持 5 条新闻");
+    }
+
+    plan.items.forEach(function (item, i) {
+      if (!item.id) errors.push("第 " + (i + 1) + " 条新闻缺少 id");
+      if (!item.title) errors.push("第 " + (i + 1) + " 条新闻缺少 title");
+      if (item.order !== i + 1) errors.push("第 " + (i + 1) + " 条新闻 order 序号不连续");
+    });
+
+    if (plan.structure && plan.structure.closing) {
+      var closingId = plan.structure.closing.focus_news_id;
+      var exists = plan.items.some(function (item) { return item.id === closingId; });
+      if (!exists) errors.push("结尾推荐的新闻 ID 不在列表中");
+    }
+
+    return {
+      ok: errors.length === 0,
+      warnings: warnings,
+      errors: errors,
+    };
+  }
+
+  // Show episode plan in the episode_plan tab
+  function showEpisodePlan() {
+    if (episodeItemList.length === 0) {
+      setStatus("请先加入新闻，再查看栏目计划", "error");
+      return;
+    }
+
+    var plan = buildEpisodePlan();
+    var result = validateEpisodePlan(plan);
+
+    // Switch to episode_plan tab
+    tabBtns.forEach(function (b) { b.classList.remove("active"); });
+    tabContents.forEach(function (c) { c.classList.remove("active"); });
+    var tabBtn = document.querySelector('[data-tab="episode_plan"]');
+    var tabContent = document.getElementById("tab-episode_plan");
+    if (tabBtn) tabBtn.classList.add("active");
+    if (tabContent) tabContent.classList.add("active");
+
+    var jsonEl = document.getElementById("json-episode_plan");
+    if (jsonEl) {
+      var output = JSON.stringify({ plan: plan, validation: result }, null, 2);
+      jsonEl.textContent = output;
+    }
+
+    // Show validation status in status msg
+    if (!result.ok) {
+      setStatus("栏目计划有误：" + result.errors.join("；"), "error");
+    } else if (result.warnings.length > 0) {
+      setStatus("栏目计划已生成（" + result.warnings.join("；") + "）", "info");
+    } else {
+      setStatus("栏目计划已生成，可进入下一步", "success");
+    }
+  }
+
   // ---------- theme showcase (CP20) ----------
   function renderThemeShowcase() {
     if (!themeShowcaseList) return;
@@ -667,6 +815,14 @@
   if (btnRefreshHotNews) {
     btnRefreshHotNews.addEventListener("click", function () {
       loadHotNews();
+    });
+  }
+
+  // CP24: View episode plan button
+  var btnViewEpisodePlan = document.getElementById("btn-view-episode-plan");
+  if (btnViewEpisodePlan) {
+    btnViewEpisodePlan.addEventListener("click", function () {
+      showEpisodePlan();
     });
   }
 
