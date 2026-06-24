@@ -162,19 +162,6 @@ def _get_tts_provider_status() -> list[dict]:
     return result
 
 
-@app.get("/api/providers")
-def api_providers():
-    """Return LLM and TTS provider status with readiness and missing env vars.
-
-    Does NOT expose API key values or voice_id values.
-    """
-    return JSONResponse({
-        "ok": True,
-        "llm": _get_llm_provider_status(),
-        "tts": _get_tts_provider_status(),
-    })
-
-
 class GenerateRequest(BaseModel):
     mode: str = "sample"
     theme: str = "chalkboard"
@@ -190,6 +177,20 @@ class GenerateRequest(BaseModel):
 
 
 app = FastAPI(title="Chalk News Video Studio")
+
+
+@app.get("/api/providers")
+def api_providers():
+    """Return LLM and TTS provider status with readiness and missing env vars.
+
+    Does NOT expose API key values or voice_id values.
+    """
+    return JSONResponse({
+        "ok": True,
+        "llm": _get_llm_provider_status(),
+        "tts": _get_tts_provider_status(),
+    })
+
 
 # Paths
 WEB_DIR = PROJECT_ROOT / "web"
