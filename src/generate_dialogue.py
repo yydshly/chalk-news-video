@@ -51,7 +51,7 @@ def compress_dialogue_script(
     Strategy:
     1. Keep first 2 turns (hook + first explain).
     2. Keep last 2 turns (conclusion/summary).
-    3. Merge/truncate middle turns.
+    3. Sample/compress middle turns to fit within max_turns.
     4. If single turn exceeds max_chars_per_turn, truncate to ~max_chars_per_turn.
     5. Ensure at least min_turns are kept.
     6. Renumber turn ids sequentially: d1, d2, d3...
@@ -62,9 +62,16 @@ def compress_dialogue_script(
     turns = dialogue_script.get("turns", [])
     before_turns = len(turns)
     before_chars = sum(len(t.get("text", "")) for t in turns)
+    requested_max_turns = max_turns  # record what was requested
 
+    compression_applied = False
+    reason = ""
+
+    # CP18.2.1: Always enforce max_turns as a hard cap.
+    # Compression is applied whenever turns > max_turns.
     if before_turns <= max_turns and before_chars <= DEFAULT_MAX_TOTAL_DIALOGUE_CHARS:
         budget_info = {
+            "requested_max_turns": requested_max_turns,
             "target_duration_sec": DEFAULT_TARGET_DURATION_SEC,
             "max_turns": max_turns,
             "max_chars_per_turn": max_chars_per_turn,
@@ -73,15 +80,21 @@ def compress_dialogue_script(
             "before_chars": before_chars,
             "after_chars": before_chars,
             "compressed": False,
+            "compression_applied": False,
+            "reason": "",
             "warnings": [],
         }
         return dialogue_script, budget_info
 
     warnings = []
     if before_turns > max_turns:
-        warnings.append(f"turns {before_turns} > max_turns {max_turns}, will compress")
+        warnings.append(f"turns {before_turns} > max_turns {max_turns}, hard cap enforced")
+        reason = f"LLM generated {before_turns} turns, exceeds max_turns={max_turns}. Hard cap applied."
+        compression_applied = True
     if before_chars > DEFAULT_MAX_TOTAL_DIALOGUE_CHARS:
-        warnings.append(f"chars {before_chars} > max_chars {DEFAULT_MAX_TOTAL_DIALOGUE_CHARS}, will compress")
+        warnings.append(f"chars {before_chars} > max_chars {DEFAULT_MAX_TOTAL_DIALOGUE_CHARS}, will truncate")
+        if not reason:
+            reason = f"Character budget exceeded ({before_chars} > {DEFAULT_MAX_TOTAL_DIALOGUE_CHARS})."
 
     # Always keep first 2 and last 2 turns (if available)
     keep_first = min(2, len(turns))
@@ -89,44 +102,40 @@ def compress_dialogue_script(
     keep_last = max(0, keep_last)
 
     if keep_first + keep_last >= len(turns):
-        # Not enough to trim middle
-        compressed_turns = turns[:max_turns] if len(turns) > max_turns else turns
+        # Not enough middle turns to trim — just take up to max_turns
+        compressed_turns = list(turns[:max_turns])
     else:
         # Build compressed turns
         compressed_turns = []
-        compressed_turns.extend(turns[:keep_first])
+        compressed_turns.extend(list(turns[:keep_first]))
 
-        # Middle turns: try to fit within budget
+        # Middle turns: sample to fit within max_turns
         middle_turns = turns[keep_first:-keep_last] if keep_last > 0 else turns[keep_first:]
-        allowed_middle = max_turns - keep_first - keep_last
+        allowed_middle = max(0, max_turns - keep_first - keep_last)
 
-        if allowed_middle <= 0:
-            allowed_middle = 0
-
-        # Merge middle turns if needed
-        if len(middle_turns) > max(0, allowed_middle):
-            # Merge excess middle turns
-            excess = len(middle_turns) - max(0, allowed_middle)
-            # Merge every pair of adjacent same-speaker or adjacent turns
-            # Simple approach: take every nth turn from middle
-            step = max(1, len(middle_turns) // allowed_middle) if allowed_middle > 0 else 1
-            for i in range(0, len(middle_turns), step):
-                if len(compressed_turns) < max_turns - keep_last:
-                    compressed_turns.append(middle_turns[i])
-        else:
+        # Sample middle turns at regular intervals to preserve distribution
+        if len(middle_turns) > allowed_middle and allowed_middle > 0:
+            step = len(middle_turns) / allowed_middle
+            for i in range(allowed_middle):
+                idx = min(int(round(i * step)), len(middle_turns) - 1)
+                compressed_turns.append(middle_turns[idx])
+        elif allowed_middle > 0:
             compressed_turns.extend(middle_turns)
 
         # Add last turns
         if keep_last > 0:
-            compressed_turns.extend(turns[-keep_last:])
+            compressed_turns.extend(list(turns[-keep_last:]))
 
-    # Ensure minimum turns
+    # Hard cap: if still > max_turns, truncate to max_turns
+    if len(compressed_turns) > max_turns:
+        compressed_turns = compressed_turns[:max_turns]
+
+    # Ensure minimum turns (but never exceed max_turns)
     if len(compressed_turns) < min_turns:
-        # Take more from middle if needed
         middle_turns = turns[keep_first:-keep_last] if keep_last > 0 else turns[keep_first:]
         needed = min_turns - len(compressed_turns)
         for t in middle_turns:
-            if len(compressed_turns) >= min_turns:
+            if len(compressed_turns) >= min_turns or len(compressed_turns) >= max_turns:
                 break
             if t not in compressed_turns:
                 compressed_turns.append(t)
@@ -135,9 +144,8 @@ def compress_dialogue_script(
     for turn in compressed_turns:
         text = turn.get("text", "")
         if len(text) > max_chars_per_turn:
-            # Truncate to max_chars_per_turn and add Chinese ellipsis if meaningful cut
+            # Truncate to max_chars_per_turn and cut at a natural boundary
             truncated = text[:max_chars_per_turn]
-            # Try to cut at a natural boundary (comma, period, question mark)
             for cut_char in ["。", "，", "？", "！", ".", ",", "?"]:
                 last_idx = truncated.rfind(cut_char)
                 if last_idx > max_chars_per_turn * 0.5:
@@ -157,6 +165,7 @@ def compress_dialogue_script(
     new_script["turns"] = compressed_turns
 
     budget_info = {
+        "requested_max_turns": requested_max_turns,
         "target_duration_sec": DEFAULT_TARGET_DURATION_SEC,
         "max_turns": max_turns,
         "max_chars_per_turn": max_chars_per_turn,
@@ -165,6 +174,8 @@ def compress_dialogue_script(
         "before_chars": before_chars,
         "after_chars": after_chars,
         "compressed": before_turns != after_turns or before_chars != after_chars,
+        "compression_applied": compression_applied,
+        "reason": reason,
         "warnings": warnings,
     }
 

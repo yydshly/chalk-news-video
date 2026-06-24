@@ -574,7 +574,16 @@ def main(argv=None):
             if det_repairs:
                 save_json({"repairs": det_repairs}, debug_deterministic_path)
                 print(f"[generate_ir] deterministic repairs applied: {det_repairs}", file=sys.stderr)
-                # Re-validate after deterministic repair
+                # CP18.2.1: Deterministic repairs may push beats > 10 (adding unrevealed beats).
+                # Enforce beat budget again BEFORE re-validation to catch this.
+                semantic_ir, beat_trim_repairs = _enforce_beat_budget(semantic_ir)
+                if beat_trim_repairs:
+                    all_repairs = det_repairs + beat_trim_repairs
+                    save_json({"repairs": all_repairs}, debug_deterministic_path)
+                    for r in beat_trim_repairs:
+                        print(f"[generate_ir] beat_budget trim: {r['type']} — "
+                              f"before={r['before_beats']} after={r['after_beats']}", file=sys.stderr)
+                # Re-validate after deterministic repair + budget enforcement
                 issues = validate_ir.validate_semantic_ir(semantic_ir, DEFAULT_SCHEMA_PATH)
                 save_json({"issues": [i.to_dict() for i in issues]}, debug_validation_path)
                 if not issues:
@@ -616,6 +625,15 @@ def main(argv=None):
                     issues = [{"error": str(e)}]
                     continue
 
+                # CP18.2.1: Enforce beat budget after LLM repair extraction
+                # before validation to ensure beats are within 6-10 before we try repairs
+                semantic_ir, beat_trim_repairs = _enforce_beat_budget(semantic_ir)
+                if beat_trim_repairs:
+                    save_json({"repairs": beat_trim_repairs}, debug_deterministic_path)
+                    for r in beat_trim_repairs:
+                        print(f"[generate_ir] beat_budget trim after repair extract: "
+                              f"{r['type']} — before={r['before_beats']} after={r['after_beats']}", file=sys.stderr)
+
                 issues = validate_ir.validate_semantic_ir(semantic_ir, DEFAULT_SCHEMA_PATH)
                 save_json({"issues": [i.to_dict() for i in issues]}, debug_validation_path)
                 if not issues:
@@ -627,11 +645,19 @@ def main(argv=None):
                 if det_repairs:
                     save_json({"repairs": det_repairs}, debug_deterministic_path)
                     print(f"[generate_ir] deterministic repairs after LLM repair: {det_repairs}", file=sys.stderr)
-                    issues = validate_ir.validate_semantic_ir(semantic_ir, DEFAULT_SCHEMA_PATH)
-                    save_json({"issues": [i.to_dict() for i in issues]}, debug_validation_path)
-                    if not issues:
-                        print(f"[generate_ir] deterministic repair resolved all issues after LLM repair.")
-                        break
+                # CP18.2.1: Enforce beat budget again after deterministic repairs
+                semantic_ir, beat_trim_repairs = _enforce_beat_budget(semantic_ir)
+                if beat_trim_repairs:
+                    all_repairs = (det_repairs if det_repairs else []) + beat_trim_repairs
+                    save_json({"repairs": all_repairs}, debug_deterministic_path)
+                    for r in beat_trim_repairs:
+                        print(f"[generate_ir] beat_budget trim after deterministic repair: "
+                              f"{r['type']} — before={r['before_beats']} after={r['after_beats']}", file=sys.stderr)
+                issues = validate_ir.validate_semantic_ir(semantic_ir, DEFAULT_SCHEMA_PATH)
+                save_json({"issues": [i.to_dict() for i in issues]}, debug_validation_path)
+                if not issues:
+                    print(f"[generate_ir] deterministic repair resolved all issues after LLM repair.")
+                    break
 
                 print(f"[generate_ir] repair attempt {attempt} still has issues:\n{_format_issues(issues)}", file=sys.stderr)
             else:

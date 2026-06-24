@@ -255,6 +255,26 @@ def generate_narration(
     save_json(manifest, manifest_path)
     print(f"[narration] wrote {manifest_path}")
 
+    # CP18.2.1: Detect long beats (>10s) and write duration_warnings.json
+    duration_warnings_path = manifest_path.parent / "duration_warnings.json"
+    LONG_BEAT_THRESHOLD_SEC = 10.0
+    warnings = []
+    for beat in manifest_beats:
+        dur = beat.get("duration", 0)
+        if dur > LONG_BEAT_THRESHOLD_SEC:
+            warnings.append({
+                "beat_id": beat.get("beat_id", "?"),
+                "speaker": beat.get("speaker", "?"),
+                "duration": dur,
+                "threshold_sec": LONG_BEAT_THRESHOLD_SEC,
+                "message": f"Beat {beat.get('beat_id', '?')} has duration {dur:.3f}s, exceeds {LONG_BEAT_THRESHOLD_SEC}s threshold",
+            })
+    if warnings:
+        save_json({"warning_count": len(warnings), "warnings": warnings}, duration_warnings_path)
+        print(f"[narration] wrote {duration_warnings_path} ({len(warnings)} long beat(s) detected)")
+    elif duration_warnings_path.exists():
+        duration_warnings_path.unlink()
+
     return manifest
 
 
@@ -546,6 +566,27 @@ def generate_dialogue_audio(
     manifest_path = Path(output_path) if output_path else DEFAULT_DIALOGUE_MANIFEST_PATH
     save_json(manifest, manifest_path)
     print(f"[dialogue_audio] wrote {manifest_path}")
+
+    # CP18.2.1: Detect long beats/turns (>10s) and write duration_warnings.json
+    duration_warnings_path = manifest_path.parent / "duration_warnings.json"
+    LONG_BEAT_THRESHOLD_SEC = 10.0
+    warnings = []
+    for turn in manifest_turns:
+        dur = turn.get("duration", 0)
+        if dur > LONG_BEAT_THRESHOLD_SEC:
+            warnings.append({
+                "turn_id": turn.get("turn_id", "?"),
+                "speaker": turn.get("speaker", "?"),
+                "duration": dur,
+                "threshold_sec": LONG_BEAT_THRESHOLD_SEC,
+                "message": f"Turn {turn.get('turn_id', '?')} has duration {dur:.3f}s, exceeds {LONG_BEAT_THRESHOLD_SEC}s threshold",
+            })
+    if warnings:
+        save_json({"warning_count": len(warnings), "warnings": warnings}, duration_warnings_path)
+        print(f"[dialogue_audio] wrote {duration_warnings_path} ({len(warnings)} long turn(s) detected)")
+    elif duration_warnings_path.exists():
+        # Clean up stale warnings from previous runs
+        duration_warnings_path.unlink()
 
     return manifest
 
