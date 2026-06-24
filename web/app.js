@@ -1710,6 +1710,13 @@
     var themeName = (THEME_SHOWCASES[renderIr.theme] && THEME_SHOWCASES[renderIr.theme].name) ? THEME_SHOWCASES[renderIr.theme].name : (renderIr.theme || "");
     var leadCount = newsSegs.filter(function (s) { return s.role === "lead"; }).length || 1;
 
+    // CP34.1: Shared helper — get transition duration after a given segment index
+    // Used by both timeline markers and news card time_range so they stay consistent
+    function getTransitionDurationAfterIndex(index) {
+      var trans = transitions[index];
+      return trans && trans.duration_hint_sec ? trans.duration_hint_sec : 4;
+    }
+
     // Build timeline markers
     var markers = [];
     var cursor = 0;
@@ -1739,9 +1746,8 @@
       cursor += segDur;
 
       if (i < newsSegs.length - 1) {
-        var transDur = 4;
+        var transDur = getTransitionDurationAfterIndex(i);
         var trans = transitions[i];
-        if (trans && trans.duration_hint_sec) transDur = trans.duration_hint_sec;
         markers.push({
           type: "transition",
           label: "转场",
@@ -1771,12 +1777,12 @@
       var durHint = seg.duration_hint_sec || 32;
       var roleLabel = isLead ? "主线" : "补充";
 
-      // Calculate pseudo time range
+      // Calculate pseudo time range — uses same transition duration logic as markers
       var cardCursor = 0;
       cardCursor += openingSec ? (openingSec.duration_hint_sec || 12) : 12;
       for (var j = 0; j < index; j++) {
         cardCursor += newsSegs[j].duration_hint_sec || 32;
-        if (j < newsSegs.length - 1) cardCursor += 4;
+        if (j < newsSegs.length - 1) cardCursor += getTransitionDurationAfterIndex(j);
       }
       var startOffset = cardCursor;
       var endOffset = startOffset + durHint;

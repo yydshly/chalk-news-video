@@ -210,3 +210,44 @@ The contract layer enables future work without refactoring the HTML renderer:
 | Contract has `schema_version: "episode_template_v1"` | ✓ |
 | Contract constraints all `true` | ✓ |
 | `outputs/episode_previews/*.html` not committed | ✓ |
+
+---
+
+## CP34.1: Template Time Range Consistency
+
+**Branch:** `fix/cp34.1-template-time-range-consistency`
+**Commit:** `fix(cp34.1): align template news card time ranges`
+**Date:** 2026-06-25
+
+### 1. Issue
+
+CP34 introduced `episode_template_v1` with two independent time calculations:
+
+1. **Timeline markers** — computed from `transitions[i].duration_hint_sec` (correct)
+2. **News card `time_range`** — hardcoded `cardCursor += 4` (incorrect when `duration_hint_sec !== 4`)
+
+This caused the timeline rail timecodes and per-card time ranges to diverge when a transition had a non-default duration.
+
+### 2. Fix
+
+Added a shared helper inside `buildEpisodeTemplateContract`:
+
+```js
+function getTransitionDurationAfterIndex(index) {
+  var trans = transitions[index];
+  return trans && trans.duration_hint_sec ? trans.duration_hint_sec : 4;
+}
+```
+
+Both timeline marker computation and news card `time_range` computation now call this helper, ensuring they always use the same transition duration value.
+
+### 3. Verification
+
+| Test | Result |
+|------|--------|
+| Transition duration != 4: markers and time_range now consistent | ✓ |
+| Default (no `duration_hint_sec`): falls back to 4 seconds | ✓ |
+| Preview iframe still works | ✓ |
+| Save to history still works | ✓ |
+| No `/api/jobs` called | ✓ |
+| No real LLM / TTS / MP4 | ✓ |
