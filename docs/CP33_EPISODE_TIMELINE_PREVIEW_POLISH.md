@@ -112,3 +112,113 @@ Additionally enforced:
 - No real audio, no subtitles, no MP4
 - Not a Remotion render template
 - Not integrated with actual video pipeline
+
+---
+
+## CP33.1: Timeline Preview Safety Hardening
+
+**Branch:** `fix/cp33.1-timeline-preview-safety`
+**Commit:** `fix(cp33.1): harden episode timeline preview validation`
+**Date:** 2026-06-25
+
+### 1. Issues Fixed
+
+#### 1.1 Footer Title Not Escaped
+
+**Problem:** In `buildMockEpisodeHtml()`, the footer rendered `renderIr.episode_title` directly without `escapeHtml()`:
+
+```js
+// Before (vulnerable)
+'<span>' + renderIr.episode_title + '</span>'
+
+// After (safe)
+'<span>' + escapeHtml(renderIr.episode_title || "") + '</span>'
+```
+
+**Impact:** If `episode_title` contained user-controlled content with characters like `<`, `>`, `&`, `"`, it could break HTML structure or enable XSS in certain contexts. Fixed by wrapping with `escapeHtml()` and providing a fallback `""` for null/undefined.
+
+#### 1.2 Missing `data-section-type` Validation
+
+**Problem:** `validateMockEpisodeHtml()` validated `mock-news-card` class presence but did not check for `data-section-type="news_segment"`, which is a required structural attribute on timeline preview cards per CP33 spec.
+
+**Fix:** Added strict check:
+
+```js
+if (html.indexOf('data-section-type="news_segment"') === -1) {
+  errors.push('HTML 必须包含 data-section-type="news_segment"');
+}
+```
+
+#### 1.3 Missing Timeline Rail Validation
+
+**Problem:** The timeline rail (`tl-rail` / `tl-track`) and pseudo timecode (`tl-time`) markers are core structural elements of the timeline preview, but were not validated.
+
+**Fix:** Added checks:
+
+```js
+if (html.indexOf("tl-rail") === -1 && html.indexOf("tl-track") === -1) {
+  errors.push("HTML 必须包含 timeline rail (tl-rail 或 tl-track)");
+}
+if (html.indexOf("tl-time") === -1) {
+  errors.push("HTML 必须包含伪时间码 (tl-time)");
+}
+```
+
+#### 1.4 Script Tag Rejection
+
+**Problem:** While the CP31 spec documents "no `<script>` tags", the validator used a general external-link regex that could miss `<script>` tags in certain positions.
+
+**Fix:** Added explicit rejection:
+
+```js
+if (/<script\b/i.test(html)) {
+  errors.push("HTML 不允许包含 script 标签");
+}
+```
+
+Also added explicit rejection of `<img>` tags with remote `src`:
+
+```js
+if (/<img[^>]*src=["']?https?:\/\//i.test(html)) {
+  errors.push("HTML 不允许 img 标签包含外部链接");
+}
+```
+
+### 2. Security Checks Added
+
+| Check | Rule |
+|-------|------|
+| `data-section-type="news_segment"` | Required in HTML |
+| Timeline rail | Required (`tl-rail` or `tl-track`) |
+| Pseudo timecode | Required (`tl-time`) |
+| `<script>` tags | Explicitly rejected |
+| `<img>` with remote src | Explicitly rejected |
+| All prior checks | Preserved (API key, voice_id, external http) |
+
+### 3. Lightweight Verification Results
+
+| Test | Result |
+|------|--------|
+| Footer title escaped with `escapeHtml()` | ✓ |
+| `validateMockEpisodeHtml` rejects missing `data-section-type` | ✓ |
+| `validateMockEpisodeHtml` rejects missing timeline rail | ✓ |
+| `validateMockEpisodeHtml` rejects missing `tl-time` | ✓ |
+| `validateMockEpisodeHtml` rejects `<script>` tag | ✓ |
+| `validateMockEpisodeHtml` rejects `<img>` with remote src | ✓ |
+| Preview iframe still works | ✓ |
+| Save to history still works | ✓ |
+| No external http/https in HTML | ✓ |
+| No API key / voice_id in HTML | ✓ |
+| No `/api/jobs` called | ✓ |
+| No real LLM / TTS / MP4 | ✓ |
+| `outputs/episode_previews/*.html` not committed | ✓ |
+
+### 4. Compatibility
+
+All CP33 capabilities preserved:
+- `previewMockEpisodeHtml()` → works
+- `saveMockEpisodeHtml()` → works
+- `/api/episode/mock-html` → works
+- `/api/episode/html-history` → works
+- Timeline rail and pseudo timecodes → present in HTML
+- `mock-news-card` and `data-section-type="news_segment"` → present on cards

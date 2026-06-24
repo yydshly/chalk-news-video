@@ -1933,7 +1933,7 @@
       /* Footer */
       '<div class="footer-bar">' +
       '<span>Mock Timeline Preview · ' + escapeHtml(themeName) + ' · no real render</span>' +
-      '<span>' + renderIr.episode_title + '</span>' +
+      '<span>' + escapeHtml(renderIr.episode_title || "") + '</span>' +
       '</div>\n' +
       '</body>\n' +
       '</html>';
@@ -1977,6 +1977,31 @@
     // No external http links
     if (/https?:\/\//.test(html) && !/https?:\/\/localhost/.test(html)) {
       errors.push("HTML 中不允许出现外部 http 链接");
+    }
+
+    // CP33.1: Must contain data-section-type="news_segment"
+    if (html.indexOf('data-section-type="news_segment"') === -1) {
+      errors.push('HTML 必须包含 data-section-type="news_segment"');
+    }
+
+    // CP33.1: Must contain timeline rail
+    if (html.indexOf("tl-rail") === -1 && html.indexOf("tl-track") === -1) {
+      errors.push("HTML 必须包含 timeline rail (tl-rail 或 tl-track)");
+    }
+
+    // CP33.1: Must contain pseudo timecode
+    if (html.indexOf("tl-time") === -1) {
+      errors.push("HTML 必须包含伪时间码 (tl-time)");
+    }
+
+    // CP33.1: Explicitly reject script tags
+    if (/<script\b/i.test(html)) {
+      errors.push("HTML 不允许包含 script 标签");
+    }
+
+    // CP33.1: Reject img with remote links
+    if (/<img[^>]*src=["']?https?:\/\//i.test(html)) {
+      errors.push("HTML 不允许 img 标签包含外部链接");
     }
 
     return {
