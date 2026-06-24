@@ -515,12 +515,18 @@
     const theme = selectTheme.value;
     const genMode = document.querySelector('input[name="gen_mode"]:checked').value;
 
-    const items = episodeItemList.map(function (item, index) {
-      const isLead = index === 0 || (item.final_score || 0) >= (episodeItemList.reduce(function (max, i) {
-        return (i.final_score || 0) > (max.final_score || 0) ? i : max;
-      }, episodeItemList[0] || {}).final_score || 0) && index === 0;
+    // Determine lead: highest final_score wins; if tied, first in list wins
+    const leadSource = episodeItemList.reduce(function (best, item) {
+      if (!best) return item;
+      const bestScore = best.final_score || 0;
+      const itemScore = item.final_score || 0;
+      if (itemScore > bestScore) return item;
+      return best;
+    }, null);
+
+    const items = episodeItemList.map(function (item) {
       return {
-        order: index + 1,
+        order: item.order,
         id: item.id,
         title: item.title,
         url: item.url,
@@ -528,29 +534,9 @@
         final_score: item.final_score,
         points: item.points,
         comments: item.comments,
-        role: isLead ? "lead" : "supporting",
+        role: (leadSource && item.id === leadSource.id) ? "lead" : "supporting",
       };
     });
-
-    // Re-determine lead: highest score or first
-    if (items.length > 0) {
-      const maxScoreItem = items.reduce(function (best, item) {
-        return (!best || (item.final_score || 0) > (best.final_score || 0)) ? item : best;
-      }, null);
-      if (maxScoreItem) {
-        maxScoreItem.role = "lead";
-      }
-      // Only first item can be lead if scores are tied or first has highest
-      items.forEach(function (item, i) {
-        if (i > 0 && item.id === maxScoreItem.id) {
-          item.role = "supporting";
-        }
-      });
-    }
-
-    const topNews = episodeItemList.reduce(function (best, item) {
-      return (!best || (item.final_score || 0) > (best.final_score || 0)) ? item : best;
-    }, null);
 
     const segments = items.map(function (item) {
       return {
@@ -571,10 +557,10 @@
       structure: {
         opening: "今日 AI 前沿速览",
         segments: segments,
-        closing: topNews ? {
+        closing: leadSource ? {
           type: "summary",
-          focus_news_id: topNews.id,
-          focus_title: topNews.title,
+          focus_news_id: leadSource.id,
+          focus_title: leadSource.title,
         } : null,
       },
       constraints: {
@@ -605,16 +591,31 @@
       errors.push("最多支持 5 条新闻");
     }
 
+    // Role validation: exactly one lead
+    var leadCount = 0;
+    var leadItem = null;
     plan.items.forEach(function (item, i) {
       if (!item.id) errors.push("第 " + (i + 1) + " 条新闻缺少 id");
       if (!item.title) errors.push("第 " + (i + 1) + " 条新闻缺少 title");
       if (item.order !== i + 1) errors.push("第 " + (i + 1) + " 条新闻 order 序号不连续");
+      if (item.role === "lead") {
+        leadCount++;
+        leadItem = item;
+      }
     });
+
+    if (leadCount !== 1) {
+      errors.push("必须有且只有 1 个 lead，当前有 " + leadCount + " 个");
+    }
 
     if (plan.structure && plan.structure.closing) {
       var closingId = plan.structure.closing.focus_news_id;
       var exists = plan.items.some(function (item) { return item.id === closingId; });
       if (!exists) errors.push("结尾推荐的新闻 ID 不在列表中");
+      // closing.focus_news_id must match lead item
+      if (leadItem && closingId !== leadItem.id) {
+        errors.push("结尾 focus_news_id 必须与 lead item 的 id 一致");
+      }
     }
 
     return {

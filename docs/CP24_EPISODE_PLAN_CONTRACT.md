@@ -194,3 +194,52 @@ The `episode_plan` contract will be the input for:
 - No arbitrary file reading
 - No debug prompt/response exposure
 - No Remotion / digital human / cloud deployment / login / billing
+
+---
+
+## CP24.1: Episode Plan Role Rule Fix
+
+**Branch:** `fix/cp24.1-episode-plan-role-rule`
+**Date:** 2026-06-24
+
+### Problem
+
+The original `buildEpisodePlan()` had a confusing multi-pass role assignment:
+
+1. First pass: index 0 was set to `"lead"`, others `"supporting"`
+2. Second pass: highest `final_score` item was set to `"lead"` (overriding first pass)
+3. Third pass: if highest score item was not at index 0, it was reverted to `"supporting"`
+
+This resulted in: first item always being lead, regardless of score — which contradicted the intended rule.
+
+### Fix
+
+Replaced with a single-pass, clear rule:
+
+1. Find `leadSource` = item with highest `final_score` (first in list wins if tied)
+2. Map items: `role: item.id === leadSource.id ? "lead" : "supporting"`
+3. `structure.closing.focus_news_id` = lead item's id
+4. `structure.closing.focus_title` = lead item's title
+
+### New Role Validation
+
+`validateEpisodePlan()` now checks:
+
+| Condition | Level | Message |
+|-----------|-------|---------|
+| `leadCount !== 1` | error | 必须有且只有 1 个 lead，当前有 N 个 |
+| `closing.focus_news_id !== leadItem.id` | error | 结尾 focus_news_id 必须与 lead item 的 id 一致 |
+
+Existing validations (order sequential, id exists, etc.) remain unchanged.
+
+### Lightweight Verification Results
+
+| Test | Result |
+|------|--------|
+| 2 items, item 1 score 60, item 2 score 80 → item 2 is lead | ✓ |
+| 2 items, item 1 score 80, item 2 score 80 → item 1 is lead (tie, first wins) | ✓ |
+| `closing.focus_news_id` equals lead item id | ✓ |
+| Only 1 lead exists | ✓ |
+| `validateEpisodePlan()` returns errors if role rules violated | ✓ |
+| No real LLM / TTS / MP4 / job creation | ✓ |
+| No API key / voice_id exposure | ✓ |
