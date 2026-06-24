@@ -1382,3 +1382,51 @@ WEAK_KEYWORDS（低精度）：需至少 2 个才能入选
 **修改文件（CP15.2.5）**：
 - `src/server.py`（`mode=hot_ai` 支持，`ALLOWED_ARTIFACTS` 新增 hot_ai_candidates/latest_news）
 - README.md / PROJECT_SPEC.md / BACKLOG.md（CP15.2.5 更新）
+
+### Real TTS Provider — minimax_dialogue（CP15.3）
+
+**TTS Provider 实现**：
+- `src/tts/minimax_tts_provider.py`：MiniMax TTS HTTP provider
+  - 支持 `base_url` / `endpoint_path` / `api_key` / `voice_id` 配置
+  - `synthesize(text, output_path, voice=)` 方法
+  - 返回 `{"text", "audio_path", "duration", "provider", "voice"}`
+- `config/tts.yaml`：`minimax_dialogue` dialogue profile
+  - `host.profile: minimax_speech`
+  - `expert.profile: minimax_speech`
+  - `host.voice_env: MINIMAX_TTS_HOST_VOICE_ID`
+  - `expert.voice_env: MINIMAX_TTS_EXPERT_VOICE_ID`
+
+**所需环境变量（CP15.3 阻塞）**：
+| 变量 | 说明 |
+|------|------|
+| `MINIMAX_API_KEY` | MiniMax API key |
+| `MINIMAX_TTS_BASE_URL` | TTS API base URL |
+| `MINIMAX_TTS_ENDPOINT_PATH` | TTS endpoint path |
+| `MINIMAX_TTS_VOICE_ID` | Fallback voice ID |
+| `MINIMAX_TTS_HOST_VOICE_ID` | Host voice for dialogue |
+| `MINIMAX_TTS_EXPERT_VOICE_ID` | Expert voice for dialogue |
+
+**dialogue_manifest.json schema（CP15.3）**：
+```json
+{
+  "dialogue_profile": "minimax_dialogue",
+  "total_duration": 72.5,
+  "turns": [
+    {
+      "turn_id": "d1",
+      "speaker": "host",
+      "text": "今天我们来聊一个正在浮现的话题...",
+      "audio_path": "outputs/jobs/{job_id}/audio/host_d1.wav",
+      "start": 0.0,
+      "duration": 8.5,
+      "end": 8.5
+    }
+  ]
+}
+```
+
+**Secret 不泄露规则（CP15.3）**：
+- `meta.json` 记录 `llm_provider` / `tts_provider`，不记录 voice_id
+- `dialogue_manifest.json` 记录 speaker / timing / audio_path，不记录 voice_id
+- `/api/providers` 只显示 missing_env 名称列表，不显示值
+- `/api/jobs/{id}/debug` 不返回 voice_id

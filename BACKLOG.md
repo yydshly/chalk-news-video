@@ -395,6 +395,24 @@
 
 ## Checkpoint 15.3 — 真实 MiniMax TTS E2E
 
+- [x] minimax_dialogue provider 已实现（src/tts/minimax_tts_provider.py）
+- [x] minimax_dialogue profile 已配置（config/tts.yaml）
+- [x] src/tts/client.py 支持 dialogue_profiles 解析
+- [x] src/narration.py 支持 --dialogue-profile minimax_dialogue
+- [ ] minimax_dialogue 所需 env vars 未配置（CP15.3 阻塞）
+  - MINIMAX_TTS_BASE_URL
+  - MINIMAX_TTS_ENDPOINT_PATH
+  - MINIMAX_TTS_VOICE_ID
+  - MINIMAX_TTS_HOST_VOICE_ID
+  - MINIMAX_TTS_EXPERT_VOICE_ID
+- [ ] mode=hot_ai + real LLM + minimax_dialogue E2E（待 env 配置后）
+- [ ] audio 文件生成验收
+- [ ] dialogue_manifest timing 验收
+- [ ] animation.html 含真实 TTS 音频验收
+- [ ] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
+- [ ] 口播时长控制 / beats 数量控制（CP15.4）
+- [ ] 选题可讲性评分（CP15.5）
+
 ## Checkpoint 14.2 — Job 删除 / 清理
 
 - DELETE `/api/jobs/{job_id}` 删除 job 输出目录

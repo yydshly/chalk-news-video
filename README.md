@@ -639,6 +639,25 @@ python -m src.server --host 127.0.0.1 --port 8777
 - 候选列表中无明显非 AI 新闻（如 "Trains halted across Germany"）
 - `mode=hot_ai` + minimax_m3_openai + mock_dialogue → job succeeded
 
+**Checkpoint 15.3 — 真实 MiniMax TTS E2E（进行中）**：
+
+- `src/tts/minimax_tts_provider.py`：MiniMax TTS provider 实现
+- `config/tts.yaml`：`minimax_dialogue` dialogue profile（host/expert voice 分离）
+- `src/tts/client.py`：支持 dialogue_profiles 解析
+- `src/narration.py`：支持 `--dialogue-profile minimax_dialogue`
+- env vars 缺失：MINIMAX_TTS_BASE_URL / ENDPOINT_PATH / VOICE_ID / HOST_VOICE_ID / EXPERT_VOICE_ID
+- `.env.example` 已更新（CP15.3）
+
+**CP15.3 验收（待 env 配置）**：
+
+- `/api/providers` 中 `minimax_dialogue.ready=true`
+- `mode=hot_ai` + minimax_m3_openai + minimax_dialogue → job succeeded
+- audio 文件在 `outputs/jobs/{job_id}/audio/` 生成
+- dialogue_manifest.json 含 timing（turn_id/speaker/start/duration/end）
+- render_ir.dialogue.enabled == true
+- animation.html 含真实双人音频
+- API key / voice_id 不泄露
+
 ## 项目定位
 
 V0.11: News → LLM → semantic_ir → dual-host dialogue → video（含双角色音频）。
