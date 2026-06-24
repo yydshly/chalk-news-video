@@ -254,7 +254,7 @@
 
     if (hotNewsItems.length === 0) {
       hotNewsError.style.display = "block";
-      hotNewsError.textContent = "暂无合适新闻";
+      hotNewsError.textContent = "暂无合适新闻，请点击刷新重试";
       return;
     }
 
@@ -286,6 +286,9 @@
 
       hotNewsList.appendChild(div);
     });
+
+    // Update generate button text based on selection state
+    updateGenModeUI();
   }
 
   function selectHotNewsItem(index) {
@@ -313,6 +316,7 @@
       if (radio.value === "hot_ai") {
         loadHotNews();
       }
+      updateGenModeUI();
     });
   });
 
@@ -334,23 +338,37 @@
   function updateGenModeUI() {
     const genMode = document.querySelector('input[name="gen_mode"]:checked').value;
     const hasSelectedNews = selectedNews && selectedNews.title;
+    const currentMode = document.querySelector('input[name="mode"]:checked').value;
+    const isHotAiMode = currentMode === "hot_ai";
 
     // Update hint text
     if (genMode === "fast") {
       genModeHint.textContent = "最快，只生成动画预览，不调用真实 TTS，不导出 MP4。";
       checkExport.checked = false;
-      labelCheckExport.classList.remove("checkbox-export-hidden");
-      btnGenerate.textContent = hasSelectedNews ? "生成所选新闻快速预览" : "生成快速预览";
+      labelCheckExport.classList.add("checkbox-export-hidden");
+      if (isHotAiMode) {
+        btnGenerate.textContent = hasSelectedNews ? "生成所选新闻快速预览" : "请先选择一条新闻";
+      } else {
+        btnGenerate.textContent = hasSelectedNews ? "生成所选新闻快速预览" : "生成快速预览";
+      }
     } else if (genMode === "voice") {
       genModeHint.textContent = "生成真实双人语音，但不导出 MP4。";
       checkExport.checked = false;
-      labelCheckExport.classList.remove("checkbox-export-hidden");
-      btnGenerate.textContent = hasSelectedNews ? "生成所选新闻语音预览" : "生成语音预览";
+      labelCheckExport.classList.add("checkbox-export-hidden");
+      if (isHotAiMode) {
+        btnGenerate.textContent = hasSelectedNews ? "生成所选新闻语音预览" : "请先选择一条新闻";
+      } else {
+        btnGenerate.textContent = hasSelectedNews ? "生成所选新闻语音预览" : "生成语音预览";
+      }
     } else {
       genModeHint.textContent = "生成完整 MP4，耗时较长，请耐心等待。";
       checkExport.checked = true;
-      labelCheckExport.classList.remove("checkbox-export-hidden");
-      btnGenerate.textContent = hasSelectedNews ? "导出所选新闻 MP4 成片" : "导出 MP4 成片";
+      labelCheckExport.classList.add("checkbox-export-hidden");
+      if (isHotAiMode) {
+        btnGenerate.textContent = hasSelectedNews ? "导出所选新闻 MP4 成片" : "请先选择一条新闻";
+      } else {
+        btnGenerate.textContent = hasSelectedNews ? "导出所选新闻 MP4 成片" : "导出 MP4 成片";
+      }
     }
   }
 
@@ -382,6 +400,12 @@
 
     if (mode === "text" && !newsText) {
       setStatus("请输入新闻正文", "error");
+      return;
+    }
+
+    // CP19.1: Block generation in hot_ai mode without news selection
+    if (mode === "hot_ai" && !selectedNews) {
+      setStatus("请先选择一条新闻，或点击刷新重新加载候选", "error");
       return;
     }
 

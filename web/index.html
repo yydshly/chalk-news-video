@@ -22,7 +22,7 @@
       <fieldset>
         <legend>新闻来源</legend>
         <label class="radio-label">
-          <input type="radio" name="mode" value="sample" checked>
+          <input type="radio" name="mode" value="sample">
           使用示例新闻
         </label>
         <label class="radio-label">
@@ -30,7 +30,7 @@
           粘贴新闻文本
         </label>
         <label class="radio-label">
-          <input type="radio" name="mode" value="hot_ai">
+          <input type="radio" name="mode" value="hot_ai" checked>
           热门 AI 新闻
         </label>
       </fieldset>
@@ -42,6 +42,29 @@
 
         <label for="input-news">新闻正文</label>
         <textarea id="input-news" rows="8" placeholder="在此粘贴新闻文本..."></textarea>
+      </div>
+
+      <!-- CP19: Hot AI News Candidate Board -->
+      <div id="hot-news-section" class="hot-news-section">
+        <div class="hot-news-header">
+          <span class="hot-news-title">🔥 今日热门 AI 新闻</span>
+          <button id="btn-refresh-hot-news" class="btn-small" type="button">刷新</button>
+        </div>
+        <div id="hot-news-loading" class="hot-news-loading">正在加载今日热门 AI 新闻...</div>
+        <div id="hot-news-error" class="hot-news-error" style="display:none"></div>
+        <div id="hot-news-list" class="hot-news-list"></div>
+        <div id="hot-news-selected" class="hot-news-selected" style="display:none">
+          已选择：<span id="selected-news-title"></span>
+        </div>
+      </div>
+      <div id="recommended-hint" class="recommended-hint">
+        <div class="hint-title">💡 推荐体验配置</div>
+        <div class="hint-text" id="recommended-config-text">
+          热门 AI 新闻 + research_desk + minimax_m3_openai + mock_dialogue + 不导出 MP4
+        </div>
+        <div class="hint-text" id="tts-upgrade-hint" style="display:none">
+          可切换到 MiniMax Dialogue 生成真实语音
+        </div>
       </div>
 
       <!-- Theme -->
@@ -78,7 +101,7 @@
         <input type="checkbox" id="check-dialogue" checked>
         启用对话模式（双人）
       </label>
-      <label class="checkbox-label" id="label-check-export">
+      <label class="checkbox-label checkbox-export-hidden" id="label-check-export">
         <input type="checkbox" id="check-export">
         导出 MP4 视频
       </label>
@@ -111,29 +134,6 @@
       <!-- Generate Button -->
       <button id="btn-generate" class="btn-primary">生成快速预览</button>
       <p id="status-msg" class="status-msg"></p>
-
-      <!-- CP19: Hot AI News Candidate Board -->
-      <div id="hot-news-section" class="hot-news-section">
-        <div class="hot-news-header">
-          <span class="hot-news-title">🔥 今日热门 AI 新闻</span>
-          <button id="btn-refresh-hot-news" class="btn-small" type="button">刷新</button>
-        </div>
-        <div id="hot-news-loading" class="hot-news-loading">加载中...</div>
-        <div id="hot-news-error" class="hot-news-error" style="display:none"></div>
-        <div id="hot-news-list" class="hot-news-list"></div>
-        <div id="hot-news-selected" class="hot-news-selected" style="display:none">
-          已选择：<span id="selected-news-title"></span>
-        </div>
-      </div>
-      <div id="recommended-hint" class="recommended-hint">
-        <div class="hint-title">💡 推荐体验配置</div>
-        <div class="hint-text" id="recommended-config-text">
-          热门 AI 新闻 + research_desk + minimax_m3_openai + mock_dialogue + 不导出 MP4
-        </div>
-        <div class="hint-text" id="tts-upgrade-hint" style="display:none">
-          可切换到 MiniMax Dialogue 生成真实语音
-        </div>
-      </div>
 
       <!-- Progress (CP13) -->
       <div id="progress-wrap" class="progress-wrap hidden">
