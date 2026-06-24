@@ -265,12 +265,15 @@
       }
 
       // CP20: Render theme showcase cards
+      // CP29.1: Sync showcase themes into selectTheme before rendering
+      syncThemeSelectWithShowcases();
       renderThemeShowcase();
 
       setStatus("就绪", "success");
     } catch (e) {
       setStatus("加载主题失败: " + e.message, "error");
-      // Still render showcase even if API fails
+      // CP29.1: Still sync showcase themes and render even if API fails
+      syncThemeSelectWithShowcases();
       renderThemeShowcase();
     }
 
@@ -1649,6 +1652,46 @@
     setStatus("Mock 预览已生成", "success");
   }
 
+  // CP29.1: Sync theme showcase themes into hidden selectTheme
+  // Ensures all 12 showcase theme IDs are available as options even if
+  // /api/themes (from config/themes.yaml) doesn't include them yet.
+  function syncThemeSelectWithShowcases() {
+    if (!selectTheme) return;
+    // Collect existing option values
+    var existingValues = {};
+    Array.from(selectTheme.querySelectorAll("option")).forEach(function (opt) {
+      existingValues[opt.value] = true;
+    });
+    // Append any showcase theme missing from selectTheme
+    Object.values(THEME_SHOWCASES).forEach(function (theme) {
+      if (!existingValues[theme.id]) {
+        var opt = document.createElement("option");
+        opt.value = theme.id;
+        opt.textContent = theme.name;
+        selectTheme.appendChild(opt);
+        existingValues[theme.id] = true; // prevent duplicates within this run
+      }
+    });
+  }
+
+  // CP29.1: Ensure a theme option exists in selectTheme, then set value.
+  // Returns true if selectTheme.value equals the theme.id after operation.
+  function ensureThemeOption(theme) {
+    if (!selectTheme || !theme) return false;
+    // Check if option already exists
+    var existingOpt = selectTheme.querySelector('option[value="' + theme.id + '"]');
+    if (!existingOpt) {
+      var opt = document.createElement("option");
+      opt.value = theme.id;
+      opt.textContent = theme.name;
+      selectTheme.appendChild(opt);
+    }
+    selectTheme.value = theme.id;
+    // Dispatch change so listeners (renderThemeShowcase, updateGenerationPlan) react
+    selectTheme.dispatchEvent(new Event("change"));
+    return selectTheme.value === theme.id;
+  }
+
   // ---------- theme showcase (CP20) ----------
   function renderThemeShowcase() {
     if (!themeShowcaseList) return;
@@ -1679,8 +1722,12 @@
       // Theme selection click (on card background)
       div.addEventListener("click", function (ev) {
         if (ev.target.classList.contains("theme-showcase-sample-btn")) return;
-        selectTheme.value = theme.id;
-        selectTheme.dispatchEvent(new Event("change"));
+        // CP29.1: Use ensureThemeOption to guarantee the option exists
+        var ok = ensureThemeOption(theme);
+        if (!ok) {
+          setStatus("主题选择失败: " + theme.id, "error");
+          return;
+        }
         renderThemeShowcase();
         updateRecommendedHint();
       });

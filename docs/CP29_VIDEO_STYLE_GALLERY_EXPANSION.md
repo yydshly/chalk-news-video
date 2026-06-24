@@ -139,3 +139,108 @@ Updated in `buildEpisodeRenderIrFromContracts()`:
 - No MP4 export
 - No job creation
 - No external CDN or remote images
+
+---
+
+## CP29.1: Video Style Selection Sync Fix
+
+**Branch:** `fix/cp29.1-video-style-selection-sync`
+**Commit:** `fix(cp29.1): sync video style selection with theme value`
+**Date:** 2026-06-24
+
+### Problem
+
+CP29 expanded `THEME_SHOWCASES` to 12 themes on the frontend, but the hidden `selectTheme` dropdown is populated from `/api/themes` which reads `config/themes.yaml`. That YAML only contains 3 legacy themes plus `research_desk_v2` and `news_card_v1` — missing the 9 newly added video style IDs.
+
+This caused:
+1. The gallery displayed 12 theme cards correctly.
+2. Clicking a new theme card failed to set `selectTheme.value` stably (the option didn't exist in the `<select>`).
+3. `episode_plan.theme`, `episode_script.theme`, `episode_audio_manifest`, and `episode_render_ir.theme` could not carry the new theme IDs.
+4. Layout mapping in `buildEpisodeRenderIrFromContracts()` fell back to `news_card_stack` for all new themes.
+
+### Solution
+
+Two new functions in `web/app.js`:
+
+#### `syncThemeSelectWithShowcases()`
+
+Called after `/api/themes` loads (success or fallback). Iterates `Object.values(THEME_SHOWCASES)` and appends any missing `option` elements to `selectTheme`. Never removes existing backend options.
+
+```javascript
+function syncThemeSelectWithShowcases() {
+  var existingValues = {};
+  Array.from(selectTheme.querySelectorAll("option")).forEach(function (opt) {
+    existingValues[opt.value] = true;
+  });
+  Object.values(THEME_SHOWCASES).forEach(function (theme) {
+    if (!existingValues[theme.id]) {
+      var opt = document.createElement("option");
+      opt.value = theme.id;
+      opt.textContent = theme.name;
+      selectTheme.appendChild(opt);
+      existingValues[theme.id] = true;
+    }
+  });
+}
+```
+
+#### `ensureThemeOption(theme)`
+
+Called on every theme card click. Creates the option if missing, sets `selectTheme.value`, dispatches `change` event, and returns whether the value took effect. Reports `"主题选择失败"` via `setStatus()` if the value fails to stick.
+
+```javascript
+function ensureThemeOption(theme) {
+  var existingOpt = selectTheme.querySelector('option[value="' + theme.id + '"]');
+  if (!existingOpt) {
+    var opt = document.createElement("option");
+    opt.value = theme.id;
+    opt.textContent = theme.name;
+    selectTheme.appendChild(opt);
+  }
+  selectTheme.value = theme.id;
+  selectTheme.dispatchEvent(new Event("change"));
+  return selectTheme.value === theme.id;
+}
+```
+
+### Call Sites
+
+| Location | Function Called |
+|----------|----------------|
+| `init()` — `/api/themes` success branch | `syncThemeSelectWithShowcases()` |
+| `init()` — `/api/themes` error/fallback branch | `syncThemeSelectWithShowcases()` |
+| Theme card `click` handler | `ensureThemeOption(theme)` |
+
+### 12 Theme IDs Now Guaranteed in `selectTheme`
+
+`news_card_v1`, `research_desk_v2`, `causal_map_v1`, `timeline_brief_v1`, `data_dashboard_v1`, `breaking_news_v1`, `product_launch_v1`, `paper_digest_v1`, `podcast_cards_v1`, `dev_terminal_v1`, `magazine_cover_v1`, `opinion_column_v1`
+
+### Verified Contracts That Now Carry Correct Theme
+
+- `buildEpisodePlan()` → `episode_plan.theme`
+- `buildEpisodeScriptFromPlan()` → `episode_script.theme`
+- `buildEpisodeAudioManifestFromScript()` → audio manifest passthrough
+- `buildEpisodeRenderIrFromContracts()` → `episode_render_ir.theme` + correct `visual.layout` mapping
+- `updateGenerationPlan()` → gen plan panel shows correct Chinese theme name
+
+### Lightweight Verification Results
+
+| Test | Result |
+|------|--------|
+| `selectTheme` contains all 12 theme IDs after init | ✓ |
+| Click `timeline_brief_v1` → `selectTheme.value === "timeline_brief_v1"` | ✓ |
+| Click `data_dashboard_v1` → `selectTheme.value === "data_dashboard_v1"` | ✓ |
+| Click `dev_terminal_v1` → `selectTheme.value === "dev_terminal_v1"` | ✓ |
+| Gen plan panel shows Chinese name for new themes | ✓ |
+| `episode_plan.theme` carries new theme ID | ✓ |
+| `episode_render_ir` uses correct layout mapping | ✓ |
+| No `/api/jobs` called | ✓ |
+| No real LLM / TTS / MP4 / audio | ✓ |
+| No API key / voice_id leakage | ✓ |
+
+### Forbidden (Same as CP29)
+
+- No real LLM / TTS / audio generation
+- No MP4 export
+- No job creation
+- No external CDN or remote images
