@@ -409,9 +409,11 @@ def render_cartoon_anchor_layer(anchor_cue: dict, delay_sec: float = 1.0) -> str
     expression_class = get_anchor_expression_class(anchor_cue.get("expression", "neutral"))
     svg = render_cartoon_anchor_svg(anchor_cue)
     delay = float(delay_sec) if delay_sec is not None else 1.0
+    appear_str = str(delay)
 
     return (
-        f'<div class="stage-anchor-enter" style="animation-delay:{delay}s">'
+        f'<div class="stage-anchor-enter stage-layer" '
+        f'data-appear-at="{appear_str}" style="animation-delay:{delay}s">'
         f'<div class="stage-anchor-layer {action_class} {expression_class}">'
         f'{svg}</div></div>'
     )
@@ -466,18 +468,20 @@ def render_shared_timeline_markers_html(timeline: dict | None) -> str:
 # Main breaking_news_v1 stage renderer
 # ---------------------------------------------------------------------------
 
-def _build_lead_card_html(lead_card: dict | None) -> str:
-    """Build the main-lead-card HTML block."""
+def _build_lead_card_html(lead_card: dict | None, appear_at: float = 2.5) -> str:
+    """Build the main-lead-card HTML block with seek-layer markers."""
     if not lead_card:
         return ""
     headline = escape_html(lead_card.get("headline") or "")
     time_range = escape_html(lead_card.get("time_range") or "")
     duration = escape_html(str(lead_card.get("duration_hint_sec") or ""))
     layout = escape_html(lead_card.get("layout") or "")
+    appear_str = str(appear_at)
 
     return (
         '<div class="mock-news-card mock-news-card-lead" data-section-type="news_segment" style="display:none"></div>'
-        '<div class="stage-main-card mock-news-card mock-news-card-lead" data-section-type="news_segment">'
+        '<div class="stage-main-card mock-news-card mock-news-card-lead stage-layer" '
+        f'data-appear-at="{appear_str}" data-section-type="news_segment">'
         '<div class="stage-lead-badge">★ 主线</div>'
         f'<div class="stage-lead-headline">{headline}</div>'
         '<div class="stage-lead-meta">'
@@ -489,28 +493,43 @@ def _build_lead_card_html(lead_card: dict | None) -> str:
     )
 
 
-def _build_supporting_cards_html(support_cards: list[dict]) -> str:
-    """Build the supporting cards stacked on the right side."""
+def _build_supporting_cards_html(
+    support_cards: list[dict],
+    delays: dict | None = None,
+) -> str:
+    """Build the supporting cards stacked on the right side with seek-layer markers."""
     if not support_cards:
         return ""
+    d = delays or {}
+    container_appear = str(d.get("supporting", 5.0))
     parts = []
-    for card in support_cards[:3]:
+    for i, card in enumerate(support_cards[:3]):
+        appear_key = f"support{i + 1}"
+        appear_str = str(d.get(appear_key, d.get("supporting", 5.0) + i * 0.35))
         headline = escape_html(card.get("headline") or "")
         time_range = escape_html(card.get("time_range") or "")
         parts.append(
-            '<div class="stage-support-card mock-news-card" data-section-type="news_segment">'
+            '<div class="stage-support-card mock-news-card stage-layer" '
+            f'data-appear-at="{appear_str}" data-section-type="news_segment">'
             f'<div class="stage-support-headline">{headline}</div>'
             f'<div class="stage-support-meta">{time_range}</div>'
             '</div>'
         )
-    return '<div class="stage-supporting">' + "".join(parts) + '</div>'
-
-
-def _build_closing_html(closing: dict | None) -> str:
-    """Build the closing chip HTML."""
-    title = escape_html((closing or {}).get("title") or "")
     return (
-        '<div class="stage-closing-chip">'
+        '<div class="stage-supporting stage-layer" data-appear-at="'
+        + container_appear + '">'
+        + "".join(parts)
+        + '</div>'
+    )
+
+
+def _build_closing_html(closing: dict | None, appear_at: float = 9.5) -> str:
+    """Build the closing chip HTML with seek-layer markers."""
+    title = escape_html((closing or {}).get("title") or "")
+    appear_str = str(appear_at)
+    return (
+        '<div class="stage-closing-chip stage-layer" '
+        f'data-appear-at="{appear_str}">'
         '<div class="stage-closing-dot"></div>'
         f'<span>📍 结尾 — {title}</span>'
         '</div>'
@@ -557,45 +576,7 @@ def render_breaking_news_stage_episode_html(contract: dict) -> str:
     delays = timing["delays"]
     total_dur = timing["totalDurationSec"]
 
-    # Build sub-components
-    lead_html = _build_lead_card_html(lead_card)
-    support_html = _build_supporting_cards_html(support_cards)
-
-    opening = sections.get("opening") or {}
-    subtitle_text = escape_html(
-        opening.get("title") or (lead_card.get("headline") if lead_card else "")
-    )
-    subtitle_bar_html = (
-        '<div class="stage-subtitle-bar">'
-        f'<div class="stage-subtitle-text">{subtitle_text}</div>'
-        '</div>'
-    )
-
-    closing = sections.get("closing") or {}
-    closing_html = _build_closing_html(closing)
-    timeline_html = (
-        '<div class="stage-timeline">'
-        '<div class="tl-rail"><div class="tl-track">'
-        + render_shared_timeline_markers_html(timeline)
-        + '</div></div></div>'
-    )
-
-    recap_html = '<div class="stage-recap">RECAP</div>'
-    opening_label_html = '<div class="stage-opening-label">📍 开场</div>'
-
-    # Anchor
-    anchor_cue = infer_episode_anchor_cue(contract)
-    anchor_layer_html = render_cartoon_anchor_layer(anchor_cue, delays.get("anchor", 1.0))
-
-    # Shot timeline string for stage-shot-meta
-    shot_timeline = timing["shotTimeline"]
-    meta_parts = ";".join(
-        f'{s["shot_id"]}|{s["start_sec"]}|{s["duration_sec"]}'
-        for s in shot_timeline
-    )
-
-    # ---- CSS ----
-    # Pre-compute delay values to avoid f-string brace-escaping issues
+    # Pre-compute delay values (also needed by helpers)
     d = {
         k: float(delays.get(k, v))
         for k, v in {
@@ -614,6 +595,51 @@ def render_breaking_news_stage_episode_html(contract: dict) -> str:
         }.items()
     }
 
+    # Build sub-components
+    lead_html = _build_lead_card_html(lead_card, d["mainCard"])
+    support_html = _build_supporting_cards_html(support_cards, d)
+
+    opening = sections.get("opening") or {}
+    subtitle_text = escape_html(
+        opening.get("title") or (lead_card.get("headline") if lead_card else "")
+    )
+    subtitle_bar_html = (
+        '<div class="stage-subtitle-bar stage-layer" '
+        f'data-appear-at="{d["subtitle"]}">'
+        f'<div class="stage-subtitle-text">{subtitle_text}</div>'
+        '</div>'
+    )
+
+    closing = sections.get("closing") or {}
+    closing_html = _build_closing_html(closing, d["closing"])
+    timeline_html = (
+        '<div class="stage-timeline stage-layer" data-appear-at="0">'
+        '<div class="tl-rail"><div class="tl-track">'
+        + render_shared_timeline_markers_html(timeline)
+        + '</div></div></div>'
+    )
+
+    recap_html = (
+        '<div class="stage-recap stage-layer" data-appear-at="' + str(d["recap"]) + '">RECAP</div>'
+    )
+    opening_label_html = (
+        '<div class="stage-opening-label stage-layer" data-appear-at="'
+        + str(d["openingLabel"]) + '">📍 开场</div>'
+    )
+
+    # Anchor — pass appear_at so the outer div can be marked as stage-layer
+    anchor_appear = delays.get("anchor", 1.0)
+    anchor_cue = infer_episode_anchor_cue(contract)
+    anchor_layer_html = render_cartoon_anchor_layer(anchor_cue, anchor_appear)
+
+    # Shot timeline string for stage-shot-meta
+    shot_timeline = timing["shotTimeline"]
+    meta_parts = ";".join(
+        f'{s["shot_id"]}|{s["start_sec"]}|{s["duration_sec"]}'
+        for s in shot_timeline
+    )
+
+    # ---- CSS ----
     css_parts = [
         # Shell
         '.video-stage-shell{width:100%;min-height:100vh;display:flex;align-items:center;'
@@ -754,19 +780,35 @@ def render_breaking_news_stage_episode_html(contract: dict) -> str:
         'background:rgba(0,0,0,.55);border-radius:20px;padding:2px 10px;font-size:8px;color:#fca5a5;'
         'white-space:nowrap;letter-spacing:0.5px;opacity:0;'
         'animation:shotFadeIn 0.4s ' + str(d["shotLabel"]) + 's ease-out both;}',
+        # ---- Seek-mode overrides ----
+        # When data-export-seek="1", pause CSS animations and use JS-driven visibility.
+        # This gives Playwright deterministic frame capture.
+        'html[data-export-seek="1"] .stage-layer{opacity:0!important;visibility:hidden!important;'
+        'animation-play-state:paused!important;}',
+        'html[data-export-seek="1"] .stage-layer.is-visible{opacity:1!important;visibility:visible!important;}',
+        # Pause progress bar CSS animation during seek mode
+        'html[data-export-seek="1"] .stage-progress-fill{animation:none!important;}',
     ]
     stage_css = "<style>\n" + "\n".join(css_parts) + "\n</style>\n"
 
     # ---- Timing shim (inline JS) ----
     # This shim is required for export_video.py compatibility.
     # It is a controlled, self-contained script with no external dependencies.
+    # __prepareSeekMode__() puts the DOM into deterministic seek mode (no CSS animation delays).
+    # __setTime__(t) controls which stage layers are visible based on data-appear-at.
     timing_shim = (
         '<script>\n'
         'window.__ANIMATION_READY__ = true;\n'
         f'window.__getTotalDuration__ = function () {{ return {total_dur}; }};\n'
-        'window.__setTime__ = function (t) {\n'
+        'window.__prepareSeekMode__ = function () {\n'
         '  var root = document.documentElement;\n'
-        '  if (root.setAttribute) root.setAttribute("data-shot-time", String(t || 0));\n'
+        '  if (root.setAttribute) root.setAttribute("data-export-seek", "1");\n'
+        '};\n'
+        'window.__setTime__ = function (t) {\n'
+        '  window.__prepareSeekMode__();\n'
+        '  t = Number(t || 0);\n'
+        '  var root = document.documentElement;\n'
+        '  if (root.setAttribute) root.setAttribute("data-shot-time", String(t));\n'
         '  document.querySelectorAll("[data-appear-at]").forEach(function(el) {\n'
         '    var appear = Number(el.getAttribute("data-appear-at") || "0");\n'
         '    if (t >= appear) el.classList.add("is-visible");\n'
@@ -798,18 +840,19 @@ def render_breaking_news_stage_episode_html(contract: dict) -> str:
         '<div class="video-stage stage-9x16">\n'
         '<div class="stage-bg"></div>\n'
         # Topbar
-        '<div class="stage-topbar">'
+        '<div class="stage-topbar stage-layer" data-appear-at="' + str(d["topbar"]) + '">'
         '<span class="stage-breaking-badge">🔴 BREAKING NEWS</span>'
         f'<span class="stage-meta">{news_count} 条 · {total_time_str}</span>'
         '</div>\n'
         # Shot label
-        '<div class="stage-shot-label">SHOT FLOW · 开场 → 主持人 → 主新闻 → 快讯 → 结尾</div>\n'
+        '<div class="stage-shot-label stage-layer" data-appear-at="' + str(d["shotLabel"]) + '">'
+        'SHOT FLOW · 开场 → 主持人 → 主新闻 → 快讯 → 结尾</div>\n'
         # Recap
         f'{recap_html}\n'
         # Opening label
         f'{opening_label_html}\n'
         # Title area
-        '<div class="stage-title-area">'
+        '<div class="stage-title-area stage-layer" data-appear-at="' + str(d["title"]) + '">'
         f'<div class="stage-episode-title">{escape_html(episode.get("title") or "")}</div>'
         f'<div class="stage-episode-subtitle">{escape_html(episode.get("subtitle") or "")}</div>'
         '</div>\n'
@@ -825,8 +868,8 @@ def render_breaking_news_stage_episode_html(contract: dict) -> str:
         f'{closing_html}\n'
         # Timeline
         f'{timeline_html}\n'
-        # Progress bar
-        '<div class="stage-progress-wrap">'
+        # Progress bar (always visible, data-appear-at=0)
+        '<div class="stage-progress-wrap stage-layer" data-appear-at="0">'
         '<div class="stage-progress-track">'
         '<div class="stage-progress-fill" data-progress-fill="true"></div>'
         '</div>'

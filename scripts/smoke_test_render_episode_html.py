@@ -156,6 +156,8 @@ def main() -> None:
         ("window.__getTotalDuration__" in html, "window.__getTotalDuration__ shim"),
         ("window.__setTime__" in html, "window.__setTime__ shim"),
         ("window.__ANIMATION_READY__" in html, "window.__ANIMATION_READY__ set"),
+        ("window.__prepareSeekMode__" in html, "window.__prepareSeekMode__ shim"),
+        ("data-export-seek" in html, "data-export-seek attribute in seek CSS"),
         ("mock-news-card" in html, "mock-news-card present"),
         ('data-section-type="news_segment"' in html, "data-section-type=news_segment"),
         ("tl-rail" in html, "tl-rail timeline rail"),
@@ -178,7 +180,11 @@ def main() -> None:
         ("🔴 BREAKING NEWS" in html, "BREAKING NEWS badge"),
         ("今日 AI 前沿速览" in html, "episode title rendered"),
         ("data-appear-at" in html, "data-appear-at attributes added"),
-        ("is-visible" in html, "is-visible CSS class in styles"),
+        ("is-visible" in html, "is-visible CSS class present"),
+        # Seek-shim wiring checks
+        ("stage-layer" in html, "stage-layer CSS class used on elements"),
+        ("data-appear-at" in html, "data-appear-at on seekable elements"),
+        ("data-export-seek" in html, "data-export-seek seek-mode CSS present"),
     ]
     for condition, msg in checks:
         check(condition, msg)
