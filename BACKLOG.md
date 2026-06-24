@@ -367,7 +367,7 @@
 - [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
 - [x] real LLM + mock TTS E2E 完整成功
 
-## Checkpoint 15.2.5 — 热门 AI 新闻发现层 + hot_ai E2E（当前）
+## Checkpoint 15.2.5 — 热门 AI 新闻发现层 + hot_ai E2E
 
 - [x] `src/fetch_hot_ai_news.py`：从 HN Firebase API 获取 AI 相关热门新闻
 - [x] 关键词过滤：至少匹配一个 AI 相关关键词（OpenAI/LLM/Claude/Gemini 等）
@@ -379,7 +379,19 @@
 - [x] 不抓取全文（无 paywall bypass、无版权内容）
 - [x] mode=hot_ai + minimax_m3_openai + mock_dialogue E2E 验收通过
 - [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
-- [ ] 多源聚合与去重（CP15.2.6）
+
+## Checkpoint 15.2.6 — Hot AI News 关键词质量优化（当前）
+
+- [x] 边界感知关键词匹配：避免 "AI" 误匹配 Trains/rain/main 等
+- [x] STRONG/WEAK 关键词分层：strong keyword 可单独入选，weak keyword 需 ≥2 个
+- [x] 词边界正则：`(?<![A-Za-z0-9])AI(?![A-Za-z0-9])`
+- [x] 短语匹配：AI safety / machine learning 等多词短语
+- [x] 关键词加分策略：strong=+15 each (max 45)，weak=+5 each (max 15)
+- [x] rank_reason 增强：显示 strong_matched/weak_matched/kw_bonus
+- [x] 误匹配回归测试：`tests/test_fetch_hot_ai_news.py`
+- [x] 回归测试：Trains/rain/main/available 等不再因 AI 子串误入选
+- [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
+- [ ] 多源聚合与去重（CP15.2.7）
 
 ## Checkpoint 15.3 — 真实 MiniMax TTS E2E
 

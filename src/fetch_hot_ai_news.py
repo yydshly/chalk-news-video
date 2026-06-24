@@ -8,38 +8,148 @@ Checkpoint 15.2.5 responsibilities:
 - Output latest_news.json (top 1 selected news).
 - Do NOT fetch full article text (no paywall bypass, no copyright infringement).
 - Do NOT use login or authentication.
+
+CP15.2.6 improvements:
+- Boundary-aware keyword matching (avoids "AI" matching "train", "rain", "main")
+- Strong vs weak keyword tier system
+- Phrase boundary matching for multi-word keywords
 """
 
 import argparse
 import datetime
-import hashlib
 import json
 import re
 import sys
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 import requests
 
 from .utils import PROJECT_ROOT, save_json
 
 
-# Default AI-related keywords for filtering and scoring
-DEFAULT_KEYWORDS = [
-    "AI", "LLM", "OpenAI", "Anthropic", "Claude", "Gemini",
-    "agent", "agents", "inference", "model", "models",
-    "GPU", "Nvidia", "AI safety", "DeepMind", "Hugging Face",
-    "ChatGPT", "GPT-4", "GPT-5", "o1", "o3", "Claude 3",
-    "mistral", "Llama", "Gemma", "Stable Diffusion",
-    "Sora", "video generation", "reasoning", "chain-of-thought",
-    "RAG", "embedding", "vector database",
-    "artificial intelligence", "machine learning", "neural network",
-]
+# ---------- keyword definitions (CP15.2.6) ----------
+
+# Strong keywords: high-precision AI indicators
+# Must match as whole word or phrase (no substring false positives)
+STRONG_KEYWORDS = {
+    # Major AI companies/labs
+    "OpenAI", "Anthropic", "DeepMind", "Hugging Face", "Nvidia",
+    # Major AI models (exact match)
+    "Claude", "Gemini", "ChatGPT", "GPT-4", "GPT-5",
+    "o1", "o3", "Llama", "Mistral", "Gemma", "Sora",
+    # Technical terms (exact)
+    "LLM", "GPU", "RAG", "TTS", "SLM",
+    # Multi-word phrases (must match as phrase)
+    "AI safety", "artificial intelligence", "machine learning",
+    "neural network", "large language model", "vector database",
+    "video generation", "chain-of-thought", "reasoning engine",
+    "AI agent", "AI agents",
+}
+
+# Weak keywords: lower precision, require at least 2 matches or 1 strong
+WEAK_KEYWORDS = {
+    # Single-word technical terms
+    "AI", "model", "models", "agent", "agents",
+    "inference", "reasoning", "embedding", "embeddings",
+    "finetuning", "alignment", "benchmark",
+    # Lower-precision multi-word
+    "open source", "open-source",
+}
+
+# Keywords that need word-boundary matching (not phrase)
+# "AI" matches "AI" but NOT "trains", "rain", "main", etc.
+BOUNDARY_KEYWORDS = {"AI", "LLM", "GPU", "RAG", "TTS", "SLM", "AGI"}
 
 HN_API_BASE = "https://hacker-news.firebaseio.com/v0"
 HN_TOP_STORIES_URL = f"{HN_API_BASE}/topstories.json"
 HN_ITEM_URL = f"{HN_API_BASE}/item"
+
+
+# ---------- keyword matching (CP15.2.6) ----------
+
+
+def _match_word_boundary(title: str, keyword: str) -> bool:
+    """Match keyword as whole word using regex boundary.
+
+    Avoids "AI" matching "train", "rain", "main", etc.
+    """
+    # Escape special regex chars in keyword
+    escaped = re.escape(keyword)
+    pattern = r"(?<![A-Za-z0-9])" + escaped + r"(?![A-Za-z0-9])"
+    return bool(re.search(pattern, title, re.IGNORECASE))
+
+
+def _match_phrase(title: str, phrase: str) -> bool:
+    """Match multi-word phrase as contiguous substring (case-insensitive)."""
+    return phrase.lower() in title.lower()
+
+
+def _match_keyword(title: str, keyword: str) -> bool:
+    """Match a keyword using appropriate strategy based on keyword type."""
+    if keyword in BOUNDARY_KEYWORDS:
+        return _match_word_boundary(title, keyword)
+    elif " " in keyword:
+        return _match_phrase(title, keyword)
+    else:
+        # For other strong keywords like company names, use case-insensitive word boundary
+        return _match_word_boundary(title, keyword)
+
+
+def _classify_keyword_match(title: str, keyword: str) -> Optional[str]:
+    """Classify a keyword match as 'strong' or 'weak'.
+
+    Returns 'strong', 'weak', or None if no match.
+    """
+    if _match_keyword(title, keyword):
+        if keyword in STRONG_KEYWORDS:
+            return "strong"
+        elif keyword in WEAK_KEYWORDS:
+            return "weak"
+        # Default: treat as weak
+        return "weak"
+    return None
+
+
+def _match_keywords(title: str) -> tuple[list[str], list[str], int]:
+    """Match all keywords in title and return strong/weak matches plus bonus.
+
+    Returns (strong_matched, weak_matched, keyword_bonus).
+    Keyword bonus: strong=+15 each (max 45), weak=+5 each (max 15).
+    """
+    all_keywords = list(STRONG_KEYWORDS) + list(WEAK_KEYWORDS)
+    strong_matched = []
+    weak_matched = []
+
+    for kw in all_keywords:
+        classification = _classify_keyword_match(title, kw)
+        if classification == "strong":
+            strong_matched.append(kw)
+        elif classification == "weak":
+            weak_matched.append(kw)
+
+    # Keyword bonus
+    strong_bonus = min(len(strong_matched) * 15, 45)
+    weak_bonus = min(len(weak_matched) * 5, 15)
+    keyword_bonus = strong_bonus + weak_bonus
+
+    return strong_matched, weak_matched, keyword_bonus
+
+
+def _should_include(title: str) -> bool:
+    """Determine if a title should be included as AI-related.
+
+    Rules (CP15.2.6):
+    - At least 1 strong keyword match; OR
+    - At least 2 weak keyword matches (encourages specificity)
+    """
+    strong, weak, _ = _match_keywords(title)
+    if strong:
+        return True
+    if len(weak) >= 2:
+        return True
+    return False
 
 
 # ---------- scoring helpers ----------
@@ -61,36 +171,10 @@ def _compute_recency_bonus(epoch_timestamp: int) -> int:
     return 0
 
 
-def _compute_keyword_bonus(title: str, keywords: list[str]) -> tuple[int, list[str]]:
-    """Compute keyword bonus from title and return matched keywords.
-
-    Each major keyword match: +10, max +30.
-    """
-    title_lower = title.lower()
-    matched = []
-    major_keywords = {
-        "openai", "anthropic", "claude", "gemini", "nvidia",
-        "llm", "gpt-4", "gpt-5", "o1", "o3", "claude 3",
-        "mistral", "llama", "gemma", "stable diffusion",
-        "chatgpt", "sora",
-    }
-    for kw in keywords:
-        kw_lower = kw.lower()
-        if kw_lower in title_lower:
-            matched.append(kw)
-            # Only count major keywords for bonus
-            if kw_lower in major_keywords:
-                pass  # counted below
-
-    # Count major keyword matches for bonus (max 3 x 10 = 30)
-    major_matches = sum(1 for kw in matched if kw.lower() in major_keywords)
-    bonus = min(major_matches * 10, 30)
-    return bonus, matched
-
-
-def _score_item(item: dict, keywords: list[str]) -> float:
+def _score_item(item: dict) -> tuple[float, list[str], list[str], int]:
     """Compute hotness score for an HN item.
 
+    Returns (score, strong_matched, weak_matched, keyword_bonus).
     score = points * 1.0 + comments * 2.0 + recency_bonus + keyword_bonus
     """
     points = item.get("points", 0) or 0
@@ -105,25 +189,31 @@ def _score_item(item: dict, keywords: list[str]) -> float:
     # Keyword bonus
     title = item.get("title", "")
     if title:
-        _, matched = _compute_keyword_bonus(title, keywords)
-        major_kw = {"openai", "anthropic", "claude", "gemini", "nvidia", "llm",
-                    "gpt-4", "gpt-5", "o1", "o3", "claude 3", "mistral",
-                    "llama", "gemma", "stable diffusion", "chatgpt", "sora"}
-        major_matches = sum(1 for kw in matched if kw.lower() in major_kw)
-        score += min(major_matches * 10, 30)
+        strong, weak, keyword_bonus = _match_keywords(title)
+        score += keyword_bonus
+        return score, strong, weak, keyword_bonus
 
-    return score
+    return score, [], [], 0
 
 
-def _build_rank_reason(item: dict, matched_keywords: list[str], score: float) -> str:
+def _build_rank_reason(
+    item: dict,
+    strong_matched: list[str],
+    weak_matched: list[str],
+    keyword_bonus: int,
+    score: float,
+) -> str:
     """Build human-readable rank reason."""
     parts = []
     pts = item.get("points", 0) or 0
     cmts = item.get("descendants", 0) or 0
     parts.append(f"points={pts}")
     parts.append(f"comments={cmts}")
-    if matched_keywords:
-        parts.append(f"matched={','.join(matched_keywords[:5])}")
+    if strong_matched:
+        parts.append(f"strong={','.join(strong_matched[:5])}")
+    if weak_matched:
+        parts.append(f"weak={','.join(weak_matched[:5])}")
+    parts.append(f"kw_bonus={keyword_bonus}")
     return f"score={score:.0f} " + " ".join(parts)
 
 
@@ -183,7 +273,6 @@ def fetch_hot_ai_news(
     source: str = "hn",
     hours: int = 72,
     limit: int = 20,
-    keywords: Optional[list[str]] = None,
     output_path: Optional[Path] = None,
     candidates_output_path: Optional[Path] = None,
     dry_run: bool = False,
@@ -194,7 +283,6 @@ def fetch_hot_ai_news(
         source: News source identifier (only 'hn' supported for now).
         hours: Window for recency bonus (default 72h).
         limit: Number of candidates to return (default 20).
-        keywords: AI-related keyword list. Defaults to DEFAULT_KEYWORDS.
         output_path: Path for latest_news.json output.
         candidates_output_path: Path for hot_ai_candidates.json output.
         dry_run: If True, only return candidates without saving files.
@@ -205,9 +293,6 @@ def fetch_hot_ai_news(
     Raises:
         RuntimeError: When no candidates could be fetched or filtered.
     """
-    if keywords is None:
-        keywords = DEFAULT_KEYWORDS
-
     if source != "hn":
         raise ValueError(f"Unsupported source: {source}. Only 'hn' is supported.")
 
@@ -225,7 +310,7 @@ def fetch_hot_ai_news(
 
     print(f"[fetch_hot_ai_news] Fetched {len(items)} items, scoring and filtering...")
 
-    # Filter by keywords and score
+    # Filter by keywords and score (CP15.2.6: boundary-aware matching)
     now = int(time.time())
     cutoff = now - (hours * 3600)
     candidates = []
@@ -239,18 +324,16 @@ def fetch_hot_ai_news(
         if not title:
             continue
 
-        # Check if any keyword matches (must have at least 1 to be considered AI-related)
-        title_lower = title.lower()
-        matched_keywords = [kw for kw in keywords if kw.lower() in title_lower]
-
-        if not matched_keywords:
-            continue  # Skip non-AI stories
+        # CP15.2.6: Use boundary-aware filtering
+        if not _should_include(title):
+            continue  # Skip non-AI stories (no strong kw, < 2 weak kws)
 
         # Score the item
-        score = _score_item(item, keywords)
+        score, strong_matched, weak_matched, keyword_bonus = _score_item(item)
+        all_matched = strong_matched + weak_matched
 
         # Build rank reason
-        rank_reason = _build_rank_reason(item, matched_keywords, score)
+        rank_reason = _build_rank_reason(item, strong_matched, weak_matched, keyword_bonus, score)
 
         hn_url = item.get("url") or f"https://news.ycombinator.com/item?id={item.get('id')}"
         discussion_url = f"https://news.ycombinator.com/item?id={item.get('id')}"
@@ -266,7 +349,10 @@ def fetch_hot_ai_news(
             "points": item.get("score", 0) or 0,
             "comments": item.get("descendants", 0) or 0,
             "score": score,
-            "matched_keywords": matched_keywords,
+            "matched_keywords": all_matched,
+            "strong_matched": strong_matched,
+            "weak_matched": weak_matched,
+            "keyword_bonus": keyword_bonus,
             "rank_reason": rank_reason,
         }
         candidates.append(candidate)
@@ -288,7 +374,6 @@ def fetch_hot_ai_news(
         "source": source,
         "fetched_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
         "hours": hours,
-        "keywords": keywords,
         "count": len(top_candidates),
         "items": top_candidates,
     }
@@ -374,19 +459,7 @@ def main(argv=None):
         "--dry-run", action="store_true",
         help="Only fetch and score, don't save files.",
     )
-    parser.add_argument(
-        "--keyword", type=str, action="append", dest="keywords",
-        help="Additional keyword to filter/score. Can be repeated.",
-    )
-
     args = parser.parse_args(argv)
-
-    # Merge default + extra keywords
-    keywords = list(DEFAULT_KEYWORDS)
-    if args.keywords:
-        for kw in args.keywords:
-            if kw not in keywords:
-                keywords.append(kw)
 
     output_path = Path(args.output) if args.output else None
     candidates_output_path = Path(args.candidates_output) if args.candidates_output else None
@@ -396,7 +469,6 @@ def main(argv=None):
             source=args.source,
             hours=args.hours,
             limit=args.limit,
-            keywords=keywords,
             output_path=output_path,
             candidates_output_path=candidates_output_path,
             dry_run=args.dry_run,

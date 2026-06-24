@@ -620,6 +620,25 @@ python -m src.server --host 127.0.0.1 --port 8777
 - latest_news.title 是真实热门 AI 新闻标题（关键词过滤生效）
 - 不抓取付费墙全文、不绕过反爬、不提交版权新闻全文
 
+**Checkpoint 15.2.6 — Hot AI News 关键词质量优化（当前）**：
+
+- 边界感知关键词匹配：避免 "AI" 误匹配 Trains/rain/main 等非 AI 单词
+- STRONG/WEAK 关键词分层：
+  - STRONG（高精度）：OpenAI/Anthropic/Claude/Gemini/GPT/LLM/GPU 等，需 ≥1 个即可入选
+  - WEAK（低精度）：AI/model/agent 等，需 ≥2 个才能入选
+- 词边界正则：`(?<![A-Za-z0-9])AI(?![A-Za-z0-9])`
+- 短语匹配：AI safety / machine learning / neural network 等多词短语
+- 关键词加分：strong=+15 each (max 45)，weak=+5 each (max 15)
+- rank_reason 增强：显示 strong_matched/weak_matched/kw_bonus
+- 回归测试：`python tests/test_fetch_hot_ai_news.py`
+
+**CP15.2.6 验收**：
+
+- `python tests/test_fetch_hot_ai_news.py` → 9 passed, 0 failed
+- Trains/rain/main/available 等不再因 AI 子串误入选
+- 候选列表中无明显非 AI 新闻（如 "Trains halted across Germany"）
+- `mode=hot_ai` + minimax_m3_openai + mock_dialogue → job succeeded
+
 ## 项目定位
 
 V0.11: News → LLM → semantic_ir → dual-host dialogue → video（含双角色音频）。

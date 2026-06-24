@@ -1295,22 +1295,42 @@ pipeline.py generate_ir 失败时（CP15.2.2 / CP15.2.3）：
 - `schema/semantic_ir.schema.json`
 - `examples/sample.semantic.json`
 
-### News Discovery Layer — hot_ai 模式（CP15.2.5）
+### News Discovery Layer — hot_ai 模式（CP15.2.5 + CP15.2.6）
 
 **新增文件**：
 - `src/fetch_hot_ai_news.py`：从 Hacker News Firebase API 获取 AI 相关热门新闻
+- `tests/test_fetch_hot_ai_news.py`：关键词匹配回归测试（CP15.2.6）
+
+**关键词匹配策略（CP15.2.6）**：
+
+STRONG_KEYWORDS（高精度）：至少 1 个即可入选
+- 公司/品牌：OpenAI, Anthropic, DeepMind, Hugging Face, Nvidia
+- 模型：Claude, Gemini, ChatGPT, GPT-4, GPT-5, Llama, Mistral, Gemma, Sora, o1, o3
+- 技术术语：LLM, GPU, RAG, TTS, SLM
+- 短语：AI safety, artificial intelligence, machine learning, neural network, vector database, video generation, AI agent
+
+WEAK_KEYWORDS（低精度）：需至少 2 个才能入选
+- AI, model, models, agent, agents, inference, reasoning, embedding, finetuning, alignment
+
+**匹配规则（CP15.2.6）**：
+- 词边界正则：`(?<![A-Za-z0-9])AI(?![A-Za-z0-9])`（避免 "AI" 匹配 Trains/rain/main）
+- 短语匹配：多词短语（AI safety, machine learning）使用 contiguous substring
+- 入选条件：≥1 STRONG keyword OR ≥2 WEAK keywords
+
+**关键词加分（CP15.2.6）**：
+- STRONG keyword：+15 each（最高 +45）
+- WEAK keyword：+5 each（最高 +15）
 
 **hot_ai 抓取流程**：
 1. 从 `https://hacker-news.firebaseio.com/v0/topstories.json` 获取 HN top 500 story IDs
 2. 批量获取 story items（最多 100 条）
-3. 关键词过滤：title 必须匹配至少一个 AI 关键词（OpenAI/LLM/Claude/Gemini/agent/GPU 等）
+3. 边界感知关键词过滤：`_should_include()` 检查 STRONG/WEAK 分层
 4. 热度评分：`score = points * 1.0 + comments * 2.0 + recency_bonus + keyword_bonus`
    - recency_bonus：24h 内 +30，48h 内 +15，72h 内 +5
-   - keyword_bonus：major 关键词（OpenAI/Anthropic/Claude 等）匹配每个 +10，最高 +30
 5. 按评分降序，取 top 20 作为候选，top 1 作为选中新闻
 
 **输出文件**：
-- `hot_ai_candidates.json`：20 条候选新闻（含 score/matched_keywords/rank_reason）
+- `hot_ai_candidates.json`：候选新闻（含 strong_matched/weak_matched/kw_bonus）
 - `latest_news.json`：top 1 选中新闻（兼容 pipeline 格式）
 
 **内容限制**：
@@ -1320,28 +1340,30 @@ pipeline.py generate_ir 失败时（CP15.2.2 / CP15.2.3）：
 - 不保存版权内容全文
 - 不使用登录/认证
 
-**hot_ai_candidates.json schema（CP15.2.5）**：
+**hot_ai_candidates.json schema（CP15.2.6）**：
 ```json
 {
   "source": "hn",
-  "fetched_at": "2026-06-24T05:33:53+00:00",
+  "fetched_at": "2026-06-24T05:59:27+00:00",
   "hours": 72,
-  "keywords": ["AI", "LLM", "OpenAI", ...],
-  "count": 20,
+  "count": 6,
   "items": [
     {
-      "id": "hn_<objectID>",
-      "title": "...",
-      "url": "...",
-      "hn_url": "https://news.ycombinator.com/item?id=...",
+      "id": "hn_48639240",
+      "title": "VibeThinker: 3B param model that beats Opus 4.5...",
+      "url": "https://arxiv.org/abs/2606.16140",
+      "hn_url": "https://news.ycombinator.com/item?id=48639240",
       "source_id": "hacker_news",
       "source_name": "Hacker News",
-      "published_at": "2026-06-23T15:11:17+00:00",
-      "points": 272,
-      "comments": 356,
-      "score": 742.0,
-      "matched_keywords": ["AI", "OpenAI"],
-      "rank_reason": "score=742 points=272 comments=356 matched=AI"
+      "published_at": "2026-06-23T02:01:25+00:00",
+      "points": 381,
+      "comments": 198,
+      "score": 421.0,
+      "matched_keywords": ["reasoning", "model"],
+      "strong_matched": [],
+      "weak_matched": ["reasoning", "model"],
+      "keyword_bonus": 10,
+      "rank_reason": "score=421 points=0 comments=198 weak=reasoning,model kw_bonus=10"
     }
   ]
 }
