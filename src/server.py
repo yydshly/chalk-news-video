@@ -409,6 +409,7 @@ def api_hot_ai_news():
 WEB_DIR = PROJECT_ROOT / "web"
 OUTPUT_DIR = PROJECT_ROOT / "outputs" / "latest"
 JOBS_DIR = PROJECT_ROOT / "outputs" / "jobs"
+EPISODE_PREVIEWS_DIR = PROJECT_ROOT / "outputs" / "episode_previews"
 EXAMPLES_DIR = PROJECT_ROOT / "examples"
 
 # Whitelist of allowed artifact names
@@ -1012,6 +1013,76 @@ def serve_theme_sample(filename: str):
     if not sample_path.exists():
         raise HTTPException(status_code=404, detail="Sample not found")
     return FileResponse(str(sample_path))
+
+
+# ---------- episode preview static (CP31) ----------
+
+
+@app.get("/outputs/episode_previews/{filename}")
+def serve_episode_preview(filename: str):
+    """Serve a saved episode preview HTML. Whitelist only .html in episode_previews."""
+    if not filename.endswith(".html"):
+        raise HTTPException(status_code=404, detail="Not found")
+    # Block path traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=404, detail="Not found")
+    preview_path = EPISODE_PREVIEWS_DIR / filename
+    if not preview_path.exists():
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse(str(preview_path))
+
+
+# ---------- episode preview API (CP31) ----------
+
+
+class EpisodeMockHtmlRequest(BaseModel):
+    html: str
+    episode_title: str
+
+
+@app.post("/api/episode/mock-html")
+def api_save_episode_mock_html(body: EpisodeMockHtmlRequest):
+    """Save a mock episode HTML artifact. No job, no LLM, no TTS."""
+    html: str = body.html
+    episode_title: str = body.episode_title
+
+    # Security: must contain DOCTYPE or html tag
+    if "<!DOCTYPE html>" not in html and "<html" not in html:
+        return JSONResponse({"ok": False, "error": "Invalid HTML: missing DOCTYPE or <html>"}, status_code=400)
+
+    # Security: no API key / voice_id leakage
+    if re.search(r"api[_-]?key", html, re.IGNORECASE):
+        return JSONResponse({"ok": False, "error": "API key not allowed in HTML"}, status_code=400)
+    if re.search(r"voice[_-]?id", html, re.IGNORECASE):
+        return JSONResponse({"ok": False, "error": "voice_id not allowed in HTML"}, status_code=400)
+
+    # Security: no external http/https links (allow localhost for dev)
+    external_links = re.findall(r"https?://(?!localhost)[^\s\"']+", html)
+    if external_links:
+        return JSONResponse({"ok": False, "error": "External links not allowed: " + external_links[0]}, status_code=400)
+
+    # Ensure output directory exists
+    EPISODE_PREVIEWS_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Generate safe filename
+    safe_title = re.sub(r"[^a-zA-Z0-9_一-鿿-]", "_", episode_title or "episode")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    short_id = uuid.uuid4().hex[:8]
+    filename = f"episode_{timestamp}_{short_id}.html"
+    file_path = EPISODE_PREVIEWS_DIR / filename
+
+    # Write file
+    try:
+        file_path.write_text(html, encoding="utf-8")
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": "Failed to write file: " + str(e)}, status_code=500)
+
+    return JSONResponse({
+        "ok": True,
+        "path": f"/outputs/episode_previews/{filename}",
+        "file_path": str(file_path),
+        "created_at": datetime.now().isoformat(),
+    })
 
 
 # ---------- health ----------
