@@ -1527,21 +1527,40 @@ class GenerateRequest(BaseModel):
 | 纯模型无影响/冲突 | -10 | has_product_or_model and not (has_clear_conflict or has_impact_words or has_major_company) |
 | 弱关键词过多 | -10 | 无 strong kw，无 major_company/product/conflict，matched <= 2 |
 
-**排序策略**：
-- `final_score = hotness_score + story_score`
-- 按 `final_score` 降序选择 top 1
-- `story_score < 30` 时输出 warning 但不失败
+**排序策略（CP15.5.1）**：
+- `hotness_norm = min(100, hotness_score / 5)`
+- `final_score = hotness_norm * 0.45 + story_score * 0.55`
+- **High-Story Selection Pool**：如果有 story_score >= 60 的候选，只在该池中选择
+- 如果无 story_score >= 60 候选，使用全部候选并输出 warning
+- `story_score < 30` 时输出 warning（low_story_score）
 
-**输出字段（CP15.5）**：
+**示例对比**：
+| 候选 | hotness | story | hotness_norm | final_score |
+|------|---------|-------|--------------|-------------|
+| VibeThinker | 421 | 55 | 84.2 | 67.8 |
+| OpenAI DayBreak | 379 | 75 | 75.8 | 75.3 ← 排前 |
+
+**输出字段（CP15.5.1）**：
 
 `hot_ai_candidates.json` item 新增：
 ```json
 {
   "hotness_score": 421.0,
+  "hotness_norm": 84.2,
   "story_score": 65,
-  "final_score": 486.0,
+  "final_score": 67.8,
+  "ranking_formula": "hotness_norm*0.45 + story_score*0.55",
   "story_reasons": ["major_company:OpenAI", "conflict:cost", "impact:developers"],
   "story_flags": {...}
+}
+```
+
+`hot_ai_candidates.json` 根字段新增：
+```json
+{
+  "ranking_formula": "hotness_norm*0.45 + story_score*0.55",
+  "selection_pool": "story_score>=60" | "all_candidates",
+  "selection_warning": null | "low_story_score"
 }
 ```
 
@@ -1549,8 +1568,12 @@ class GenerateRequest(BaseModel):
 ```json
 {
   "hotness_score": 421.0,
+  "hotness_norm": 84.2,
   "story_score": 65,
-  "final_score": 486.0,
+  "final_score": 67.8,
+  "ranking_formula": "hotness_norm*0.45 + story_score*0.55",
+  "selection_pool": "story_score>=60" | "all_candidates",
+  "selection_warning": null | "low_story_score",
   "story_reasons": [...],
   "story_flags": {...}
 }
@@ -1558,8 +1581,12 @@ class GenerateRequest(BaseModel):
 
 **content 字段新增**：
 ```
-Story Worthiness:
-  - story_score: 65/100
-  - reasons: major_company:OpenAI, conflict:cost, impact:developers
-  - why suitable for video: major_company:OpenAI / conflict:cost / impact:developers
+Selection:
+  - hotness_score: 421.0
+  - hotness_norm: 84.2
+  - story_score: 65
+  - final_score: 67.8
+  - formula: hotness_norm*0.45 + story_score*0.55
+  - selection_pool: story_score>=60
+  - selection_warning: null
 ```

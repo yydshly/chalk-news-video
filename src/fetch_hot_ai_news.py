@@ -490,11 +490,16 @@ def fetch_hot_ai_news(
         item_with_keywords["strong_matched"] = strong_matched
         story_result = _compute_story_score(item_with_keywords)
         story_score = story_result["story_score"]
-        # final_score = hotness_score + story_score
-        final_score = score + story_score
+
+        # CP15.5.1: Normalize hotness and apply weighted formula
+        # hotness_norm = min(100, hotness_score / 5)  → 0-100 scale
+        # final_score = hotness_norm * 0.45 + story_score * 0.55
+        hotness_norm = min(100, score / 5.0)
+        final_score = round(hotness_norm * 0.45 + story_score * 0.55, 2)
+        ranking_formula = "hotness_norm*0.45 + story_score*0.55"
 
         # Build rank reason
-        rank_reason = _build_rank_reason(item, strong_matched, weak_matched, keyword_bonus, final_score)
+        rank_reason = f"hotness={score:.0f} hotness_norm={hotness_norm:.1f} story={story_score} final={final_score} reasons={','.join(story_result['story_reasons'][:3])}"
 
         hn_url = item.get("url") or f"https://news.ycombinator.com/item?id={item.get('id')}"
         discussion_url = f"https://news.ycombinator.com/item?id={item.get('id')}"
@@ -509,10 +514,12 @@ def fetch_hot_ai_news(
             "published_at": _hn_timestamp_to_iso(ts) if ts else None,
             "points": item.get("score", 0) or 0,
             "comments": item.get("descendants", 0) or 0,
-            "score": final_score,  # CP15.5: score = final_score
+            "score": final_score,  # CP15.5.1: score = final_score
             "hotness_score": score,  # CP15.5: original hotness score
+            "hotness_norm": round(hotness_norm, 2),  # CP15.5.1
             "story_score": story_score,  # CP15.5
-            "final_score": final_score,  # CP15.5
+            "final_score": final_score,  # CP15.5.1
+            "ranking_formula": ranking_formula,  # CP15.5.1
             "matched_keywords": all_matched,
             "strong_matched": strong_matched,
             "weak_matched": weak_matched,
@@ -529,10 +536,27 @@ def fetch_hot_ai_news(
             f"Try expanding keywords or increasing time window."
         )
 
-    # Sort by score descending
-    candidates.sort(key=lambda x: x["score"], reverse=True)
+    # CP15.5.1: Sort by final_score descending
+    candidates.sort(key=lambda x: x["final_score"], reverse=True)
 
-    # Take top N
+    # CP15.5.1: High-story selection pool (story_score >= 60)
+    high_story_pool = [c for c in candidates if c["story_score"] >= 60]
+    if high_story_pool:
+        selection_pool = "story_score>=60"
+        selection_warning = None
+        top = high_story_pool[0]  # Select top from high-story pool
+        print(f"[fetch_hot_ai_news] Selected from high-story pool (story_score >= 60): {top['title'][:60]}")
+    else:
+        selection_pool = "all_candidates"
+        if candidates and candidates[0]["story_score"] < 30:
+            selection_warning = "low_story_score"
+            print(f"[fetch_hot_ai_news] WARNING: all candidates have low story_score < 30", file=sys.stderr)
+        else:
+            selection_warning = None
+        top = candidates[0]
+        print(f"[fetch_hot_ai_news] WARNING: no candidates with story_score >= 60, using fallback", file=sys.stderr)
+
+    # Take top N for candidates output
     top_candidates = candidates[:limit]
 
     # Build candidates output
@@ -542,10 +566,10 @@ def fetch_hot_ai_news(
         "hours": hours,
         "count": len(top_candidates),
         "items": top_candidates,
+        "ranking_formula": "hotness_norm*0.45 + story_score*0.55",
+        "selection_pool": selection_pool,
+        "selection_warning": selection_warning,
     }
-
-    # Select top 1 for latest_news.json
-    top = top_candidates[0]
 
     # Build latest_news.json (compatible with existing pipeline schema)
     # NOTE: We do NOT fetch full article text. Content is a summary of HN metadata only.
@@ -564,32 +588,46 @@ def fetch_hot_ai_news(
             f"Points: {top['points']} | Comments: {top['comments']}\n"
             f"Matched Keywords: {', '.join(top['matched_keywords']) if top['matched_keywords'] else 'None'}\n"
             f"HN Hotness Score: {top['hotness_score']:.1f}\n"
+            f"Hotness Norm (0-100): {top['hotness_norm']:.1f}\n"
             f"Story Worthiness Score: {top['story_score']}/100\n"
-            f"Final Score: {top['final_score']:.1f} (hotness + story)\n"
+            f"Final Score: {top['final_score']:.2f}\n"
+            f"Formula: {top['ranking_formula']}\n"
             f"Story Reasons: {', '.join(top['story_reasons']) if top['story_reasons'] else 'None'}\n"
             f"Rank Reason: {top['rank_reason']}\n\n"
             f"Story Worthiness:\n"
             f"  - story_score: {top['story_score']}/100\n"
             f"  - reasons: {', '.join(top['story_reasons']) if top['story_reasons'] else 'none'}\n"
             f"  - why suitable for video: {' / '.join(top['story_reasons'][:3]) if top['story_reasons'] else 'low score, may not be ideal for video'}\n\n"
+            f"Selection:\n"
+            f"  - hotness_score: {top['hotness_score']:.1f}\n"
+            f"  - hotness_norm: {top['hotness_norm']:.1f}\n"
+            f"  - story_score: {top['story_score']}\n"
+            f"  - final_score: {top['final_score']:.2f}\n"
+            f"  - formula: {top['ranking_formula']}\n"
+            f"  - selection_pool: {selection_pool}\n"
+            f"  - selection_warning: {selection_warning}\n\n"
             f"[NOTE] Full article text was not fetched. "
             f"This summary was generated from HN metadata only. "
             f"No paywall was bypassed. No copyright content was stored."
         ),
         "content_source": "hn_hot",
         "fetched_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
-        "score": top["final_score"],  # CP15.5: final_score as primary score
+        "score": top["final_score"],  # CP15.5.1: final_score as primary score
         "hotness_score": top["hotness_score"],  # CP15.5
+        "hotness_norm": top["hotness_norm"],  # CP15.5.1
         "story_score": top["story_score"],  # CP15.5
-        "final_score": top["final_score"],  # CP15.5
+        "final_score": top["final_score"],  # CP15.5.1
+        "ranking_formula": top["ranking_formula"],  # CP15.5.1
+        "selection_pool": selection_pool,  # CP15.5.1
+        "selection_warning": selection_warning,  # CP15.5.1
         "story_reasons": top["story_reasons"],  # CP15.5
         "story_flags": top["story_flags"],  # CP15.5
         "comments": top["comments"],
         "rank_reason": top["rank_reason"],
     }
 
-    # CP15.5: Low story score warning
-    if top["story_score"] < 30:
+    # CP15.5.1: Low story score warning (for fallback case)
+    if selection_warning == "low_story_score":
         print(f"[fetch_hot_ai_news] WARNING: top candidate has low story_score={top['story_score']}", file=sys.stderr)
         print(f"[fetch_hot_ai_news] title={top['title']}", file=sys.stderr)
 
@@ -597,6 +635,8 @@ def fetch_hot_ai_news(
         print(f"[fetch_hot_ai_news] Dry run — not saving files.")
         print(f"[fetch_hot_ai_news] Candidates: {len(top_candidates)}")
         print(f"[fetch_hot_ai_news] Top candidate: {top['title']}")
+        print(f"[fetch_hot_ai_news]   hotness={top['hotness_score']:.0f} hotness_norm={top['hotness_norm']:.1f} story={top['story_score']} final={top['final_score']:.2f}")
+        print(f"[fetch_hot_ai_news]   selection_pool={selection_pool} selection_warning={selection_warning}")
         print(f"[fetch_hot_ai_news]   hotness={top['hotness_score']:.0f} story={top['story_score']} final={top['final_score']:.0f}")
         return latest_news
 

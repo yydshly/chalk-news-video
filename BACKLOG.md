@@ -432,6 +432,15 @@
 - [x] `story_score < 30` 时 warning 但不失败
 - [x] tests/test_fetch_hot_ai_news.py 新增 CP15.5 测试
 - [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
+
+## Checkpoint 15.5.1 — 选题排序权重校准
+
+- [x] 新公式：`hotness_norm = min(100, hotness_score / 5)`
+- [x] 新公式：`final_score = hotness_norm * 0.45 + story_score * 0.55`
+- [x] High-Story Selection Pool（story_score >= 60 优先）
+- [x] 新增 `hotness_norm` / `ranking_formula` / `selection_pool` / `selection_warning` 字段
+- [x] 新增 CP15.5.1 测试（hotness_norm_capped, weight_comparison）
+- [x] README.md / PROJECT_SPEC.md / BACKLOG.md 更新
 - [ ] E2E 验收（待执行）
 
 ## Checkpoint 15.6 — 不同音色推荐与 voice preset

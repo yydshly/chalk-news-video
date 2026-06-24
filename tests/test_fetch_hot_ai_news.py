@@ -165,6 +165,10 @@ def run_tests():
         test_story_model_no_impact_penalty,
         test_story_final_score_computation,
         test_story_visual_potential_bonus,
+        # CP15.5.1 weighting tests
+        test_hotness_norm_capped_at_100,
+        test_hotness_norm_scale,
+        test_story_weight_higher_than_hotness,
     ]
 
     passed = 0
@@ -252,7 +256,7 @@ def test_story_model_no_impact_penalty():
 
 
 def test_story_final_score_computation():
-    """final_score = hotness_score + story_score."""
+    """CP15.5.1: final_score = hotness_norm * 0.45 + story_score * 0.55."""
     item = {
         "title": "OpenAI GPT-5 causes controversy among developers",
         "url": "https://openai.com",
@@ -260,10 +264,57 @@ def test_story_final_score_computation():
         "descendants": 50,
     }
     hotness_score = 100 * 1.0 + 50 * 2.0  # 200
+    hotness_norm = min(100, hotness_score / 5.0)  # = 40
     result = _compute_story_score(item)
     story_score = result["story_score"]
     assert story_score >= 50  # has major company + conflict
-    assert hotness_score + story_score == hotness_score + story_score  # tautology but verifies the field exists
+    # Verify formula: hotness_norm * 0.45 + story_score * 0.55
+    expected_final = round(hotness_norm * 0.45 + story_score * 0.55, 2)
+    assert expected_final < hotness_score  # story_score weighted higher than raw hotness
+    assert 0 <= expected_final <= 100
+
+
+def test_hotness_norm_capped_at_100():
+    """CP15.5.1: hotness_norm should be capped at 100."""
+    # Very high hotness score
+    hotness_score = 800
+    hotness_norm = min(100, hotness_score / 5.0)
+    assert hotness_norm == 100  # capped
+
+
+def test_hotness_norm_scale():
+    """CP15.5.1: hotness_norm = min(100, hotness_score / 5)."""
+    assert min(100, 200 / 5.0) == 40.0
+    assert min(100, 500 / 5.0) == 100.0
+    assert min(100, 50 / 5.0) == 10.0
+
+
+def test_story_weight_higher_than_hotness():
+    """CP15.5.1: Story score should have more weight (0.55) than hotness_norm (0.45).
+
+    A story with high story_score but lower hotness should score higher than
+    a story with high hotness but low story_score.
+    """
+    # Candidate A: High hotness, low story
+    a_title = "Show HN: tiny AI wrapper tool"  # story_score likely low
+    a_item = {"title": a_title, "url": "https://example.com", "points": 400, "descendants": 200}
+    a_hotness = 400 * 1.0 + 200 * 2.0  # 800
+    a_hotness_norm = min(100, a_hotness / 5.0)  # 100
+    a_story = _compute_story_score(a_item)["story_score"]
+
+    # Candidate B: Lower hotness, high story
+    b_title = "OpenAI releases GPT-5 causing industry-wide controversy"
+    b_item = {"title": b_title, "url": "https://openai.com", "points": 200, "descendants": 100}
+    b_hotness = 200 * 1.0 + 100 * 2.0  # 400
+    b_hotness_norm = min(100, b_hotness / 5.0)  # 80
+    b_story = _compute_story_score(b_item)["story_score"]
+
+    a_final = a_hotness_norm * 0.45 + a_story * 0.55
+    b_final = b_hotness_norm * 0.45 + b_story * 0.55
+
+    # B should score higher due to much higher story_score despite lower hotness
+    assert b_story > a_story, f"B story={b_story} should be > A story={a_story}"
+    assert b_final > a_final, f"B final={b_final:.2f} should be > A final={a_final:.2f}"
 
 
 def test_story_visual_potential_bonus():

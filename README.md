@@ -749,6 +749,43 @@ max_turns: int | None = 14           # 最大 turns
 - animation.html 存在
 - 不泄露 API key / voice_id
 
+## CP15.5.1 — 选题排序权重校准
+
+**问题**：旧公式 `final_score = hotness_score + story_score`，但 hotness 往往几百，story 只有 0-100，导致"热度高但不适合视频"的新闻总是排第一。
+
+**新公式**：
+```
+hotness_norm = min(100, hotness_score / 5)
+final_score = hotness_norm * 0.45 + story_score * 0.55
+```
+
+**归一化效果**：
+- hotness_score 500 → hotness_norm = 100
+- hotness_score 200 → hotness_norm = 40
+- hotness_score 100 → hotness_norm = 20
+
+**High-Story Selection Pool**：
+- 如果存在 story_score >= 60 的候选：只在该池中按 final_score 选第一
+- 如果没有 story_score >= 60：使用全部候选，输出 warning
+- 如果最高 story_score < 30：rank_reason 加入 low_story_score
+
+**新增输出字段**：
+- `hotness_norm`：归一化热度（0-100）
+- `ranking_formula`：`"hotness_norm*0.45 + story_score*0.55"`
+- `selection_pool`：`"story_score>=60"` 或 `"all_candidates"`
+- `selection_warning`：`null` 或 `"low_story_score"`
+
+**示例**：
+- VibeThinker (h=421, s=55): final = 84.2*0.45 + 55*0.55 = 67.8
+- OpenAI DayBreak (h=379, s=75): final = 75.8*0.45 + 75*0.55 = 75.3 ← 排前
+
+**CP15.5.1 验收**：
+- 每个 candidate 有 hotness_norm / ranking_formula
+- latest_news.json 有 selection_pool / selection_warning
+- 如果有 story_score >= 60 候选，应优先从该池选择
+- 如果无 >= 60 候选，必须有 warning
+- 不泄露 API key / voice_id
+
 ## 项目定位
 
 V0.11: News → LLM → semantic_ir → dual-host dialogue → video（含双角色音频）。
