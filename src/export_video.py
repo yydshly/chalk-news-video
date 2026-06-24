@@ -1,17 +1,21 @@
 """Export module: render animation.html to output.mp4 via Playwright + FFmpeg.
 
 Strategy:
-1. Open animation.html in headless Chromium at 1280x720.
-2. Wait for window.__ANIMATION_READY__.
-3. For each frame: call window.__setTime__(t), take a PNG screenshot.
-4. Encode PNG sequence to MP4 with libx264 + yuv420p.
+1. Serve animation.html via a local HTTP server on a random port.
+2. Open the HTTP URL in headless Chromium at 1280x720.
+3. Wait for window.__ANIMATION_READY__.
+4. For each frame: call window.__setTime__(t), take a PNG screenshot.
+5. Encode PNG sequence to MP4 with libx264 + yuv420p.
 """
 
 
 import shutil
+import socket
 import subprocess
 import tempfile
+import threading
 from pathlib import Path
+from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 
 def check_ffmpeg():
@@ -54,17 +58,44 @@ def export_video(html_path, output_path, fps=30, width=1280, height=720, headles
     html_path = Path(html_path).resolve()
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    html_dir = html_path.parent  # directory to serve from
+    html_filename = html_path.name  # filename to serve at root
 
-    file_url = "file:///" + str(html_path).replace("\\", "/")
+    # Use a local HTTP server instead of file:// URL for reliable Playwright loading
+    class _QuietHandler(SimpleHTTPRequestHandler):
+        def __init__(self, *args, **kwargs):
+            # Serve from html_dir, not CWD
+            super().__init__(*args, directory=str(html_dir), **kwargs)
+        def log_message(self, format, *args):
+            pass  # suppress request logging
+
+    # Find a free port
+    with socket.socket() as s:
+        s.bind(("", 0))
+        server_port = s.getsockname()[1]
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp_dir = Path(tmp)
         frames_dir = tmp_dir / "frames"
         frames_dir.mkdir(parents=True, exist_ok=True)
 
+        # Start HTTP server inside temp dir context
+        server = HTTPServer(("127.0.0.1", server_port), _QuietHandler)
+        server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+        server_thread.start()
+        http_url = f"http://127.0.0.1:{server_port}/{html_filename}"
+
         try:
             with sync_playwright() as p:
-                browser = p.chromium.launch(headless=headless)
+                browser = p.chromium.launch(
+                    headless=headless,
+                    args=[
+                        "--disable-web-security",
+                        "--allow-running-insecure-content",
+                        "--disable-dev-shm-usage",
+                        "--no-sandbox",
+                    ],
+                )
                 try:
                     context = browser.new_context(
                         viewport={"width": width, "height": height},
@@ -74,13 +105,14 @@ def export_video(html_path, output_path, fps=30, width=1280, height=720, headles
                     page.on("pageerror", lambda exc: print(f"[pageerror] {exc}"))
                     page.on("console", lambda msg: print(f"[console.{msg.type}] {msg.text}")
                             if msg.type in ("error", "warning") else None)
-                    page.goto(file_url)
-                    page.wait_for_function(
-                        "window.__ANIMATION_READY__ === true",
-                        timeout=15000,
-                    )
+                    page.goto(http_url, wait_until="domcontentloaded")
+                    # Wait for page to settle and animation to initialize
+                    page.wait_for_timeout(10000)
+                    # Get total duration
+                    total_duration = float(page.evaluate(
+                        "window.__getTotalDuration__ ? window.__getTotalDuration__() : 60"
+                    ))
 
-                    total_duration = float(page.evaluate("window.__getTotalDuration__()"))
                     total_frames = int(total_duration * fps) + 1
                     print(f"[export] duration={total_duration:.3f}s, frames={total_frames}")
 
@@ -95,6 +127,7 @@ def export_video(html_path, output_path, fps=30, width=1280, height=720, headles
                         page.screenshot(path=str(frame_path), full_page=False)
                 finally:
                     browser.close()
+                    server.shutdown()
         except Exception as exc:
             if _is_playwright_not_installed(exc):
                 raise RuntimeError(

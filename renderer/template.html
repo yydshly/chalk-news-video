@@ -595,7 +595,8 @@
     }
 
     // Main event card content (from first node)
-    var nodes = RENDER_IR.nodes || [];
+    // CP18.3: nodes is now declared at module scope, just assign here
+    nodes = RENDER_IR.nodes || [];
     if (nodes.length > 0) {
       var mainNode = nodes[0];
       var mainTitle = document.getElementById("main-card-title");
@@ -692,6 +693,10 @@
     edgesGroup.style.display = "none";
     calloutsGroup.style.display = "none";
   }
+
+  // CP18.3: Declare nodes at module scope so renderFrame can access it
+  // even if buildNewsCard returns early
+  var nodes = RENDER_IR.nodes || [];
 
   buildNewsCard();
 
@@ -1218,8 +1223,8 @@
   }
 
   renderFrame(0);
-  requestAnimationFrame(loop);
   window.__ANIMATION_READY__ = true;
+  requestAnimationFrame(loop);
 })();
 </script>
 </body>
