@@ -77,6 +77,9 @@
   const episodeHtmlHistorySection = document.getElementById("episode-html-history-section");
   const episodeHtmlHistoryListEl = document.getElementById("episode-html-history-list");
 
+  // CP35: Episode preview style selector DOM ref
+  const selectEpisodePreviewStyle = document.getElementById("select-episode-preview-style");
+
   // ---------- state ----------
   let lastResult = null;
   let currentEventSource = null;
@@ -94,6 +97,7 @@
   let latestEpisodeHtmlArtifact = null;    // CP31: saved episode HTML artifact
   let episodeHtmlHistoryList = [];        // CP32: episode HTML artifact history
   let latestEpisodeTemplateContract = null;  // CP34: most recent episode template contract
+  let currentEpisodePreviewStyle = "timeline_daily_v1";  // CP35: current episode visual style
   let currentStyleRecommendations = [];    // CP30: current style recommendations
 
   // CP20/CG29: Expanded theme showcase data — video style gallery
@@ -1820,7 +1824,7 @@
 
     return {
       schema_version: "episode_template_v1",
-      template_id: "timeline_preview_v1",
+      template_id: currentEpisodePreviewStyle,
       episode: {
         title: renderIr.episode_title || "今日 AI 前沿速览",
         subtitle: renderIr.subtitle || "多条热门 AI 新闻合集",
@@ -1870,8 +1874,15 @@
       errors.push('Contract schema_version 必须为 "episode_template_v1"');
     }
 
-    if (contract.template_id !== "timeline_preview_v1") {
-      errors.push('Contract template_id 必须为 "timeline_preview_v1"');
+    var validTemplateIds = [
+      "timeline_daily_v1",
+      "breaking_news_v1",
+      "data_dashboard_v1",
+      "research_briefing_v1",
+      "podcast_cards_v1"
+    ];
+    if (validTemplateIds.indexOf(contract.template_id) === -1) {
+      errors.push('Contract template_id 必须是以下之一: ' + validTemplateIds.join(", "));
     }
 
     if (!contract.episode || !contract.episode.title) {
@@ -1917,18 +1928,149 @@
     return { ok: errors.length === 0, warnings: warnings, errors: errors };
   }
 
-  // CP34: Render HTML from episode template contract
+  // CP35: Episode style theme configuration
+  function getEpisodeStyleTheme(templateId) {
+    var t = {
+      bodyBg: "#0f172a",
+      heroBg: "linear-gradient(135deg,#0f172a 0%,#1e293b 100%)",
+      heroBorder: "#1e3a5f",
+      cardBg: "#111827",
+      cardBgLead: "#1a1a2e",
+      cardBorder: "#2d3748",
+      cardBorderLead: "#f59e0b",
+      accentBlue: "#38bdf8",
+      accentAmber: "#f59e0b",
+      accentGreen: "#4ade80",
+      accentText: "#94a3b8",
+      metaText: "#475569",
+      dotOpening: "#38bdf8",
+      dotLead: "#f59e0b",
+      dotSupport: "#334155",
+      dotTrans: "#334155",
+      dotClosing: "#4ade80",
+      statColor: "#38bdf8",
+      badgeBg: "#f59e0b",
+      badgeColor: "#0f172a",
+      sectionDivider: "#1e293b",
+      cardLayoutTagColor: "#38bdf8",
+      cardEmphasisColor: "#fbbf24",
+      cardBadgeBg: "#1e293b",
+      footerBg: "#0f172a",
+      footerText: "#475569",
+      heroGridOpacity: "0.3",
+      headlineGradient: "linear-gradient(90deg,#f9fafb,#94a3b8)",
+      openingBg: "linear-gradient(135deg,#1e293b,#0f172a)",
+      closingBg: "linear-gradient(135deg,#1e293b,#0f172a)",
+      closingBadgeBg: "#4ade80",
+      closingBadgeColor: "#0f172a",
+      podcastTransitionBg: "#2d1a0a"
+    };
+
+    if (templateId === "breaking_news_v1") {
+      t.bodyBg = "#0a0000";
+      t.heroBg = "linear-gradient(135deg,#1a0000 0%,#2d0000 100%)";
+      t.heroBorder = "#4a0000";
+      t.cardBg = "#1a0000";
+      t.cardBgLead = "#2a0000";
+      t.cardBorder = "#3a0000";
+      t.cardBorderLead = "#dc2626";
+      t.dotOpening = "#dc2626";
+      t.dotLead = "#dc2626";
+      t.dotClosing = "#dc2626";
+      t.statColor = "#dc2626";
+      t.badgeBg = "#dc2626";
+      t.heroGridOpacity = "0.1";
+      t.openingBg = "linear-gradient(135deg,#2d0000,#1a0000)";
+      t.closingBg = "linear-gradient(135deg,#2d0000,#1a0000)";
+      t.closingBadgeBg = "#dc2626";
+    } else if (templateId === "data_dashboard_v1") {
+      t.bodyBg = "#0a0f1a";
+      t.heroBg = "linear-gradient(135deg,#0a0f1a 0%,#0f172a 100%)";
+      t.heroBorder = "#164e63";
+      t.cardBg = "#0f172a";
+      t.cardBgLead = "#0c1a24";
+      t.cardBorder = "#164e63";
+      t.cardBorderLead = "#06b6d4";
+      t.accentBlue = "#06b6d4";
+      t.dotOpening = "#06b6d4";
+      t.dotLead = "#06b6d4";
+      t.dotClosing = "#06b6d4";
+      t.statColor = "#06b6d4";
+      t.badgeBg = "#06b6d4";
+      t.cardLayoutTagColor = "#06b6d4";
+      t.sectionDivider = "#164e63";
+      t.heroGridOpacity = "0.15";
+      t.openingBg = "linear-gradient(135deg,#0f172a,#0a0f1a)";
+      t.closingBg = "linear-gradient(135deg,#0f172a,#0a0f1a)";
+      t.closingBadgeBg = "#06b6d4";
+    } else if (templateId === "research_briefing_v1") {
+      t.bodyBg = "#0d1117";
+      t.heroBg = "linear-gradient(135deg,#0d1117 0%,#161b22 100%)";
+      t.heroBorder = "#30363d";
+      t.cardBg = "#161b22";
+      t.cardBgLead = "#1c2128";
+      t.cardBorder = "#30363d";
+      t.cardBorderLead = "#c9d1d9";
+      t.accentBlue = "#c9d1d9";
+      t.accentAmber = "#c9d1d9";
+      t.accentGreen = "#c9d1d9";
+      t.accentText = "#8b949e";
+      t.metaText = "#8b949e";
+      t.dotOpening = "#c9d1d9";
+      t.dotLead = "#c9d1d9";
+      t.dotSupport = "#30363d";
+      t.dotClosing = "#c9d1d9";
+      t.statColor = "#c9d1d9";
+      t.badgeBg = "#30363d";
+      t.badgeColor = "#c9d1d9";
+      t.sectionDivider = "#30363d";
+      t.cardLayoutTagColor = "#c9d1d9";
+      t.cardEmphasisColor = "#c9d1d9";
+      t.cardBadgeBg = "#21262d";
+      t.heroGridOpacity = "0.2";
+      t.headlineGradient = "none";
+      t.openingBg = "linear-gradient(135deg,#161b22,#0d1117)";
+      t.closingBg = "linear-gradient(135deg,#161b22,#0d1117)";
+      t.closingBadgeBg = "#c9d1d9";
+      t.closingBadgeColor = "#0d1117";
+      t.footerBg = "#0d1117";
+    } else if (templateId === "podcast_cards_v1") {
+      t.bodyBg = "#1a1209";
+      t.heroBg = "linear-gradient(135deg,#1a1209 0%,#231810 100%)";
+      t.heroBorder = "#78350f";
+      t.cardBg = "#231810";
+      t.cardBgLead = "#2d1a0a";
+      t.cardBorder = "#78350f";
+      t.cardBorderLead = "#f59e0b";
+      t.dotOpening = "#f59e0b";
+      t.dotLead = "#f59e0b";
+      t.dotClosing = "#f59e0b";
+      t.statColor = "#f59e0b";
+      t.badgeBg = "#f59e0b";
+      t.heroGridOpacity = "0.15";
+      t.openingBg = "linear-gradient(135deg,#231810,#1a1209)";
+      t.closingBg = "linear-gradient(135deg,#231810,#1a1209)";
+      t.closingBadgeBg = "#f59e0b";
+    }
+
+    return t;
+  }
+
+  // CP35: Style-aware HTML renderer
   function renderEpisodeTemplateHtml(contract) {
     if (!contract) return "";
 
     var episode = contract.episode;
     var timeline = contract.timeline;
     var sections = contract.sections;
+    var templateId = contract.template_id || "timeline_daily_v1";
+    var st = getEpisodeStyleTheme(templateId);
+    var totalTimeStr = formatTimecode(episode.estimated_duration_sec);
+    var themeName = episode.theme_name || "";
 
     // Render timeline markers HTML
     function renderTimelineMarkersHtml() {
       if (!timeline || !timeline.markers) return "";
-      var cursor = 0;
       var htmlParts = [];
 
       timeline.markers.forEach(function (marker) {
@@ -1947,45 +2089,53 @@
       return htmlParts.join("");
     }
 
-    // Render a single news card HTML
+    // Render a single news card HTML — style-aware
     function renderNewsCardHtml(card) {
       var isLead = card.is_lead;
-      var borderColor = isLead ? "#f59e0b" : "#2d3748";
-      var bgColor = isLead ? "#1a1a2e" : "#111827";
+      var borderColor = isLead ? st.cardBorderLead : st.cardBorder;
+      var bgColor = isLead ? st.cardBgLead : st.cardBg;
       var badgeLeadHtml = isLead ? '<span class="card-lead-badge">★ 主线</span>' : "";
-      var emphasisTag = card.emphasis ? '<span class="card-emphasis-tag" style="color:#fbbf24;font-size:11px;background:#1e293b;padding:2px 6px;border-radius:3px;">' + escapeHtml(card.emphasis) + '</span>' : '';
+      var emphasisTag = card.emphasis ? '<span class="card-emphasis-tag" style="color:' + st.cardEmphasisColor + ';font-size:11px;background:' + st.cardBadgeBg + ';padding:2px 6px;border-radius:3px;">' + escapeHtml(card.emphasis) + '</span>' : '';
       var badgesHtml = card.badges.map(function (b) {
         return '<span class="card-badge">' + escapeHtml(b) + '</span>';
       }).join("");
+      var hlSize = templateId === "breaking_news_v1" ? "18px" : "16px";
 
       return '<div class="mock-news-card' + (isLead ? " mock-news-card-lead" : "") + '" data-section-type="news_segment" style="background:' + bgColor + ';border:1px solid ' + borderColor + ';border-radius:12px;padding:20px;margin:10px 0;animation:fadeUp 0.4s ease-out both;">' +
         '<div class="card-header-row" style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">' +
-        '<span class="card-rank" style="background:#1e293b;color:#64748b;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;">#' + card.order + '</span>' +
-        '<span class="card-time" style="color:#475569;font-size:11px;font-family:monospace;">' + card.time_range + '</span>' +
-        '<span class="card-dur" style="color:#475569;font-size:11px;">' + card.duration_hint_sec + 's</span>' +
+        '<span class="card-rank" style="background:' + st.cardBadgeBg + ';color:' + st.metaText + ';border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;">#' + card.order + '</span>' +
+        '<span class="card-time" style="color:' + st.metaText + ';font-size:11px;font-family:monospace;">' + card.time_range + '</span>' +
+        '<span class="card-dur" style="color:' + st.metaText + ';font-size:11px;">' + card.duration_hint_sec + 's</span>' +
         badgeLeadHtml +
         '</div>' +
-        '<div class="card-headline" style="color:#f9fafb;font-size:16px;font-weight:600;margin-bottom:8px;line-height:1.4;">' +
+        '<div class="card-headline" style="color:#f9fafb;font-size:' + hlSize + ';font-weight:600;margin-bottom:8px;line-height:1.4;">' +
         escapeHtml(card.headline) + '</div>' +
         '<div class="card-meta-row" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">' +
-        '<span class="card-layout-tag" style="color:#38bdf8;font-size:11px;background:#1e293b;padding:2px 6px;border-radius:3px;">' + escapeHtml(card.layout) + '</span>' +
+        '<span class="card-layout-tag" style="color:' + st.cardLayoutTagColor + ';font-size:11px;background:' + st.cardBadgeBg + ';padding:2px 6px;border-radius:3px;">' + escapeHtml(card.layout) + '</span>' +
         emphasisTag +
         badgesHtml +
         '</div>' +
-        '<div class="card-footer-row" style="color:#4b5563;font-size:11px;margin-top:8px;">' +
+        '<div class="card-footer-row" style="color:' + st.metaText + ';font-size:11px;margin-top:8px;">' +
         '<span>🎙 ' + card.audio_clip_count + ' 音频片段</span>' +
         '<span style="margin-left:12px;">📋 ' + escapeHtml(card.is_lead ? "主线" : "补充") + '</span>' +
         '</div>' +
         '</div>';
     }
 
-    // Render a transition row HTML
+    // Render a transition row HTML — style-aware
     function renderTransitionRowHtml(row) {
-      return '<div class="mock-transition-row" style="display:flex;align-items:center;gap:12px;padding:8px 16px;margin:4px 0;color:#475569;font-size:12px;">' +
-        '<span style="flex:1;height:1px;background:#1e293b;"></span>' +
+      var rowBg = templateId === "podcast_cards_v1" ? st.podcastTransitionBg : "transparent";
+      return '<div class="mock-transition-row" style="display:flex;align-items:center;gap:12px;padding:8px 16px;margin:4px 0;color:' + st.metaText + ';font-size:12px;background:' + rowBg + ';">' +
+        '<span style="flex:1;height:1px;background:' + st.sectionDivider + ';"></span>' +
         '<span style="white-space:nowrap;">→ ' + escapeHtml(row.text) + ' →</span>' +
-        '<span style="flex:1;height:1px;background:#1e293b;"></span>' +
+        '<span style="flex:1;height:1px;background:' + st.sectionDivider + ';"></span>' +
         '</div>';
+    }
+
+    // Breaking news banner
+    var breakingBannerHtml = "";
+    if (templateId === "breaking_news_v1") {
+      breakingBannerHtml = '<div style="background:#dc2626;color:#ffffff;text-align:center;padding:8px;font-size:14px;font-weight:900;letter-spacing:2px;">🔴 BREAKING NEWS — ' + escapeHtml(episode.title) + '</div>';
     }
 
     // Assemble news cards + transitions
@@ -1997,99 +2147,169 @@
       }
     });
 
-    var totalTimeStr = formatTimecode(episode.estimated_duration_sec);
-    var themeName = episode.theme_name || "";
+    var hlStyle = st.headlineGradient !== "none"
+      ? 'background:' + st.headlineGradient + ';-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;'
+      : 'color:#f9fafb;';
 
-    var html = '<!DOCTYPE html>\n' +
-      '<html lang="zh-CN">\n' +
-      '<head>\n' +
-      '<meta charset="UTF-8">\n' +
-      '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
-      '<title>' + escapeHtml(episode.title) + '</title>\n' +
-      '<style>\n' +
-      '*{margin:0;padding:0;box-sizing:border-box}\n' +
-      'body{background:#0f172a;color:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;' +
-      'display:flex;flex-direction:column;min-height:100vh;padding:0}\n' +
-      '.hero{background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);padding:32px 40px;border-bottom:1px solid #1e3a5f;position:relative;overflow:hidden;}\n' +
-      '.hero::before{content:"";position:absolute;top:0;left:0;right:0;bottom:0;background:repeating-linear-gradient(90deg,transparent,transparent 40px,#1e293b 40px,#1e293b 41px);opacity:0.3;pointer-events:none;}\n' +
-      '.hero-content{position:relative;z-index:1;}\n' +
-      '.hero-eyebrow{display:flex;gap:12px;align-items:center;margin-bottom:12px;}\n' +
-      '.hero-badge{background:#f59e0b;color:#0f172a;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:0.5px;}\n' +
-      '.hero-theme{color:#38bdf8;font-size:12px;background:#1e3a5f;padding:3px 10px;border-radius:20px;}\n' +
-      '.hero-badge-dur{color:#64748b;font-size:12px;}\n' +
-      '.hero h1{font-size:28px;font-weight:800;margin-bottom:8px;background:linear-gradient(90deg,#f9fafb,#94a3b8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}\n' +
-      '.hero-subtitle{color:#94a3b8;font-size:14px;margin-bottom:16px;}\n' +
-      '.hero-stats{display:flex;gap:20px;}\n' +
-      '.hero-stat{text-align:center;}\n' +
-      '.hero-stat-num{font-size:20px;font-weight:700;color:#38bdf8;}\n' +
-      '.hero-stat-label{font-size:11px;color:#64748b;}\n' +
-      '.tl-rail{background:#0f172a;padding:16px 40px;border-bottom:1px solid #1e293b;overflow-x:auto;}\n' +
-      '.tl-track{display:flex;align-items:center;gap:0;min-width:600px;position:relative;padding:8px 0;}\n' +
-      '.tl-track::before{content:"";position:absolute;left:0;right:0;top:50%;height:2px;background:#1e293b;transform:translateY(-50%);z-index:0;}\n' +
-      '.tl-marker{display:flex;flex-direction:column;align-items:center;position:relative;z-index:1;flex:1;min-width:60px;}\n' +
-      '.tl-dot{width:12px;height:12px;border-radius:50%;border:2px solid #334155;background:#0f172a;position:relative;}\n' +
-      '.tl-dot-opening{background:#38bdf8;border-color:#38bdf8;animation:pulseLine 2s infinite;}\n' +
-      '.tl-dot-lead{background:#f59e0b;border-color:#f59e0b;box-shadow:0 0 8px #f59e0b80;}\n' +
-      '.tl-dot-supporting{background:#334155;border-color:#475569;}\n' +
-      '.tl-dot-trans{background:#1e293b;border-color:#334155;width:8px;height:8px;}\n' +
-      '.tl-dot-closing{background:#4ade80;border-color:#4ade80;animation:pulseLine 2s infinite;}\n' +
-      '.tl-label{text-align:center;margin-top:4px;}\n' +
-      '.tl-time{color:#475569;font-size:10px;font-family:monospace;display:block;}\n' +
-      '.tl-name{color:#94a3b8;font-size:10px;display:block;white-space:nowrap;}\n' +
-      '.tl-marker-trans .tl-name{color:#475569;}\n' +
-      '.content{padding:24px 40px;flex:1;max-width:900px;margin:0 auto;width:100%;}\n' +
-      '.section-label{color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;margin:20px 0 8px 0;display:flex;align-items:center;gap:10px;}\n' +
-      '.section-label::after{content:"";flex:1;height:1px;background:#1e293b;}\n' +
-      '.mock-news-card-lead{border-left:3px solid #f59e0b!important;}\n' +
-      '.card-lead-badge{background:#f59e0b;color:#0f172a;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;margin-left:6px;}\n' +
-      '.footer-bar{background:#0f172a;padding:12px 40px;border-top:1px solid #1e293b;font-size:11px;color:#475569;display:flex;justify-content:space-between;align-items:center;}\n' +
-      '@keyframes fadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}\n' +
-      '@keyframes pulseLine{0%,100%{opacity:1;}50%{opacity:0.5;}}\n' +
-      '@keyframes shimmer{0%{background-position:-200% 0;}100%{background-position:200% 0;}}\n' +
-      '</style>\n' +
-      '</head>\n' +
-      '<body>\n' +
-      '<div class="hero">\n' +
+    var html = '<!DOCTYPE html>
+' +
+      '<html lang="zh-CN">
+' +
+      '<head>
+' +
+      '<meta charset="UTF-8">
+' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1.0">
+' +
+      '<title>' + escapeHtml(episode.title) + '</title>
+' +
+      '<style>
+' +
+      '*{margin:0;padding:0;box-sizing:border-box}
+' +
+      'body{background:' + st.bodyBg + ';color:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;' +
+      'display:flex;flex-direction:column;min-height:100vh;padding:0}
+' +
+      '.hero{background:' + st.heroBg + ';padding:32px 40px;border-bottom:1px solid ' + st.heroBorder + ';position:relative;overflow:hidden;}
+' +
+      '.hero::before{content:"";position:absolute;top:0;left:0;right:0;bottom:0;background:repeating-linear-gradient(90deg,transparent,transparent 40px,' + st.heroBorder + ' 40px,' + st.heroBorder + ' 41px);opacity:' + st.heroGridOpacity + ';pointer-events:none;}
+' +
+      '.hero-content{position:relative;z-index:1;}
+' +
+      '.hero-eyebrow{display:flex;gap:12px;align-items:center;margin-bottom:12px;}
+' +
+      '.hero-badge{background:' + st.badgeBg + ';color:' + st.badgeColor + ';padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:0.5px;}
+' +
+      '.hero-theme{color:' + st.accentBlue + ';font-size:12px;background:' + st.heroBorder + ';padding:3px 10px;border-radius:20px;}
+' +
+      '.hero-badge-dur{color:' + st.metaText + ';font-size:12px;}
+' +
+      '.hero h1{font-size:28px;font-weight:800;margin-bottom:8px;' + hlStyle + '}
+' +
+      '.hero-subtitle{color:' + st.accentText + ';font-size:14px;margin-bottom:16px;}
+' +
+      '.hero-stats{display:flex;gap:20px;}
+' +
+      '.hero-stat{text-align:center;}
+' +
+      '.hero-stat-num{font-size:20px;font-weight:700;color:' + st.statColor + ';}
+' +
+      '.hero-stat-label{font-size:11px;color:' + st.metaText + ';}
+' +
+      '.tl-rail{background:' + st.bodyBg + ';padding:16px 40px;border-bottom:1px solid ' + st.heroBorder + ';overflow-x:auto;}
+' +
+      '.tl-track{display:flex;align-items:center;gap:0;min-width:600px;position:relative;padding:8px 0;}
+' +
+      '.tl-track::before{content:"";position:absolute;left:0;right:0;top:50%;height:2px;background:' + st.heroBorder + ';transform:translateY(-50%);z-index:0;}
+' +
+      '.tl-marker{display:flex;flex-direction:column;align-items:center;position:relative;z-index:1;flex:1;min-width:60px;}
+' +
+      '.tl-dot{width:12px;height:12px;border-radius:50%;border:2px solid ' + st.dotSupport + ';background:' + st.bodyBg + ';position:relative;}
+' +
+      '.tl-dot-opening{background:' + st.dotOpening + ';border-color:' + st.dotOpening + ';animation:pulseLine 2s infinite;}
+' +
+      '.tl-dot-lead{background:' + st.dotLead + ';border-color:' + st.dotLead + ';box-shadow:0 0 8px ' + st.dotLead + '80;}
+' +
+      '.tl-dot-supporting{background:' + st.dotSupport + ';border-color:' + st.dotSupport + ';}
+' +
+      '.tl-dot-trans{background:' + st.dotTrans + ';border-color:' + st.dotTrans + ';width:8px;height:8px;}
+' +
+      '.tl-dot-closing{background:' + st.dotClosing + ';border-color:' + st.dotClosing + ';animation:pulseLine 2s infinite;}
+' +
+      '.tl-label{text-align:center;margin-top:4px;}
+' +
+      '.tl-time{color:' + st.metaText + ';font-size:10px;font-family:monospace;display:block;}
+' +
+      '.tl-name{color:' + st.accentText + ';font-size:10px;display:block;white-space:nowrap;}
+' +
+      '.tl-marker-trans .tl-name{color:' + st.metaText + ';}
+' +
+      '.content{padding:24px 40px;flex:1;max-width:900px;margin:0 auto;width:100%;}
+' +
+      '.section-label{color:' + st.metaText + ';font-size:11px;text-transform:uppercase;letter-spacing:1.5px;margin:20px 0 8px 0;display:flex;align-items:center;gap:10px;}
+' +
+      '.section-label::after{content:"";flex:1;height:1px;background:' + st.sectionDivider + ';}
+' +
+      '.mock-news-card-lead{border-left:3px solid ' + st.cardBorderLead + '!important;}
+' +
+      '.card-lead-badge{background:' + st.badgeBg + ';color:' + st.badgeColor + ';padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;margin-left:6px;}
+' +
+      '.footer-bar{background:' + st.footerBg + ';padding:12px 40px;border-top:1px solid ' + st.heroBorder + ';font-size:11px;color:' + st.footerText + ';display:flex;justify-content:space-between;align-items:center;}
+' +
+      '@keyframes fadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
+' +
+      '@keyframes pulseLine{0%,100%{opacity:1;}50%{opacity:0.5;}}
+' +
+      '@keyframes shimmer{0%{background-position:-200% 0;}100%{background-position:200% 0;}}
+' +
+      '</style>
+' +
+      '</head>
+' +
+      '<body>
+' +
+      breakingBannerHtml +
+      '<div class="hero">
+' +
       '<div class="hero-content">' +
       '<div class="hero-eyebrow">' +
       '<span class="hero-badge">🔥 合集</span>' +
       '<span class="hero-theme">' + escapeHtml(themeName) + '</span>' +
       '<span class="hero-badge-dur">⏱ ' + totalTimeStr + '</span>' +
-      '</div>' +
-      '<h1>' + escapeHtml(episode.title) + '</h1>' +
-      '<div class="hero-subtitle">' + escapeHtml(episode.subtitle) + '</div>' +
+      '</div>
+' +
+      '<h1>' + escapeHtml(episode.title) + '</h1>
+' +
+      '<div class="hero-subtitle">' + escapeHtml(episode.subtitle) + '</div>
+' +
       '<div class="hero-stats">' +
       '<div class="hero-stat"><div class="hero-stat-num">' + sections.news_cards.length + '</div><div class="hero-stat-label">条新闻</div></div>' +
       '<div class="hero-stat"><div class="hero-stat-num">' + totalTimeStr + '</div><div class="hero-stat-label">总时长</div></div>' +
       '<div class="hero-stat"><div class="hero-stat-num">' + episode.lead_count + '</div><div class="hero-stat-label">主线</div></div>' +
-      '</div>' +
-      '</div>\n' +
-      '</div>\n' +
-      '<div class="tl-rail">\n' +
-      '<div class="tl-track">' + renderTimelineMarkersHtml() + '</div>\n' +
-      '</div>\n' +
-      '<div class="content">\n' +
-      '<div class="section-label">开场</div>\n' +
-      '<div style="background:linear-gradient(135deg,#1e293b,#0f172a);border-radius:12px;padding:20px;margin-bottom:8px;border:1px solid #1e3a5f;">' +
+      '</div>
+' +
+      '</div>
+' +
+      '</div>
+' +
+      '<div class="tl-rail">
+' +
+      '<div class="tl-track">' + renderTimelineMarkersHtml() + '</div>
+' +
+      '</div>
+' +
+      '<div class="content">
+' +
+      '<div class="section-label">开场</div>
+' +
+      '<div style="background:' + st.openingBg + ';border-radius:12px;padding:20px;margin-bottom:8px;border:1px solid ' + st.heroBorder + ';">' +
       '<div style="font-size:15px;color:#e2e8f0;font-weight:600;margin-bottom:4px;">' + escapeHtml(sections.opening.title) + '</div>' +
-      '<div style="color:#475569;font-size:12px;">' + escapeHtml(sections.opening.subtitle) + '</div>' +
-      '</div>\n' +
-      '<div class="section-label">新闻列表</div>\n' +
+      '<div style="color:' + st.metaText + ';font-size:12px;">' + escapeHtml(sections.opening.subtitle) + '</div>' +
+      '</div>
+' +
+      '<div class="section-label">新闻列表</div>
+' +
       cardsAndTransitions.join("") +
-      '<div class="section-label">结尾</div>\n' +
-      '<div style="background:linear-gradient(135deg,#1e293b,#0f172a);border-radius:12px;padding:20px;border:1px solid #1e3a5f;">' +
+      '<div class="section-label">结尾</div>
+' +
+      '<div style="background:' + st.closingBg + ';border-radius:12px;padding:20px;border:1px solid ' + st.heroBorder + ';">' +
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
-      '<span style="background:#4ade80;color:#0f172a;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;">重点回看</span>' +
-      '</div>' +
+      '<span style="background:' + st.closingBadgeBg + ';color:' + st.closingBadgeColor + ';padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;">重点回看</span>' +
+      '</div>
+' +
       '<div style="color:#f9fafb;font-size:14px;font-weight:600;margin-bottom:4px;">' + escapeHtml(sections.closing.title) + '</div>' +
-      (sections.closing.focus_news_id ? '<div style="color:#475569;font-size:11px;">📋 主线新闻 ID: ' + escapeHtml(sections.closing.focus_news_id) + '</div>' : '') +
-      '</div>\n' +
-      '</div>\n' +
+      (sections.closing.focus_news_id ? '<div style="color:' + st.metaText + ';font-size:11px;">📋 主线新闻 ID: ' + escapeHtml(sections.closing.focus_news_id) + '</div>' : '') +
+      '</div>
+' +
+      '</div>
+' +
       '<div class="footer-bar">' +
       '<span>Mock Timeline Preview · ' + escapeHtml(themeName) + ' · no real render</span>' +
       '<span>' + escapeHtml(episode.title) + '</span>' +
-      '</div>\n' +
-      '</body>\n' +
+      '</div>
+' +
+      '</body>
+' +
       '</html>';
 
     return html;
@@ -2714,6 +2934,13 @@
   if (btnSaveEpisodeHtml) {
     btnSaveEpisodeHtml.addEventListener("click", function () {
       saveMockEpisodeHtml();
+    });
+  }
+
+  // CP35: Episode preview style selector
+  if (selectEpisodePreviewStyle) {
+    selectEpisodePreviewStyle.addEventListener("change", function () {
+      currentEpisodePreviewStyle = selectEpisodePreviewStyle.value || "timeline_daily_v1";
     });
   }
 
