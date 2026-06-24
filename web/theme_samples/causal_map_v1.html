@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Theme Sample: causal_map_v1</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #0f0f1a; overflow: hidden; }
+  .sample-label {
+    position: fixed; top: 12px; left: 12px; z-index: 100;
+    background: rgba(20,15,40,0.9); color: #86efac; font-size: 12px;
+    padding: 4px 10px; border-radius: 4px; font-family: sans-serif;
+  }
+  svg.board { display: block; background: #0f0f1a; }
+</style>
+</head>
+<body>
+<div class="sample-label">🔗 主题样例 · 因果链地图</div>
+<svg class="board" viewBox="0 0 1280 720" width="1280" height="720" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <pattern id="mapGrid" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+      <rect width="40" height="40" fill="#0f0f1a"/>
+      <line x1="0" y1="0" x2="40" y2="0" stroke="#1a1a30" stroke-width="0.5"/>
+      <line x1="0" y1="0" x2="0" y2="40" stroke="#1a1a30" stroke-width="0.5"/>
+    </pattern>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#fbbf24"/>
+    </marker>
+    <marker id="arrowRed" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#f87171"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#4ade80"/>
+    </marker>
+  </defs>
+  <rect width="1280" height="720" fill="url(#mapGrid)"/>
+  <!-- Title -->
+  <text x="640" y="45" text-anchor="middle" fill="#fbbf24" font-size="26" font-weight="bold" font-family="sans-serif">🔗 因果链地图</text>
+  <text x="640" y="70" text-anchor="middle" fill="#64748b" font-size="13" font-family="sans-serif">影响链条 · 原因分析 · 逻辑结构</text>
+  <line x1="200" y1="85" x2="1080" y2="85" stroke="#2a2a40" stroke-width="1"/>
+  <!-- Root cause node -->
+  <rect x="480" y="105" width="320" height="60" rx="6" ry="6" fill="#1a0a2a" stroke="#a855f7" stroke-width="2"/>
+  <text x="640" y="132" text-anchor="middle" fill="#c084fc" font-size="14" font-weight="bold" font-family="sans-serif">🟣 事件起因</text>
+  <text x="640" y="152" text-anchor="middle" fill="#94a3b8" font-size="12" font-family="sans-serif">EU AI Act 正式生效</text>
+  <!-- Arrow down to level 1 -->
+  <line x1="640" y1="165" x2="640" y2="195" stroke="#fbbf24" stroke-width="2" marker-end="url(#arrow)"/>
+  <!-- Level 1: immediate effects -->
+  <rect x="120" y="200" width="280" height="90" rx="6" ry="6" fill="#1a1a0a" stroke="#f59e0b" stroke-width="2"/>
+  <text x="260" y="225" text-anchor="middle" fill="#fbbf24" font-size="13" font-weight="bold" font-family="sans-serif">📦 即时影响</text>
+  <text x="140" y="248" fill="#94a3b8" font-size="11" font-family="sans-serif">• AI 产品需备案</text>
+  <text x="140" y="265" fill="#94a3b8" font-size="11" font-family="sans-serif">• 高风险应用需审计</text>
+  <text x="140" y="282" fill="#94a3b8" font-size="11" font-family="sans-serif">• 透明度要求提高</text>
+  <rect x="500" y="200" width="280" height="90" rx="6" ry="6" fill="#1a0a0a" stroke="#f87171" stroke-width="2"/>
+  <text x="640" y="225" text-anchor="middle" fill="#f87171" font-size="13" font-weight="bold" font-family="sans-serif">💰 商业影响</text>
+  <text x="520" y="248" fill="#94a3b8" font-size="11" font-family="sans-serif">• 合规成本上升</text>
+  <text x="520" y="265" fill="#94a3b8" font-size="11" font-family="sans-serif">• 中小创业公司承压</text>
+  <text x="520" y="282" fill="#94a3b8" font-size="11" font-family="sans-serif">• 大厂合规优势明显</text>
+  <rect x="880" y="200" width="280" height="90" rx="6" ry="6" fill="#0a1a0a" stroke="#4ade80" stroke-width="2"/>
+  <text x="1020" y="225" text-anchor="middle" fill="#4ade80" font-size="13" font-weight="bold" font-family="sans-serif">🌍 全球影响</text>
+  <text x="900" y="248" fill="#94a3b8" font-size="11" font-family="sans-serif">• 其他国家效仿立法</text>
+  <text x="900" y="265" fill="#94a3b8" font-size="11" font-family="sans-serif">• 贸易壁垒形成</text>
+  <text x="900" y="282" fill="#94a3b8" font-size="11" font-family="sans-serif">• 国际AI治理分化</text>
+  <!-- Arrows from root to level 1 -->
+  <line x1="480" y1="135" x2="280" y2="200" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="640" y1="165" x2="640" y2="200" stroke="#f87171" stroke-width="1.5" marker-end="url(#arrowRed)"/>
+  <line x1="800" y1="135" x2="1000" y2="200" stroke="#4ade80" stroke-width="1.5" marker-end="url(#arrowGreen)"/>
+  <!-- Arrow to level 2 -->
+  <line x1="260" y1="290" x2="260" y2="320" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="640" y1="290" x2="640" y2="320" stroke="#f87171" stroke-width="1.5" marker-end="url(#arrowRed)"/>
+  <line x1="1020" y1="290" x2="1020" y2="320" stroke="#4ade80" stroke-width="1.5" marker-end="url(#arrowGreen)"/>
+  <!-- Level 2: secondary effects -->
+  <rect x="60" y="325" width="400" height="90" rx="6" ry="6" fill="#1a1a0a" stroke="#f59e0b" stroke-width="1"/>
+  <text x="260" y="350" text-anchor="middle" fill="#fbbf24" font-size="12" font-weight="bold" font-family="sans-serif">→ 连锁反应 A</text>
+  <text x="80" y="373" fill="#94a3b8" font-size="11" font-family="sans-serif">开源模型受限 → 技术创新减速</text>
+  <text x="80" y="393" fill="#94a3b8" font-size="11" font-family="sans-serif">创业公司退出欧盟市场</text>
+  <rect x="500" y="325" width="400" height="90" rx="6" ry="6" fill="#1a0a0a" stroke="#f87171" stroke-width="1"/>
+  <text x="700" y="350" text-anchor="middle" fill="#f87171" font-size="12" font-weight="bold" font-family="sans-serif">→ 连锁反应 B</text>
+  <text x="520" y="373" fill="#94a3b8" font-size="11" font-family="sans-serif">大厂收购初创 → 市场集中度提高</text>
+  <text x="520" y="393" fill="#94a3b8" font-size="11" font-family="sans-serif">AI 服务价格上涨</text>
+  <rect x="940" y="325" width="280" height="90" rx="6" ry="6" fill="#0a1a0a" stroke="#4ade80" stroke-width="1"/>
+  <text x="1080" y="350" text-anchor="middle" fill="#4ade80" font-size="12" font-weight="bold" font-family="sans-serif">→ 连锁反应 C</text>
+  <text x="960" y="373" fill="#94a3b8" font-size="11" font-family="sans-serif">中国AI出海战略调整</text>
+  <text x="960" y="393" fill="#94a3b8" font-size="11" font-family="sans-serif">区域化AI生态形成</text>
+  <!-- Legend -->
+  <rect x="80" y="450" width="1120" height="70" rx="6" ry="6" fill="#0a0a14" stroke="#2a2a40" stroke-width="1"/>
+  <text x="100" y="473" fill="#f8fafc" font-size="13" font-weight="bold" font-family="sans-serif">图例 Legend</text>
+  <line x1="100" y1="488" x2="200" y2="488" stroke="#a855f7" stroke-width="3"/>
+  <text x="210" y="493" fill="#94a3b8" font-size="11" font-family="sans-serif">起因节点</text>
+  <line x1="320" y1="488" x2="420" y2="488" stroke="#fbbf24" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="430" y="493" fill="#94a3b8" font-size="11" font-family="sans-serif">因果关系</text>
+  <rect x="540" y="478" width="16" height="16" rx="3" fill="#f59e0b" opacity="0.3" stroke="#f59e0b" stroke-width="1"/>
+  <text x="565" y="493" fill="#94a3b8" font-size="11" font-family="sans-serif">直接影响</text>
+  <rect x="660" y="478" width="16" height="16" rx="3" fill="#f87171" opacity="0.3" stroke="#f87171" stroke-width="1"/>
+  <text x="685" y="493" fill="#94a3b8" font-size="11" font-family="sans-serif">商业影响</text>
+  <rect x="780" y="478" width="16" height="16" rx="3" fill="#4ade80" opacity="0.3" stroke="#4ade80" stroke-width="1"/>
+  <text x="805" y="493" fill="#94a3b8" font-size="11" font-family="sans-serif">全球影响</text>
+  <!-- Summary -->
+  <rect x="80" y="540" width="1120" height="60" rx="6" ry="6" fill="#1a1a0a" stroke="#fbbf24" stroke-width="1" opacity="0.5"/>
+  <text x="100" y="565" fill="#fbbf24" font-size="12" font-family="sans-serif">💡 分析结论</text>
+  <text x="100" y="585" fill="#94a3b8" font-size="11" font-family="sans-serif">EU AI Act 将重塑全球AI竞争格局，技术创新与监管合规的平衡成为核心议题。</text>
+  <!-- Speaker cards -->
+  <rect x="200" y="620" width="360" height="70" rx="6" ry="6" fill="#0f0f1a" stroke="#2a2a40" stroke-width="1" opacity="0.8"/>
+  <text x="220" y="643" fill="#fbbf24" font-size="11" font-family="sans-serif">ANALYST A</text>
+  <text x="220" y="663" fill="#64748b" font-size="11" font-family="sans-serif">从监管角度分析...</text>
+  <rect x="720" y="620" width="360" height="70" rx="6" ry="6" fill="#0f0f1a" stroke="#2a2a40" stroke-width="1" opacity="0.8"/>
+  <text x="740" y="643" fill="#4ade80" font-size="11" font-family="sans-serif">ANALYST B</text>
+  <text x="740" y="663" fill="#64748b" font-size="11" font-family="sans-serif">因果链条很清晰...</text>
+</svg>
+</body>
+</html>

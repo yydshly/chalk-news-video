@@ -986,6 +986,25 @@ def serve_style_css():
     return FileResponse(str(WEB_DIR / "style.css"))
 
 
+# ---------- theme sample whitelist (CP22) ----------
+_THEME_SAMPLES = frozenset([
+    "news_card_v1.html",
+    "research_desk_v2.html",
+    "causal_map_v1.html",
+])
+
+
+@app.get("/examples/theme_samples/{filename}")
+def serve_theme_sample(filename: str):
+    """Serve a whitelisted static theme sample HTML. No path traversal allowed."""
+    if filename not in _THEME_SAMPLES:
+        raise HTTPException(status_code=404, detail="Sample not found")
+    sample_path = WEB_DIR / "theme_samples" / filename
+    if not sample_path.exists():
+        raise HTTPException(status_code=404, detail="Sample not found")
+    return FileResponse(str(sample_path))
+
+
 # ---------- health ----------
 
 

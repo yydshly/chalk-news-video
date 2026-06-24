@@ -81,6 +81,7 @@
       desc: "适合快讯、产品发布、公司动态、热点新闻",
       tags: ["推荐", "新闻感强", "当前主推"],
       recommended: true,
+      sample_url: "/examples/theme_samples/news_card_v1.html",
     },
     research_desk_v2: {
       id: "research_desk_v2",
@@ -88,6 +89,7 @@
       desc: "适合技术解读、研究报告、模型能力分析",
       tags: ["深度解读", "技术感"],
       recommended: false,
+      sample_url: "/examples/theme_samples/research_desk_v2.html",
     },
     causal_map_v1: {
       id: "causal_map_v1",
@@ -95,6 +97,7 @@
       desc: "适合解释事件原因、影响链条、监管变化",
       tags: ["逻辑分析", "结构化"],
       recommended: false,
+      sample_url: "/examples/theme_samples/causal_map_v1.html",
     },
   };
 
@@ -398,17 +401,55 @@
           (theme.recommended ? '<span class="theme-showcase-recommended">★ 推荐</span>' : '') +
         '</div>' +
         '<div class="theme-showcase-desc">' + escapeHtml(theme.desc) + '</div>' +
-        '<div class="theme-showcase-tags">' + tagsHtml + '</div>';
+        '<div class="theme-showcase-tags">' + tagsHtml + '</div>' +
+        '<button class="theme-showcase-sample-btn" type="button">查看样例</button>';
 
-      div.addEventListener("click", function () {
+      // Theme selection click (on card background)
+      div.addEventListener("click", function (ev) {
+        if (ev.target.classList.contains("theme-showcase-sample-btn")) return;
         selectTheme.value = theme.id;
         selectTheme.dispatchEvent(new Event("change"));
         renderThemeShowcase();
         updateRecommendedHint();
       });
 
+      // Sample preview click (does NOT change theme selection)
+      const sampleBtn = div.querySelector(".theme-showcase-sample-btn");
+      if (sampleBtn) {
+        sampleBtn.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          previewThemeSample(theme.id);
+        });
+      }
+
       themeShowcaseList.appendChild(div);
     });
+  }
+
+  // CP22: Preview theme sample in iframe without creating a job
+  function previewThemeSample(themeId) {
+    const theme = THEME_SHOWCASES[themeId];
+    if (!theme || !theme.sample_url) return;
+
+    // Switch to preview tab
+    switchToPreviewTab();
+
+    // Clear previous preview
+    clearPreview();
+
+    // Load sample HTML in iframe
+    previewHtml.src = theme.sample_url + "?t=" + Date.now();
+
+    // Show sample preview banner
+    autoPreviewBanner.style.display = "block";
+    autoPreviewBanner.textContent = "🎨 主题样例预览：" + theme.name;
+
+    // Hide download links and audio player for sample preview
+    downloadLinks.innerHTML = "";
+    audioPlayerWrap.style.display = "none";
+
+    // Switch to HTML preview mode
+    setPreviewMode("html");
   }
 
   // Sync theme showcase selection when selectTheme changes programmatically

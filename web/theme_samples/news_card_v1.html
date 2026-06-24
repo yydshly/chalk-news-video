@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Theme Sample: news_card_v1</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #1a1a2e; overflow: hidden; }
+  .sample-label {
+    position: fixed; top: 12px; left: 12px; z-index: 100;
+    background: rgba(30,30,60,0.9); color: #86efac; font-size: 12px;
+    padding: 4px 10px; border-radius: 4px; font-family: sans-serif;
+  }
+  svg.board { display: block; background: #1e2330; }
+  /* news_card_v1 style: news-card-like nodes with strong borders */
+  .node-card { rx: 8; ry: 8; }
+  .node-title { font-size: 18px; font-weight: bold; fill: #f8fafc; font-family: sans-serif; }
+  .node-body { font-size: 13px; fill: #94a3b8; font-family: sans-serif; }
+  .node-source { font-size: 11px; fill: #64748b; font-family: sans-serif; }
+  .card-border { stroke: #38bdf8; stroke-width: 2; fill: #0f1117; }
+  .card-highlight { stroke: #4ade80; stroke-width: 3; fill: #0f2a0f; }
+</style>
+</head>
+<body>
+<div class="sample-label">📰 主题样例 · 新闻卡片风</div>
+<svg class="board" viewBox="0 0 1280 720" width="1280" height="720" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <pattern id="grid" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+      <rect width="40" height="40" fill="#1e2330"/>
+      <line x1="0" y1="0" x2="40" y2="0" stroke="#2d3748" stroke-width="0.5"/>
+      <line x1="0" y1="0" x2="0" y2="40" stroke="#2d3748" stroke-width="0.5"/>
+    </pattern>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+  <rect width="1280" height="720" fill="url(#grid)"/>
+  <!-- Title -->
+  <text x="640" y="60" text-anchor="middle" fill="#f8fafc" font-size="32" font-weight="bold" font-family="sans-serif">AI 模型发布重磅更新</text>
+  <text x="640" y="90" text-anchor="middle" fill="#64748b" font-size="14" font-family="sans-serif">来源：AI 科技媒体 · 2026-06-24</text>
+  <!-- News card 1 -->
+  <rect x="120" y="140" width="340" height="200" rx="8" ry="8" class="card-border" filter="url(#shadow)"/>
+  <rect x="120" y="140" width="340" height="48" rx="8" ry="8" fill="#38bdf8" opacity="0.15"/>
+  <text x="140" y="168" fill="#38bdf8" font-size="13" font-weight="bold" font-family="sans-serif">核心发布</text>
+  <text x="140" y="196" fill="#f8fafc" font-size="16" font-weight="bold" font-family="sans-serif">GPT-5 正式发布</text>
+  <text x="140" y="224" fill="#94a3b8" font-size="13" font-family="sans-serif">性能大幅提升，支持多模态</text>
+  <text x="140" y="248" fill="#64748b" font-size="11" font-family="sans-serif">★ 9.2 · 342 pts · 89 comments</text>
+  <!-- News card 2 -->
+  <rect x="490" y="140" width="340" height="200" rx="8" ry="8" class="card-border" filter="url(#shadow)"/>
+  <rect x="490" y="140" width="340" height="48" rx="8" ry="8" fill="#38bdf8" opacity="0.15"/>
+  <text x="510" y="168" fill="#38bdf8" font-size="13" font-weight="bold" font-family="sans-serif">技术解读</text>
+  <text x="510" y="196" fill="#f8fafc" font-size="16" font-weight="bold" font-family="sans-serif">Claude 4 能力分析</text>
+  <text x="510" y="224" fill="#94a3b8" font-size="13" font-family="sans-serif">长上下文窗口突破</text>
+  <text x="510" y="248" fill="#64748b" font-size="11" font-family="sans-serif">★ 8.7 · 218 pts · 56 comments</text>
+  <!-- News card 3 (highlighted) -->
+  <rect x="820" y="140" width="340" height="200" rx="8" ry="8" class="card-highlight" filter="url(#shadow)"/>
+  <rect x="820" y="140" width="340" height="48" rx="8" ry="8" fill="#4ade80" opacity="0.2"/>
+  <text x="840" y="168" fill="#4ade80" font-size="13" font-weight="bold" font-family="sans-serif">热门精选</text>
+  <text x="840" y="196" fill="#f8fafc" font-size="16" font-weight="bold" font-family="sans-serif">Gemini 2.0 发布</text>
+  <text x="840" y="224" fill="#94a3b8" font-size="13" font-family="sans-serif">端侧部署能力增强</text>
+  <text x="840" y="248" fill="#64748b" font-size="11" font-family="sans-serif">★ 9.5 · 512 pts · 134 comments</text>
+  <!-- Summary card -->
+  <rect x="120" y="380" width="1040" height="140" rx="8" ry="8" fill="#0f1117" stroke="#2d3748" stroke-width="1" filter="url(#shadow)"/>
+  <text x="140" y="410" fill="#f8fafc" font-size="14" font-weight="bold" font-family="sans-serif">本期要点</text>
+  <text x="140" y="438" fill="#94a3b8" font-size="12" font-family="sans-serif">• 多款大模型集中发布</text>
+  <text x="140" y="460" fill="#94a3b8" font-size="12" font-family="sans-serif">• 技术能力持续突破</text>
+  <text x="140" y="482" fill="#94a3b8" font-size="12" font-family="sans-serif">• 多模态成为标配</text>
+  <text x="140" y="510" fill="#64748b" font-size="11" font-family="sans-serif">展示：新闻卡片风 · news_card_v1</text>
+  <!-- Speaker cards at bottom -->
+  <rect x="200" y="560" width="360" height="100" rx="10" ry="10" fill="#0f1117" stroke="#2d3748" stroke-width="1" opacity="0.7"/>
+  <text x="220" y="588" fill="#38bdf8" font-size="13" font-family="sans-serif">主播 A</text>
+  <text x="220" y="612" fill="#94a3b8" font-size="12" font-family="sans-serif">今天我们来聊聊...</text>
+  <rect x="720" y="560" width="360" height="100" rx="10" ry="10" fill="#0f1117" stroke="#2d3748" stroke-width="1" opacity="0.7"/>
+  <text x="740" y="588" fill="#f87171" font-size="13" font-family="sans-serif">主播 B</text>
+  <text x="740" y="612" fill="#94a3b8" font-size="12" font-family="sans-serif">确实值得关注...</text>
+</svg>
+</body>
+</html>
