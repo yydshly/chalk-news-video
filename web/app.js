@@ -510,7 +510,40 @@
       }
     });
 
+    // CP30.1: Fallback — ensure at least 2 recommendations
+    var FALLBACK_THEMES = [
+      { theme_id: "news_card_v1", reason: "通用推荐，适合大多数新闻" },
+      { theme_id: "research_desk_v2", reason: "技术解读通用风格" },
+      { theme_id: "opinion_column_v1", reason: "观点评论通用风格" },
+    ];
+
+    if (unique.length < 2) {
+      FALLBACK_THEMES.forEach(function (fb) {
+        if (unique.length >= 3) return;
+        if (!seen[fb.theme_id]) {
+          seen[fb.theme_id] = true;
+          unique.push(fb);
+        }
+      });
+    }
+
     return unique.slice(0, 3);
+  }
+
+  // CP30.1: Sync active state of recommendation tags in hot news cards
+  // Does NOT re-render cards — only toggles .active class on existing .style-recommend-tag buttons.
+  function updateHotNewsRecommendationActiveStates() {
+    if (!hotNewsList) return;
+    var currentTheme = selectTheme.value;
+    var tags = hotNewsList.querySelectorAll(".style-recommend-tag");
+    tags.forEach(function (tag) {
+      var tagThemeId = tag.getAttribute("data-theme-id");
+      if (tagThemeId === currentTheme) {
+        tag.classList.add("active");
+      } else {
+        tag.classList.remove("active");
+      }
+    });
   }
 
   // CP30: Update UI with current style recommendations
@@ -625,7 +658,7 @@
           var t = THEME_SHOWCASES[rec.theme_id];
           if (t) {
             ensureThemeOption(t);
-            renderThemeShowcase();
+            // renderThemeShowcase + updateHotNewsRecommendationActiveStates fired by selectTheme "change" listener
             updateStyleRecommendations();
             updateGenerationPlan();
           }
@@ -1927,6 +1960,7 @@
   if (selectTheme) {
     selectTheme.addEventListener("change", function () {
       renderThemeShowcase();
+      updateHotNewsRecommendationActiveStates();
       updateGenerationPlan();
     });
   }

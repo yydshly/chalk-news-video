@@ -131,3 +131,78 @@ Tags are `.gen-plan-recommend-tag` buttons, same click behavior as card tags.
 - No user preference memory
 - No A/B testing
 - No cross-news style consistency for episode mode
+
+---
+
+## CP30.1: Style Recommendation Fallback and Active State Fix
+
+**Branch:** `fix/cp30.1-style-recommendation-fallback`
+**Commit:** `fix(cp30.1): add style recommendation fallback and active state sync`
+**Date:** 2026-06-24
+
+### Problem 1: Empty Recommendations
+
+`recommendStylesForNews()` returned an empty array when no keyword rules matched. This defeated the goal of always giving the user 2–3 choices.
+
+### Solution: Fallback Rules
+
+After deduplication, if `unique.length < 2`, fill up to 3 using:
+
+```
+{ news_card_v1, "通用推荐，适合大多数新闻" }
+{ research_desk_v2, "技术解读通用风格" }
+{ opinion_column_v1, "观点评论通用风格" }
+```
+
+Fallback themes are appended only if they are not already present. Result is always 2–3 items (or fewer only if `THEME_SHOWCASES` has fewer than 2 entries, which cannot happen with 12 themes).
+
+### Problem 2: Stale Active State on Recommendation Tags
+
+Clicking a recommendation tag in a hot news card updated `selectTheme.value` but the `.active` gold class on tag buttons in hot news cards was not refreshed when the theme changed from other sources (e.g., clicking a theme showcase card, or selecting a different recommendation tag).
+
+### Solution: `updateHotNewsRecommendationActiveStates()`
+
+Iterates all `.style-recommend-tag` buttons in `hotNewsList` and toggles `.active` based on whether each tag's `data-theme-id` equals `selectTheme.value`. Does NOT re-render cards — only toggles CSS classes.
+
+```javascript
+function updateHotNewsRecommendationActiveStates() {
+  var currentTheme = selectTheme.value;
+  var tags = hotNewsList.querySelectorAll(".style-recommend-tag");
+  tags.forEach(function (tag) {
+    var tagThemeId = tag.getAttribute("data-theme-id");
+    if (tagThemeId === currentTheme) {
+      tag.classList.add("active");
+    } else {
+      tag.classList.remove("active");
+    }
+  });
+}
+```
+
+### Active State Sync Call Sites
+
+| Trigger | Function Called |
+|---------|----------------|
+| `selectTheme` "change" event (all theme changes) | `updateHotNewsRecommendationActiveStates()` |
+| Hot news card recommendation tag click | `updateStyleRecommendations()` (rebuilds gen plan tags) |
+| Gen plan recommendation tag click | `updateStyleRecommendations()` (rebuilds gen plan tags) |
+| `renderHotNews()` completes | `updateStyleRecommendations()` |
+
+Note: theme card clicks and hot news card recommendation tag clicks both go through `ensureThemeOption()` which dispatches the "change" event, so `updateHotNewsRecommendationActiveStates()` fires from the listener automatically.
+
+### Lightweight Verification Results
+
+| Test | Result |
+|------|--------|
+| Empty-keyword news returns at least 2 recommendations | ✓ |
+| `launch/release` news still returns `product_launch_v1` | ✓ |
+| `paper/arxiv` news still returns `paper_digest_v1` | ✓ |
+| `github/open source` news still returns `dev_terminal_v1` | ✓ |
+| Clicking news card tag → tag becomes active | ✓ |
+| Clicking another tag → old active removed, new active set | ✓ |
+| Gen plan panel recommendation active state syncs | ✓ |
+| Clicking theme card → news card tag active state syncs | ✓ |
+| No `/api/jobs` called | ✓ |
+| No real LLM / TTS / MP4 | ✓ |
+| No API key / voice_id leakage | ✓ |
+
