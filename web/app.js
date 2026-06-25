@@ -4284,7 +4284,6 @@
 
     emptyEl.style.display = hasContent ? "none" : "block";
   }
-  }
 
   // CP41.2: Empty state helper
   function setTabEmptyState(tabId, isEmpty) {
