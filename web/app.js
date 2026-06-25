@@ -86,6 +86,12 @@
   const episodeExportStatus = document.getElementById("episode-export-status");
   const episodeExportDownload = document.getElementById("episode-export-download");
 
+  // CP40.5: Episode export history DOM refs
+  const episodeExportHistoryPanel = document.getElementById("episode-export-history-panel");
+  const episodeExportHistoryListEl = document.getElementById("episode-export-history-list");
+  const btnRefreshEpisodeExports = document.getElementById("btn-refresh-episode-exports");
+  const btnCleanupEpisodeExports = document.getElementById("btn-cleanup-episode-exports");
+
   // ---------- state ----------
   let lastResult = null;
   let currentEventSource = null;
@@ -349,6 +355,8 @@
           episodeExportDownload.href = mp4Url;
           episodeExportDownload.style.display = "inline-block";
         }
+        // CP40.5: refresh export history
+        loadEpisodeExportHistory();
       } else if (statusData.status === "failed") {
         stopEpisodeExportPolling();
         setEpisodeExportButtonState("failed");
@@ -438,6 +446,146 @@
     });
   }
 
+  // Wire up export history buttons
+  if (btnRefreshEpisodeExports) {
+    btnRefreshEpisodeExports.addEventListener("click", function () {
+      loadEpisodeExportHistory();
+    });
+  }
+
+  if (btnCleanupEpisodeExports) {
+    btnCleanupEpisodeExports.addEventListener("click", function () {
+      cleanupEpisodeExports();
+    });
+  }
+
+  // CP40.5: Episode export history functions
+  async function loadEpisodeExportHistory() {
+    try {
+      var resp = await fetch("/api/episode/exports?limit=50");
+      var data = await resp.json();
+      if (!data.ok) {
+        if (episodeExportHistoryListEl) {
+          episodeExportHistoryListEl.innerHTML = '<div class="episode-export-history-empty">加载失败</div>';
+        }
+        return;
+      }
+      episodeExportHistoryPanel.style.display = "block";
+      renderEpisodeExportHistory(data.items || []);
+    } catch (e) {
+      if (episodeExportHistoryListEl) {
+        episodeExportHistoryListEl.innerHTML = '<div class="episode-export-history-empty">加载失败</div>';
+      }
+    }
+  }
+
+  function renderEpisodeExportHistory(items) {
+    if (!episodeExportHistoryListEl) return;
+
+    if (!items || items.length === 0) {
+      episodeExportHistoryListEl.innerHTML = '<div class="episode-export-history-empty">暂无导出记录</div>';
+      return;
+    }
+
+    var html = "";
+    items.forEach(function (item) {
+      var exportId = item.export_id || "";
+      var shortId = exportId.replace("episode_export_", "").slice(-8);
+      var status = item.status || "unknown";
+      var sizeBytes = item.mp4_size_bytes || 0;
+      var sizeStr = formatBytes(sizeBytes);
+      var updatedAt = item.updated_at || item.created_at || "";
+      var shortTime = updatedAt ? updatedAt.slice(0, 16).replace("T", " ") : "";
+
+      var statusClass = status;
+      var statusLabel = status;
+      if (status === "completed") statusLabel = "已完成";
+      else if (status === "failed") statusLabel = "失败";
+      else if (status === "running") statusLabel = "导出中";
+      else if (status === "pending") statusLabel = "等待中";
+      else statusLabel = "未知";
+
+      var mp4Url = item.mp4_url || "#";
+      var htmlUrl = item.html_url || "#";
+
+      var canDelete = status !== "running" && status !== "pending";
+
+      html += '<div class="episode-export-history-item" data-export-id="' + exportId + '">';
+      html += '<div class="episode-export-history-main">';
+      html += '<span class="episode-export-history-id">' + shortId + '</span>';
+      html += '<span class="episode-export-history-status ' + statusClass + '">' + statusLabel + '</span>';
+      html += '<span class="episode-export-history-size">' + sizeStr + '</span>';
+      if (shortTime) html += '<span class="episode-export-history-size">' + shortTime + '</span>';
+      html += '</div>';
+      html += '<div class="episode-export-history-actions">';
+      if (item.has_mp4) {
+        html += '<a href="' + mp4Url + '" target="_blank" rel="noopener">打开 MP4</a>';
+      }
+      if (item.has_html) {
+        html += '<a href="' + htmlUrl + '" target="_blank" rel="noopener">打开 HTML</a>';
+      }
+      if (canDelete) {
+        html += '<button class="btn-delete-export" data-export-id="' + exportId + '">删除</button>';
+      }
+      html += '</div>';
+      html += '</div>';
+    });
+
+    episodeExportHistoryListEl.innerHTML = html;
+
+    // Wire up delete buttons
+    episodeExportHistoryListEl.querySelectorAll(".btn-delete-export").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var eid = btn.getAttribute("data-export-id");
+        if (eid) deleteEpisodeExport(eid);
+      });
+    });
+  }
+
+  async function deleteEpisodeExport(exportId) {
+    if (!confirm("确定删除这个导出吗？")) return;
+    try {
+      var resp = await fetch("/api/episode/exports/" + exportId, { method: "DELETE" });
+      var data = await resp.json();
+      if (!data.ok) {
+        setStatus("删除失败：" + (data.error || "未知错误"), "error");
+        return;
+      }
+      setStatus("导出已删除", "info");
+      loadEpisodeExportHistory();
+    } catch (e) {
+      setStatus("删除失败：" + e.message, "error");
+    }
+  }
+
+  async function cleanupEpisodeExports() {
+    if (!confirm("将保留最近 30 个导出，删除更旧的已完成/失败导出。确定继续？")) return;
+    try {
+      var resp = await fetch("/api/episode/exports/cleanup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keep_latest: 30, dry_run: false }),
+      });
+      var data = await resp.json();
+      if (!data.ok) {
+        setStatus("清理失败：" + (data.error || "未知错误"), "error");
+        return;
+      }
+      var count = data.deleted_count || 0;
+      setStatus("已清理 " + count + " 个旧导出", "info");
+      loadEpisodeExportHistory();
+    } catch (e) {
+      setStatus("清理失败：" + e.message, "error");
+    }
+  }
+
+  function formatBytes(bytes) {
+    if (!bytes || bytes === 0) return "—";
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  }
+
   // ---------- init ----------
   async function init() {
     setStatus("加载主题列表...", "info");
@@ -495,6 +643,9 @@
 
     // CP32: Load episode HTML artifact history
     loadEpisodeHtmlHistory();
+
+    // CP40.5: Load episode export history
+    loadEpisodeExportHistory();
   }
 
   // ---------- load providers (CP15) ----------

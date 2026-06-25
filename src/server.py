@@ -1136,6 +1136,73 @@ class EpisodeExportRequest(BaseModel):
     fps: int = 30
 
 
+# ---------- episode export history (CP40.5) ----------
+
+
+@app.get("/api/episode/exports")
+def api_list_episode_exports(limit: int = 50):
+    """List recent episode export summaries, sorted by updated_at descending."""
+    from src.episode_export import list_episode_exports
+
+    try:
+        items = list_episode_exports(limit=limit)
+        return JSONResponse({
+            "ok": True,
+            "items": items,
+            "count": len(items),
+            "limit": limit,
+        })
+    except Exception as e:
+        redacted = _redact_secret_text(str(e))
+        return JSONResponse({"ok": False, "error": redacted}, status_code=500)
+
+
+@app.post("/api/episode/exports/cleanup")
+def api_cleanup_episode_exports(body: Optional[dict] = None):
+    """Clean up old episode exports, keeping the most recent `keep_latest`.
+
+    Body: { "keep_latest": 30, "dry_run": false }
+    """
+    from src.episode_export import cleanup_episode_exports
+
+    keep_latest = 30
+    dry_run = False
+
+    if body:
+        if "keep_latest" in body:
+            keep_latest = int(body["keep_latest"])
+        if "dry_run" in body:
+            dry_run = bool(body["dry_run"])
+
+    try:
+        result = cleanup_episode_exports(keep_latest=keep_latest, dry_run=dry_run)
+        return JSONResponse(result)
+    except Exception as e:
+        redacted = _redact_secret_text(str(e))
+        return JSONResponse({"ok": False, "error": redacted}, status_code=500)
+
+
+@app.delete("/api/episode/exports/{export_id}")
+def api_delete_episode_export(export_id: str):
+    """Delete a single episode export by ID.
+
+    Only allows deleting completed/failed/unknown exports.
+    """
+    from src.episode_export import delete_episode_export
+
+    try:
+        result = delete_episode_export(export_id)
+        if not result.get("ok"):
+            return JSONResponse(result, status_code=400)
+        return JSONResponse(result)
+    except Exception as e:
+        redacted = _redact_secret_text(str(e))
+        return JSONResponse({"ok": False, "error": redacted}, status_code=500)
+
+
+# ---------- episode export (CP40.2) ----------
+
+
 @app.post("/api/episode/export")
 def api_episode_export(body: EpisodeExportRequest):
     """Start an async episode export job.

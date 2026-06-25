@@ -408,6 +408,228 @@ def start_episode_export_background(
 
 
 # ---------------------------------------------------------------------------
+# Episode export history / summary (CP40.5)
+# ---------------------------------------------------------------------------
+
+def get_episode_export_summary(export_id: str) -> Optional[dict]:
+    """Return a summary dict for an episode export, or None if not found.
+
+    Reads status.json and export_meta.json from the export directory.
+    """
+    if not validate_export_id(export_id):
+        return None
+
+    export_dir = EPISODE_EXPORT_DIR / export_id
+    if not export_dir.is_dir():
+        return None
+
+    status_path = export_dir / "status.json"
+    meta_path = export_dir / "export_meta.json"
+
+    status_data = None
+    if status_path.exists():
+        try:
+            status_data = json.loads(status_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    meta_data = None
+    if meta_path.exists():
+        try:
+            meta_data = json.loads(meta_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    if status_data is None and meta_data is None:
+        return None
+
+    # Determine effective status
+    status = status_data.get("status", "unknown") if status_data else "unknown"
+
+    # MP4 and HTML presence
+    mp4_path = export_dir / "output.mp4"
+    html_path = export_dir / "animation.html"
+
+    mp4_size = 0
+    if mp4_path.exists():
+        try:
+            mp4_size = mp4_path.stat().st_size
+        except Exception:
+            pass
+
+    result = {
+        "export_id": export_id,
+        "status": status,
+        "progress": status_data.get("progress") if status_data else None,
+        "message": status_data.get("message") if status_data else None,
+        "error_message": status_data.get("error_message") if status_data else None,
+        "style_id": status_data.get("style_id") if status_data else (meta_data.get("style_id") if meta_data else None),
+        "width": status_data.get("width") if status_data else (meta_data.get("width") if meta_data else None),
+        "height": status_data.get("height") if status_data else (meta_data.get("height") if meta_data else None),
+        "fps": status_data.get("fps") if status_data else (meta_data.get("fps") if meta_data else None),
+        "created_at": status_data.get("created_at") if status_data else (meta_data.get("created_at") if meta_data else None),
+        "updated_at": status_data.get("updated_at") if status_data else None,
+        "mp4_url": f"/outputs/episode_exports/{export_id}/output.mp4",
+        "html_url": f"/outputs/episode_exports/{export_id}/animation.html",
+        "status_url": f"/api/episode/exports/{export_id}",
+        "meta_url": f"/outputs/episode_exports/{export_id}/export_meta.json",
+        "contract_url": f"/outputs/episode_exports/{export_id}/contract.json",
+        "mp4_size_bytes": mp4_size,
+        "has_mp4": mp4_path.exists(),
+        "has_html": html_path.exists(),
+        "has_meta": meta_path.exists(),
+        "has_contract": (export_dir / "contract.json").exists(),
+        "has_status": status_path.exists(),
+    }
+
+    # Fill mp4_size from meta if available and mp4 doesn't exist yet
+    if mp4_size == 0 and meta_data and meta_data.get("mp4_size_bytes"):
+        result["mp4_size_bytes"] = meta_data["mp4_size_bytes"]
+
+    return result
+
+
+def list_episode_exports(limit: int = 50) -> list[dict]:
+    """List recent episode export summaries, sorted by updated_at descending.
+
+    Only returns exports whose directory name matches validate_export_id().
+    Skips directories that can't be read without raising errors.
+    """
+    if not EPISODE_EXPORT_DIR.is_dir():
+        return []
+
+    limit = max(1, min(limit, 200))
+
+    items = []
+    for export_dir in EPISODE_EXPORT_DIR.iterdir():
+        if not export_dir.is_dir():
+            continue
+
+        export_id = export_dir.name
+        if not validate_export_id(export_id):
+            continue
+
+        try:
+            summary = get_episode_export_summary(export_id)
+            if summary is None:
+                continue
+            items.append(summary)
+        except Exception:
+            continue
+
+    # Sort by updated_at descending, then by export_id for stability
+    def sort_key(item):
+        updated = item.get("updated_at") or item.get("created_at") or ""
+        return (updated, item["export_id"])
+
+    items.sort(key=sort_key, reverse=True)
+
+    return items[:limit]
+
+
+def delete_episode_export(export_id: str) -> dict:
+    """Delete an episode export directory.
+
+    Only allows deleting completed/failed/unknown exports.
+    Rejects running/pending exports.
+
+    Returns {"ok": True, "deleted": True, "export_id": ..., "summary": ...} on success.
+    Returns {"ok": False, "error": ..., "export_id": ...} on failure.
+    """
+    if not validate_export_id(export_id):
+        return {"ok": False, "error": "Invalid export_id format", "export_id": export_id}
+
+    export_dir = EPISODE_EXPORT_DIR / export_id
+    if not export_dir.is_dir():
+        return {"ok": False, "error": "Export directory not found", "export_id": export_id}
+
+    # Security: resolve path and ensure it's under EPISODE_EXPORT_DIR
+    try:
+        resolved = export_dir.resolve()
+        base_resolved = EPISODE_EXPORT_DIR.resolve()
+        if not str(resolved).startswith(str(base_resolved)):
+            return {"ok": False, "error": "Path traversal rejected", "export_id": export_id}
+    except Exception:
+        return {"ok": False, "error": "Invalid path", "export_id": export_id}
+
+    # Check current status — reject running/pending
+    summary = get_episode_export_summary(export_id)
+    if summary and summary["status"] in ("running", "pending"):
+        return {
+            "ok": False,
+            "error": f"Cannot delete export with status '{summary['status']}'",
+            "export_id": export_id,
+        }
+
+    # Get summary before deletion for the return value
+    deleted_summary = summary
+
+    # Perform deletion
+    import shutil
+    try:
+        shutil.rmtree(export_dir)
+    except Exception as e:
+        return {"ok": False, "error": f"Failed to delete directory: {e}", "export_id": export_id}
+
+    return {
+        "ok": True,
+        "deleted": True,
+        "export_id": export_id,
+        "summary": deleted_summary,
+    }
+
+
+def cleanup_episode_exports(keep_latest: int = 30, dry_run: bool = False) -> dict:
+    """Clean up old episode exports, keeping the most recent `keep_latest` completed/failed/unknown exports.
+
+    Running and pending exports are never deleted.
+    """
+    keep_latest = max(1, min(keep_latest, 200))
+
+    all_exports = list_episode_exports(limit=1000)
+
+    # Separate into to_delete and to_skip
+    to_delete = []
+    to_skip = []
+
+    for export in all_exports:
+        if export["status"] in ("running", "pending"):
+            to_skip.append({"export_id": export["export_id"], "reason": export["status"]})
+        else:
+            to_delete.append(export)
+
+    # Keep the most recent `keep_latest`
+    keep_list = to_delete[:keep_latest]
+    delete_list = to_delete[keep_latest:]
+
+    deleted = []
+    errors = []
+
+    if not dry_run:
+        for export in delete_list:
+            result = delete_episode_export(export["export_id"])
+            if result.get("ok"):
+                deleted.append({
+                    "export_id": export["export_id"],
+                    "status": export["status"],
+                    "mp4_size_bytes": export.get("mp4_size_bytes"),
+                })
+            else:
+                errors.append({"export_id": export["export_id"], "error": result.get("error")})
+
+    return {
+        "ok": True,
+        "keep_latest": keep_latest,
+        "dry_run": dry_run,
+        "deleted_count": len(deleted),
+        "deleted": deleted,
+        "errors": errors,
+        "skipped": to_skip,
+        "total_kept": len(keep_list),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Synchronous export (CP40.2 — kept for scripts and backward compatibility)
 # ---------------------------------------------------------------------------
 

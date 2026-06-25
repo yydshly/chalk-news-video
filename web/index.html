@@ -266,6 +266,16 @@
           <div id="episode-export-status" class="episode-export-status"></div>
           <a id="episode-export-download" class="episode-export-download" href="#" target="_blank" rel="noopener" style="display:none">下载 MP4</a>
         </div>
+
+        <!-- CP40.5: Episode export history panel -->
+        <div id="episode-export-history-panel" class="episode-export-history-panel" style="display:none">
+          <div class="episode-export-history-header">
+            <span>最近导出 MP4</span>
+            <button id="btn-refresh-episode-exports" class="btn-small" type="button">刷新</button>
+            <button id="btn-cleanup-episode-exports" class="btn-small btn-cleanup" type="button">清理旧导出</button>
+          </div>
+          <div id="episode-export-history-list" class="episode-export-history-list"></div>
+        </div>
         <div id="export-hint" class="hint"></div>
       </div>
 
