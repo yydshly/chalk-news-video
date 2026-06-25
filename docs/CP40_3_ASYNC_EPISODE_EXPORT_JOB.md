@@ -149,3 +149,41 @@ Smoke test: `scripts/smoke_test_render_episode_html.py` — All checks passed.
 ## 12. Next Checkpoint
 
 CP40.4: Add audio mux support to episode export — accept optional `audio_path` parameter, mux WAV/MP3 into MP4 using ffmpeg.
+
+---
+
+## CP40.3.1: Status Metadata Persistence Fix
+
+**Branch**: `fix/cp40.3.1-status-metadata-persistence` (commit `f28854d`)
+
+### Problem
+
+`write_episode_export_status()` accepted `style_id`, `width`, `height`, and `fps` as optional kwargs, but the merge logic always read from `existing` first:
+
+```python
+# Bug: ignored passed value, always used existing (which was empty on first write)
+"style_id": existing.get("style_id"),
+"width": existing.get("width"),
+```
+
+This meant the **first pending status write** — which passes these values — would write `None` for them, and subsequent updates would only preserve what was in `existing` (which was empty).
+
+### Fix
+
+Changed the merge logic so **passed value wins over existing**:
+
+```python
+"style_id": style_id if style_id is not None else existing.get("style_id"),
+"width": width if width is not None else existing.get("width"),
+"height": height if height is not None else existing.get("height"),
+"fps": fps if fps is not None else existing.get("fps"),
+```
+
+All `write_episode_export_status()` calls in `_run_episode_export_worker()` and `export_episode_contract_to_mp4()` now also pass these values explicitly at every status transition.
+
+### Result
+
+`style_id`, `width`, `height`, and `fps` are now persisted from the **first pending write** and preserved across all subsequent `pending → running → completed` (or `failed`) transitions.
+
+Test verifies metadata in every poll response and in the final completed status.
+

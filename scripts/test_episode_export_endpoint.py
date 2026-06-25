@@ -120,6 +120,11 @@ def test_async_episode_export() -> None:
     assert export_id, "export_id missing"
     assert export_id.startswith("episode_export_"), f"Bad export_id format: {export_id}"
 
+    # Verify metadata in POST response (CP40.3.1)
+    assert data.get("width") == 720, f"POST response width should be 720, got {data.get('width')}"
+    assert data.get("height") == 1280, f"POST response height should be 1280, got {data.get('height')}"
+    assert data.get("fps") == 30, f"POST response fps should be 30, got {data.get('fps')}"
+
     status_url = data.get("status_url")
     assert status_url, "status_url missing"
     assert f"/api/episode/exports/{export_id}" == status_url, \
@@ -142,6 +147,17 @@ def test_async_episode_export() -> None:
         progress = status_data.get("progress", 0)
         message = status_data.get("message", "")
         print(f"  poll {i+1:3d}: status={current_status}, progress={progress}, message={message}")
+
+        # CP40.3.1: verify metadata persists in every status response
+        assert status_data.get("style_id") == "breaking_news_v1", \
+            f"[poll {i+1}] style_id missing or wrong: {status_data.get('style_id')}"
+        assert status_data.get("width") == 720, \
+            f"[poll {i+1}] width should be 720, got {status_data.get('width')}"
+        assert status_data.get("height") == 1280, \
+            f"[poll {i+1}] height should be 1280, got {status_data.get('height')}"
+        assert status_data.get("fps") == 30, \
+            f"[poll {i+1}] fps should be 30, got {status_data.get('fps')}"
+
         if current_status in ("completed", "failed"):
             final_status = current_status
             final_data = status_data
@@ -151,6 +167,12 @@ def test_async_episode_export() -> None:
 
     assert final_status == "completed", \
         f"Expected completed, got {final_status}: {final_data}"
+
+    # CP40.3.1: final completed status also preserves metadata
+    assert final_data.get("style_id") == "breaking_news_v1"
+    assert final_data.get("width") == 720
+    assert final_data.get("height") == 1280
+    assert final_data.get("fps") == 30
 
     result = final_data.get("result")
     assert result is not None, "result missing in completed status"

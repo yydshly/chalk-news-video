@@ -158,16 +158,16 @@ def write_episode_export_status(
         except Exception:
             pass
 
-    # Merge with new values
+    # Merge with new values — passed value wins over existing
     data = {
         "export_id": export_id,
         "status": status,
         "message": message,
         "progress": progress,
-        "style_id": existing.get("style_id"),
-        "width": existing.get("width"),
-        "height": existing.get("height"),
-        "fps": existing.get("fps"),
+        "style_id": style_id if style_id is not None else existing.get("style_id"),
+        "width": width if width is not None else existing.get("width"),
+        "height": height if height is not None else existing.get("height"),
+        "fps": fps if fps is not None else existing.get("fps"),
         "created_at": existing.get("created_at", now),
         "updated_at": now,
         "result": result,
@@ -224,6 +224,10 @@ def _run_episode_export_worker(
             status="running",
             progress=10,
             message="Rendering HTML",
+            style_id=style_id,
+            width=width,
+            height=height,
+            fps=fps,
         )
 
         export_dir = EPISODE_EXPORT_DIR / export_id
@@ -244,6 +248,10 @@ def _run_episode_export_worker(
             status="running",
             progress=50,
             message="Exporting MP4",
+            style_id=style_id,
+            width=width,
+            height=height,
+            fps=fps,
         )
 
         # Export MP4
@@ -263,6 +271,10 @@ def _run_episode_export_worker(
             status="running",
             progress=90,
             message="Writing metadata",
+            style_id=style_id,
+            width=width,
+            height=height,
+            fps=fps,
         )
 
         # Write export_meta.json
@@ -300,6 +312,10 @@ def _run_episode_export_worker(
                 "contract_url": meta["contract_url"],
                 "mp4_size_bytes": mp4_size,
             },
+            style_id=style_id,
+            width=width,
+            height=height,
+            fps=fps,
         )
 
     except Exception as exc:
@@ -311,6 +327,10 @@ def _run_episode_export_worker(
             message="Export failed",
             error_type="export_failed",
             error_message=redacted,
+            style_id=style_id,
+            width=width,
+            height=height,
+            fps=fps,
         )
 
 
@@ -499,6 +519,10 @@ def export_episode_contract_to_mp4(
             "contract_url": meta["contract_url"],
             "mp4_size_bytes": mp4_size,
         },
+        style_id=style_id,
+        width=width,
+        height=height,
+        fps=fps,
     )
 
     return meta
