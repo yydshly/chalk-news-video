@@ -5162,8 +5162,15 @@
       latestSourceEpisodeItems = data.episode_items || [];
       var newsCount = latestSourceNewsItems.length;
       var itemCount = latestSourceEpisodeItems.length;
+      var sourceLabel = (function () {
+        if (payload.source_type === "sample_pack") return "样例新闻包";
+        if (payload.source_type === "inline_text") return "粘贴文本";
+        if (payload.source_type === "url_input") return "可靠 URL";
+        if (payload.source_type === "manual_items") return "手动新闻项";
+        return payload.source_type || "新闻源";
+      })();
       setSourceContractStatus(
-        "已从" + (payload.source_type === "sample_pack" ? "样例新闻包" : "粘贴文本") + "生成 " + newsCount + " 条新闻，并生成 episode_template_v1 contract。可在右侧预览，也可以导出 MP4。",
+        "已从" + sourceLabel + "生成 " + newsCount + " 条新闻，并生成 episode_template_v1 contract。可在右侧预览，也可以导出 MP4。",
         "success"
       );
       // Show preview

@@ -115,6 +115,17 @@ def test_validate_source_url_valid():
     print("  [PASS] validate_source_url accepts valid http/https URLs")
 
 
+def test_validate_source_url_missing_domain():
+    """10. validate_source_url() rejects URLs with missing domain (bare scheme)."""
+    ok, err = validate_source_url("https://")
+    assert ok is False, "https:// should be rejected"
+    assert err is not None
+    ok2, err2 = validate_source_url("http://")
+    assert ok2 is False, "http:// should be rejected"
+    assert err2 is not None
+    print("  [PASS] validate_source_url rejects missing domain")
+
+
 # ---------------------------------------------------------------------------
 # normalize_url_item tests
 # ---------------------------------------------------------------------------
@@ -307,6 +318,20 @@ def test_url_input_unsupported_template():
     print("  [PASS] unsupported template_id returns ok=False")
 
 
+def test_url_input_api_invalid_missing_domain():
+    """23. url_input API rejects URL without domain."""
+    resp = client.post("/api/episode/source-contract", json={
+        "source_type": "url_input",
+        "url": "https://",
+        "news_title": "测试新闻",
+        "limit": 1,
+        "template_id": "breaking_news_v1",
+    })
+    data = resp.json()
+    assert data.get("ok") is False, f"should be ok=False: {data}"
+    print("  [PASS] url_input rejects URL without domain")
+
+
 def test_url_input_contract_no_secrets():
     """23. url_input contract contains no api_key/voice_id."""
     resp = client.post("/api/episode/source-contract", json={
@@ -381,6 +406,7 @@ def run_all():
         test_validate_source_url_javascript,
         test_validate_source_url_file,
         test_validate_source_url_valid,
+        test_validate_source_url_missing_domain,
         # normalize_url_item
         test_normalize_url_item_basic,
         test_normalize_url_item_infers_source,
@@ -396,6 +422,7 @@ def run_all():
         test_url_input_missing_url,
         test_url_input_missing_news_title,
         test_url_input_unsupported_template,
+        test_url_input_api_invalid_missing_domain,
         test_url_input_contract_no_secrets,
         test_url_input_uses_episode_title_fields,
         test_url_input_contract_renderable,

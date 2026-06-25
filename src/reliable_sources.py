@@ -117,20 +117,25 @@ def validate_source_url(url: str) -> tuple[bool, str | None]:
       - Must start with http:// or https://
       - Must not be a javascript: URI
       - file:// is rejected
+      - Must include a valid domain (netloc)
     """
     if not url or not url.strip():
         return False, "URL cannot be empty"
 
     url_stripped = url.strip()
-
-    if not url_stripped.startswith(("http://", "https://")):
-        return False, "URL must start with http:// or https://"
-
     lower = url_stripped.lower()
+
     if lower.startswith("javascript:"):
         return False, "javascript: URLs are not allowed"
 
     if lower.startswith("file://"):
         return False, "file:// URLs are not allowed"
+
+    if not lower.startswith(("http://", "https://")):
+        return False, "URL must start with http:// or https://"
+
+    parsed = urlparse(url_stripped)
+    if not parsed.netloc:
+        return False, "URL must include a valid domain"
 
     return True, None

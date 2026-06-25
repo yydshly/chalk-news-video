@@ -80,7 +80,7 @@ New `source_type: url_input`:
 - `source_id` — registry source id (optional; auto-inferred from URL if omitted)
 
 Validation:
-- `url` is required, must be http/https
+- `url` is required, must be http/https with a valid domain (netloc); rejects bare schemes like `https://`
 - `news_title` is required
 - `template_id` is clamped to `breaking_news_v1`
 - `limit` is clamped to 1–5
