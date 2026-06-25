@@ -2423,19 +2423,33 @@ footer {
   flex-shrink: 0;
 }
 
-.url-draft-status-ready {
+/* CP46.1: Status badge colours — scoped to .url-draft-status inside the state-class card */
+.url-draft-card.url-draft-status-ready .url-draft-status {
   background: #052e16;
   color: #4ade80;
 }
 
-.url-draft-status-failed {
+.url-draft-card.url-draft-status-failed .url-draft-status {
   background: #7f1d1d;
   color: #f87171;
 }
 
-.url-draft-status-extracting {
+.url-draft-card.url-draft-status-extracting .url-draft-status {
   background: #1e3a5f;
   color: #93c5fd;
+}
+
+/* CP46.1: Optional card border hint per status */
+.url-draft-card.url-draft-status-ready {
+  border-color: #166534;
+}
+
+.url-draft-card.url-draft-status-failed {
+  border-color: #7f1d1d;
+}
+
+.url-draft-card.url-draft-status-extracting {
+  border-color: #1e3a5f;
 }
 
 .url-draft-error {
