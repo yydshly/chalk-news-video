@@ -2574,3 +2574,145 @@ footer {
   font-size: 0.72rem;
 }
 
+/* CP48: Production Workflow Checklist */
+.production-workflow-panel {
+  background: #0f172a;
+  border: 1px solid #1e3a5f;
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+
+.production-workflow-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.production-workflow-head > div:first-child {
+  flex: 1;
+}
+
+.production-workflow-kicker {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #60a5fa;
+  margin-bottom: 4px;
+}
+
+.production-workflow-panel h2 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #f1f5f9;
+  margin: 0 0 4px 0;
+  border: none;
+  padding: 0;
+}
+
+.production-workflow-head p {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.production-readiness-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.production-readiness-badge.is-ready {
+  background: #052e16;
+  color: #4ade80;
+  border: 1px solid #166534;
+}
+
+.production-readiness-badge.is-blocked {
+  background: #1e1e1e;
+  color: #94a3b8;
+  border: 1px solid #334155;
+}
+
+.production-workflow-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.production-workflow-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #0f1117;
+  border: 1px solid #1e293b;
+  transition: border-color 0.2s;
+}
+
+.production-workflow-step.is-done {
+  border-color: #166534;
+  background: #052e16;
+}
+
+.production-workflow-step.is-pending {
+  border-color: #2d3748;
+}
+
+.production-workflow-step-index {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  min-width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.production-workflow-step.is-done .production-workflow-step-index {
+  color: #4ade80;
+}
+
+.production-workflow-step-body {
+  flex: 1;
+}
+
+.production-workflow-step-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  margin-bottom: 2px;
+}
+
+.production-workflow-step.is-done .production-workflow-step-label {
+  color: #86efac;
+}
+
+.production-workflow-step-desc {
+  font-size: 0.7rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.production-workflow-step.is-done .production-workflow-step-desc {
+  color: #4b5563;
+}
+
+.production-workflow-summary {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  padding: 8px 12px;
+  background: #0f1117;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  line-height: 1.5;
+}
+

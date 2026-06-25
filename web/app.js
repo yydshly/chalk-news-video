@@ -144,6 +144,12 @@
   const btnClearSourceCollections = document.getElementById("btn-clear-source-collections");
   const sourceCollectionList = document.getElementById("source-collection-list");
 
+  // CP48: Production Workflow DOM refs
+  const productionWorkflowPanel = document.getElementById("production-workflow-panel");
+  const productionWorkflowSteps = document.getElementById("production-workflow-steps");
+  const productionWorkflowSummary = document.getElementById("production-workflow-summary");
+  const productionReadinessBadge = document.getElementById("production-readiness-badge");
+
   // ---------- state ----------
   let lastResult = null;
   let currentEventSource = null;
@@ -868,6 +874,9 @@
 
     // CP41.2.1: Ensure initial active preview tab shows an empty state
     updateTabEmptyState("preview");
+
+    // CP48: Initialize production workflow panel
+    renderProductionWorkflowPanel();
   }
 
   // ---------- load providers (CP15) ----------
@@ -5134,6 +5143,9 @@
       renderEpisodePlanner();
     }
 
+    // CP48: Update production workflow panel
+    renderProductionWorkflowPanel();
+
     setSourceContractStatus(
       "已应用 " + episodeItemList.length + " 条新闻到当前合集。现在可以继续使用左侧「规划 / 预览 / 导出」。",
       "success"
@@ -5237,6 +5249,8 @@
       showSourceContractPreview(data.contract);
       // CP43.1: Also show the result inspector
       renderSourceContractInspector(data);
+      // CP48: Update production workflow panel
+      renderProductionWorkflowPanel();
     } catch (e) {
       setSourceContractStatus("生成失败：" + e.message, "error");
     }
@@ -5278,17 +5292,20 @@
 
     if (urlDraftNewUrl) urlDraftNewUrl.value = "";
     renderUrlDraftBasket();
+    renderProductionWorkflowPanel();
     setSourceContractStatus("已加入 URL 草稿，可逐条抽取或手动填写标题摘要", "success");
   }
 
   function removeUrlDraft(id) {
     urlDraftItems = urlDraftItems.filter(function (item) { return item.id !== id; });
     renderUrlDraftBasket();
+    renderProductionWorkflowPanel();
   }
 
   function clearUrlDrafts() {
     urlDraftItems = [];
     renderUrlDraftBasket();
+    renderProductionWorkflowPanel();
     setSourceContractStatus("已清空 URL 草稿篮", "info");
   }
 
@@ -5366,6 +5383,7 @@
         item.status = "failed";
         item.error = data.error || "抽取失败";
         renderUrlDraftBasket();
+        renderProductionWorkflowPanel();
         return;
       }
 
@@ -5376,10 +5394,12 @@
       item.status = item.title ? "ready" : "failed";
       item.error = item.title ? "" : "未抽取到标题，请手动填写";
       renderUrlDraftBasket();
+      renderProductionWorkflowPanel();
     } catch (e) {
       item.status = "failed";
       item.error = e.message;
       renderUrlDraftBasket();
+      renderProductionWorkflowPanel();
     }
   }
 
@@ -5494,6 +5514,7 @@
 
     if (sourceCollectionName) sourceCollectionName.value = "";
     renderSourceCollections();
+    renderProductionWorkflowPanel();
 
     setSourceContractStatus("已保存来源集合：" + collection.name, "success");
   }
@@ -5507,6 +5528,7 @@
 
     urlDraftItems = (collection.items || []).slice(0, MAX_URL_DRAFT_ITEMS).map(cloneUrlDraftItem);
     renderUrlDraftBasket();
+    renderProductionWorkflowPanel();
     setSourceContractStatus("已恢复来源集合：" + collection.name, "success");
   }
 
@@ -5514,6 +5536,7 @@
     sourceCollections = sourceCollections.filter(function (x) { return x.id !== id; });
     persistSourceCollections();
     renderSourceCollections();
+    renderProductionWorkflowPanel();
     setSourceContractStatus("已删除来源集合", "info");
   }
 
@@ -5521,6 +5544,7 @@
     sourceCollections = [];
     persistSourceCollections();
     renderSourceCollections();
+    renderProductionWorkflowPanel();
     setSourceContractStatus("已清空已保存来源集合", "info");
   }
 
@@ -5662,6 +5686,121 @@
 
   // CP46: Initialize URL draft basket render
   renderUrlDraftBasket();
+
+  // ---------- CP48: Production Workflow functions ----------
+
+  function getProductionWorkflowState() {
+    var hasUrlDrafts = Array.isArray(urlDraftItems) && urlDraftItems.length > 0;
+    var hasReadyUrlDrafts = hasUrlDrafts && urlDraftItems.some(function (item) {
+      return item.title && item.title.trim();
+    });
+
+    var hasCollections = Array.isArray(sourceCollections) && sourceCollections.length > 0;
+    var hasSourceContract = !!latestSourceContract;
+    var hasSourceItems = Array.isArray(latestSourceEpisodeItems) && latestSourceEpisodeItems.length > 0;
+    var hasPlannerItems = Array.isArray(episodeItemList) && episodeItemList.length > 0;
+    var hasPreview = !!latestEpisodePreviewUrl || !!latestEpisodeTemplateContract;
+    var hasExport = !!currentEpisodeExportMp4Url || !!latestSucceededJob;
+
+    var steps = [
+      {
+        id: "source",
+        label: "来源准备",
+        desc: hasUrlDrafts || hasCollections ? "已有 URL 草稿或来源集合" : "添加 URL、粘贴文本或使用样例新闻",
+        done: hasUrlDrafts || hasCollections || hasSourceItems
+      },
+      {
+        id: "drafts",
+        label: "草稿确认",
+        desc: hasReadyUrlDrafts ? "至少 1 条 URL 草稿已有标题" : "抽取或手动填写标题摘要",
+        done: hasReadyUrlDrafts || hasSourceItems
+      },
+      {
+        id: "contract",
+        label: "栏目合约",
+        desc: hasSourceContract ? "已生成 episode_template_v1 contract" : "从样例、文本、URL 或草稿篮生成栏目",
+        done: hasSourceContract
+      },
+      {
+        id: "inspect",
+        label: "结果检查",
+        desc: hasSourceItems ? "inspector 中已有入选新闻" : "生成 contract 后检查入选新闻",
+        done: hasSourceItems
+      },
+      {
+        id: "planner",
+        label: "应用到合集",
+        desc: hasPlannerItems ? "Episode Planner 已有新闻项" : "点击应用到当前合集",
+        done: hasPlannerItems
+      },
+      {
+        id: "preview",
+        label: "预览",
+        desc: hasPreview ? "已有可预览的 9:16 视频舞台" : "生成预览确认画面",
+        done: hasPreview
+      },
+      {
+        id: "export",
+        label: "MP4 导出",
+        desc: hasExport ? "已有导出结果或成功任务" : "导出 MP4 后可发布",
+        done: hasExport
+      }
+    ];
+
+    var doneCount = steps.filter(function (step) { return step.done; }).length;
+    var ready = hasPlannerItems && hasPreview && hasExport;
+
+    return {
+      steps: steps,
+      doneCount: doneCount,
+      total: steps.length,
+      ready: ready,
+      hasSourceContract: hasSourceContract,
+      hasPlannerItems: hasPlannerItems,
+      hasPreview: hasPreview,
+      hasExport: hasExport
+    };
+  }
+
+  function getNextProductionWorkflowHint(state) {
+    var next = state.steps.find(function (step) { return !step.done; });
+    return next ? next.desc : "检查导出结果并准备发布";
+  }
+
+  function renderProductionWorkflowPanel() {
+    if (!productionWorkflowSteps) return;
+
+    var state = getProductionWorkflowState();
+
+    productionWorkflowSteps.innerHTML = "";
+
+    state.steps.forEach(function (step, index) {
+      var node = document.createElement("div");
+      node.className = "production-workflow-step " + (step.done ? "is-done" : "is-pending");
+      node.innerHTML =
+        '<div class="production-workflow-step-index">' + (step.done ? "✓" : String(index + 1)) + "</div>" +
+        '<div class="production-workflow-step-body">' +
+          '<div class="production-workflow-step-label">' + escapeHtml(step.label) + "</div>" +
+          '<div class="production-workflow-step-desc">' + escapeHtml(step.desc) + "</div>" +
+        "</div>";
+      productionWorkflowSteps.appendChild(node);
+    });
+
+    if (productionReadinessBadge) {
+      productionReadinessBadge.className = "production-readiness-badge " + (state.ready ? "is-ready" : "is-blocked");
+      productionReadinessBadge.textContent = state.ready ? "可发布" : "待补齐";
+    }
+
+    if (productionWorkflowSummary) {
+      if (state.ready) {
+        productionWorkflowSummary.textContent = "当前视频已经完成核心生产链路：已应用到合集、已预览、已导出 MP4。可以进入发布或复盘。";
+      } else {
+        productionWorkflowSummary.textContent =
+          "当前进度：" + state.doneCount + "/" + state.total +
+          "。建议下一步：" + getNextProductionWorkflowHint(state);
+      }
+    }
+  }
 
   // CP47: Wire up Source Collection buttons
   if (btnSaveSourceCollection) {
