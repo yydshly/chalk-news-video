@@ -4239,10 +4239,20 @@
     });
   });
 
+  // CP41.2.2: Check whether the preview tab has actual content loaded
+  function hasPreviewContent() {
+    var htmlSrc = previewHtml ? previewHtml.getAttribute("src") : "";
+    var videoSrc = previewVideo ? previewVideo.getAttribute("src") : "";
+
+    return Boolean(
+      (htmlSrc && htmlSrc !== "about:blank") ||
+      (videoSrc && videoSrc !== "about:blank")
+    );
+  }
+
   // CP41.2: Update empty state visibility based on existing content
   function updateTabEmptyState(tabId) {
     var contentElMap = {
-      "preview": previewHtml,
       "episode_plan": document.getElementById("json-episode_plan"),
       "episode_script": document.getElementById("json-episode_script"),
       "audio_manifest": document.getElementById("json-audio_manifest"),
@@ -4259,16 +4269,21 @@
       "visual_plan": visualPlanEmpty,
     };
 
-    var contentEl = contentElMap[tabId];
     var emptyEl = emptyElMap[tabId];
-
-    // For debug tabs (render_ir, semantic_ir, dialogue_script), show the
-    // empty-state div only when there's no content; the div itself carries
-    // the "普通用户可以忽略" hint so it stays visible.
     if (!emptyEl) return;
 
-    var hasContent = contentEl && contentEl.textContent && contentEl.textContent.trim().length > 0;
+    var hasContent = false;
+
+    if (tabId === "preview") {
+      // CP41.2.2: Preview content lives in iframe src or video src, not textContent
+      hasContent = hasPreviewContent();
+    } else {
+      var contentEl = contentElMap[tabId];
+      hasContent = contentEl && contentEl.textContent && contentEl.textContent.trim().length > 0;
+    }
+
     emptyEl.style.display = hasContent ? "none" : "block";
+  }
   }
 
   // CP41.2: Empty state helper
