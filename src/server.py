@@ -338,22 +338,39 @@ def api_providers():
     })
 
 
-@app.get("/api/hot-ai-news")
-def api_hot_ai_news():
-    """CP19: Return hot AI news candidates for user selection.
+# CP57: max seconds to wait on the live Hacker News fetch before falling back.
+HOT_NEWS_FETCH_TIMEOUT = 8.0
 
-    Returns up to 10 candidates without saving files.
-    Does NOT expose API keys or fetch full article text.
+# CP57: offline sample candidates so the candidate pool always has data even when
+# the live source is slow/blocked. Clearly flagged as samples via fallback=True.
+HOT_NEWS_SAMPLE_FALLBACK = [
+    {"id": "sample_1", "title": "OpenAI 发布新一代模型，多模态能力大幅提升",
+     "url": "https://openai.com/news/", "source": "示例候选", "points": 0, "comments": 0,
+     "final_score": 9.0, "rank_reason": "示例数据", "summary": "实时来源不可用时的示例候选。"},
+    {"id": "sample_2", "title": "Anthropic 公布企业级 AI 安全与对齐研究进展",
+     "url": "https://www.anthropic.com/news", "source": "示例候选", "points": 0, "comments": 0,
+     "final_score": 8.2, "rank_reason": "示例数据", "summary": "实时来源不可用时的示例候选。"},
+    {"id": "sample_3", "title": "开源大模型在多项基准上刷新纪录",
+     "url": "https://example.com/ai-benchmark", "source": "示例候选", "points": 0, "comments": 0,
+     "final_score": 7.4, "rank_reason": "示例数据", "summary": "实时来源不可用时的示例候选。"},
+    {"id": "sample_4", "title": "AI 编程助手进入主流开发流程，效率显著提升",
+     "url": "https://example.com/ai-coding", "source": "示例候选", "points": 0, "comments": 0,
+     "final_score": 6.8, "rank_reason": "示例数据", "summary": "实时来源不可用时的示例候选。"},
+]
+
+
+def _fetch_hot_ai_news_items() -> list[dict]:
+    """Run the live Hacker News fetch and return simplified UI items.
+
+    Raises on failure. Designed to be run inside a worker thread with a timeout.
     """
     import tempfile
     import uuid
 
+    from .fetch_hot_ai_news import fetch_hot_ai_news
+
+    candidates_output_path = Path(tempfile.gettempdir()) / f"hot_ai_candidates_{uuid.uuid4().hex[:8]}.json"
     try:
-        from .fetch_hot_ai_news import fetch_hot_ai_news
-
-        # Use dry_run=True to get candidates without saving files
-        candidates_output_path = Path(tempfile.gettempdir()) / f"hot_ai_candidates_{uuid.uuid4().hex[:8]}.json"
-
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_output = Path(tmpdir) / "latest_news.json"
             fetch_hot_ai_news(
@@ -365,44 +382,80 @@ def api_hot_ai_news():
                 dry_run=False,
             )
 
-        # Read candidates
         if not candidates_output_path.exists():
-            return JSONResponse({
-                "ok": False,
-                "error": "Failed to fetch hot AI news candidates.",
-            }, status_code=500)
+            return []
 
         with open(candidates_output_path, "r", encoding="utf-8") as f:
             candidates_data = json.load(f)
+    finally:
+        try:
+            candidates_output_path.unlink(missing_ok=True)
+        except Exception:
+            pass
 
-        items = candidates_data.get("items", [])
+    items = candidates_data.get("items", [])
+    return [
+        {
+            "id": item.get("id"),
+            "title": item.get("title"),
+            "url": item.get("url"),
+            "source": item.get("source_name", "Hacker News"),
+            "points": item.get("points", 0),
+            "comments": item.get("comments", 0),
+            "final_score": item.get("final_score", 0),
+            "rank_reason": item.get("rank_reason", ""),
+            "summary": item.get("summary", ""),
+        }
+        for item in items
+    ]
 
-        # Return simplified structure for UI
+
+@app.get("/api/hot-ai-news")
+def api_hot_ai_news():
+    """CP19/CP57: Return hot AI news candidates for the unified candidate pool.
+
+    Runs the live Hacker News fetch with a hard timeout. If it is slow, fails,
+    or returns nothing, responds with offline sample candidates (fallback=True)
+    so the UI never hangs and the candidate pool always has selectable items.
+    Does NOT expose API keys or fetch full article text.
+    """
+    # Run the live fetch in a daemon thread and wait at most HOT_NEWS_FETCH_TIMEOUT.
+    # A daemon thread won't block the response or interpreter shutdown if it hangs.
+    result: dict = {}
+
+    def _worker():
+        try:
+            result["items"] = _fetch_hot_ai_news_items()
+        except Exception as e:
+            result["error"] = e
+
+    worker = threading.Thread(target=_worker, daemon=True)
+    worker.start()
+    worker.join(timeout=HOT_NEWS_FETCH_TIMEOUT)
+
+    if worker.is_alive():
+        note = "实时来源响应较慢，已加载示例候选，可稍后点击刷新重试。"
+    elif "error" in result:
+        _ = _redact_secret_text(str(result["error"]))  # ensure no secret leaks
+        note = "实时来源不可用，已加载示例候选。"
+    elif result.get("items"):
         return JSONResponse({
             "ok": True,
-            "count": len(items),
-            "items": [
-                {
-                    "id": item.get("id"),
-                    "title": item.get("title"),
-                    "url": item.get("url"),
-                    "source": item.get("source_name", "Hacker News"),
-                    "points": item.get("points", 0),
-                    "comments": item.get("comments", 0),
-                    "final_score": item.get("final_score", 0),
-                    "rank_reason": item.get("rank_reason", ""),
-                    "summary": item.get("summary", ""),
-                }
-                for item in items
-            ],
+            "count": len(result["items"]),
+            "items": result["items"],
+            "fallback": False,
         })
+    else:
+        note = "实时来源暂无结果，已加载示例候选。"
 
-    except Exception as e:
-        redacted = _redact_secret_text(str(e))
-        return JSONResponse({
-            "ok": False,
-            "error": f"Failed to fetch hot AI news: {redacted}",
-        }, status_code=500)
+    # Fallback path — always usable
+    return JSONResponse({
+        "ok": True,
+        "count": len(HOT_NEWS_SAMPLE_FALLBACK),
+        "items": [dict(it) for it in HOT_NEWS_SAMPLE_FALLBACK],
+        "fallback": True,
+        "note": note,
+    })
 
 
 # Paths
@@ -1110,6 +1163,10 @@ def api_episode_html_history():
             if not filename.endswith(".html"):
                 continue
 
+            # CP59: ephemeral live-preview files (leading _) are not history artifacts
+            if filename.startswith("_"):
+                continue
+
             stat = f.stat()
             files.append({
                 "filename": filename,
@@ -1125,6 +1182,75 @@ def api_episode_html_history():
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
 
+# ---------- episode style preview (CP59) ----------
+
+
+class EpisodePreviewHtmlRequest(BaseModel):
+    contract: dict
+    style_id: str = "breaking_news_v1"
+    persist: bool = False  # CP59: True = saved artifact (shows in history); False = ephemeral preview
+
+
+@app.post("/api/episode/preview-html")
+def api_episode_preview_html(body: EpisodePreviewHtmlRequest):
+    """Render an episode contract to styled HTML using the SAME Python renderers
+    that drive MP4 export (CP59).
+
+    This guarantees the in-browser preview matches the exported MP4 for every
+    supported style. Writes the HTML under outputs/episode_previews/ and returns
+    a server-relative URL the preview iframe can load.
+    """
+    from src.render_episode_html import render_episode_stage_html, EPISODE_STYLE_RENDERERS
+
+    if not isinstance(body.contract, dict):
+        return JSONResponse({
+            "ok": False, "error_type": "invalid_contract",
+            "error": "contract must be an object",
+        }, status_code=400)
+
+    if body.style_id not in EPISODE_STYLE_RENDERERS:
+        return JSONResponse({
+            "ok": False, "error_type": "invalid_style_id",
+            "error": f"Unsupported style_id {body.style_id!r}. "
+                     f"Supported: {', '.join(sorted(EPISODE_STYLE_RENDERERS))}",
+        }, status_code=400)
+
+    try:
+        html = render_episode_stage_html(body.contract, style_id=body.style_id)
+    except Exception as e:
+        return JSONResponse({
+            "ok": False, "error_type": "render_failed",
+            "error": _redact_secret_text(str(e)),
+        }, status_code=500)
+
+    EPISODE_PREVIEWS_DIR.mkdir(parents=True, exist_ok=True)
+    if body.persist:
+        # Saved artifact — timestamped, appears in HTML history.
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        short_id = uuid.uuid4().hex[:8]
+        filename = f"episode_{body.style_id}_{timestamp}_{short_id}.html"
+    else:
+        # Ephemeral live preview — single reused file, excluded from history (leading _).
+        filename = "_live_preview.html"
+    file_path = EPISODE_PREVIEWS_DIR / filename
+    try:
+        file_path.write_text(html, encoding="utf-8")
+    except Exception as e:
+        return JSONResponse({
+            "ok": False, "error_type": "write_failed",
+            "error": _redact_secret_text(str(e)),
+        }, status_code=500)
+
+    return JSONResponse({
+        "ok": True,
+        "style_id": body.style_id,
+        "persist": body.persist,
+        "path": f"/outputs/episode_previews/{filename}",
+        "file_path": f"outputs/episode_previews/{filename}",
+        "created_at": datetime.now().isoformat(),
+    })
+
+
 # ---------- episode export (CP40.2) ----------
 
 
@@ -1135,6 +1261,79 @@ class EpisodeExportRequest(BaseModel):
     height: int = 1280
     fps: int = 30
     audio_url: Optional[str] = None  # CP40.6: server-relative /outputs/ audio URL
+
+
+class EpisodeTtsRequest(BaseModel):
+    contract: dict
+    profile: str = "minimax_speech"  # CP56: real TTS profile from config/tts.yaml
+    speed: float = 1.0
+
+
+@app.post("/api/episode/tts-audio")
+def api_episode_tts_audio(body: EpisodeTtsRequest):
+    """Generate real TTS narration for an episode contract (CP56).
+
+    Builds a broadcast-style script from the contract and synthesizes it into a
+    WAV under outputs/episode_audio/. Returns a server-relative audio_url that
+    can be passed straight to /api/episode/export as audio_url for muxing.
+    """
+    from src.episode_tts import synthesize_episode_narration
+
+    if not isinstance(body.contract, dict):
+        return JSONResponse({
+            "status": "failed",
+            "error_type": "invalid_contract",
+            "message": "contract must be an object",
+        }, status_code=400)
+
+    try:
+        result = synthesize_episode_narration(
+            body.contract,
+            profile=body.profile,
+            speed=body.speed,
+        )
+        return JSONResponse({"status": "completed", **result})
+    except ValueError as ve:
+        return JSONResponse({
+            "status": "failed",
+            "error_type": "invalid_request",
+            "message": _redact_secret_text(str(ve)),
+        }, status_code=400)
+    except Exception as exc:
+        return JSONResponse({
+            "status": "failed",
+            "error_type": "tts_failed",
+            "message": _redact_secret_text(str(exc)),
+        }, status_code=500)
+
+
+@app.get("/outputs/episode_audio/{filename}")
+def serve_episode_audio_file(filename: str):
+    """Serve a generated episode narration WAV (CP56).
+
+    Only allows files matching episode_audio_<12hex>.wav inside outputs/episode_audio/.
+    """
+    from src.episode_tts import EPISODE_AUDIO_DIR, validate_audio_id
+
+    if not filename.endswith(".wav"):
+        raise HTTPException(status_code=404, detail="File not allowed")
+    audio_id = filename[:-4]
+    if not validate_audio_id(audio_id):
+        raise HTTPException(status_code=404, detail="File not allowed")
+
+    try:
+        file_path = (EPISODE_AUDIO_DIR / filename).resolve()
+        if not str(file_path).startswith(str(EPISODE_AUDIO_DIR.resolve())):
+            raise HTTPException(status_code=404, detail="Not found")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    return FileResponse(str(file_path), media_type="audio/wav")
 
 
 # ---------- episode export history (CP40.5) ----------

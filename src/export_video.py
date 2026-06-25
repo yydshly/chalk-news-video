@@ -18,6 +18,25 @@ from pathlib import Path
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 
+def _probe_duration(media_path):
+    """Return media duration in seconds via ffprobe, or 0.0 on failure."""
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe", "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                str(media_path),
+            ],
+            capture_output=True, text=True, errors="replace",
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return float(result.stdout.strip())
+    except Exception:
+        pass
+    return 0.0
+
+
 def check_ffmpeg():
     if shutil.which("ffmpeg") is None:
         raise RuntimeError(
@@ -37,7 +56,8 @@ def _is_playwright_not_installed(exc):
     )
 
 
-def export_video(html_path, output_path, fps=30, width=1280, height=720, headless=True, *, audio_path=None):
+def export_video(html_path, output_path, fps=30, width=1280, height=720, headless=True,
+                 *, audio_path=None, scale_factor=2, crf=18, settle_ms=24):
     """Render animation.html to MP4.
 
     Args:
@@ -47,6 +67,10 @@ def export_video(html_path, output_path, fps=30, width=1280, height=720, headles
         width, height: viewport size
         headless: run Chromium headless
         audio_path: optional path to WAV/MP3 audio to mux into the video
+        scale_factor: device pixel ratio for capture. >1 supersamples (renders at
+            scale_factor*size then downscales to width:height) for crisper text/lines.
+        crf: libx264 quality (lower = better, 18 ≈ visually lossless, 23 = old default).
+        settle_ms: per-frame settle time so CSS animations finish before screenshot.
 
     Returns:
         Absolute path to the produced MP4.
@@ -99,7 +123,7 @@ def export_video(html_path, output_path, fps=30, width=1280, height=720, headles
                 try:
                     context = browser.new_context(
                         viewport={"width": width, "height": height},
-                        device_scale_factor=1,
+                        device_scale_factor=max(1, int(scale_factor)),
                     )
                     page = context.new_page()
                     page.on("pageerror", lambda exc: print(f"[pageerror] {exc}"))
@@ -121,8 +145,8 @@ def export_video(html_path, output_path, fps=30, width=1280, height=720, headles
                     for i in range(total_frames):
                         t = i / fps
                         page.evaluate(f"window.__setTime__({t})")
-                        # Let the DOM settle
-                        page.wait_for_timeout(15)
+                        # Let the DOM/CSS animations settle before capturing
+                        page.wait_for_timeout(settle_ms)
                         frame_path = frames_dir / f"frame_{i:05d}.png"
                         page.screenshot(path=str(frame_path), full_page=False)
                 finally:
@@ -145,8 +169,11 @@ def export_video(html_path, output_path, fps=30, width=1280, height=720, headles
             "-framerate", str(fps),
             "-i", frame_pattern,
             "-c:v", "libx264",
+            "-preset", "medium",
+            "-crf", str(crf),
             "-pix_fmt", "yuv420p",
-            "-vf", f"scale={width}:{height}",
+            # Downscale supersampled frames to target size (lanczos = crisp text)
+            "-vf", f"scale={width}:{height}:flags=lanczos",
             "-movflags", "+faststart",
             str(video_only_path),
         ]
@@ -165,16 +192,42 @@ def export_video(html_path, output_path, fps=30, width=1280, height=720, headles
             if not audio_path.exists():
                 raise RuntimeError(f"Audio file not found: {audio_path}")
             print(f"[export] mux audio: {audio_path.name}")
-            audio_mux_cmd = [
-                "ffmpeg",
-                "-y",
-                "-i", str(video_only_path),
-                "-i", str(audio_path),
-                "-c:v", "copy",
-                "-c:a", "aac",
-                "-shortest",
-                str(output_path),
-            ]
+
+            # If narration is longer than the animation, hold the last frame so the
+            # full voiceover plays instead of being cut off by -shortest.
+            video_dur = _probe_duration(video_only_path)
+            audio_dur = _probe_duration(audio_path)
+            pad = (audio_dur - video_dur) if (video_dur and audio_dur) else 0.0
+
+            if pad > 0.1:
+                print(f"[export] audio {audio_dur:.2f}s > video {video_dur:.2f}s, "
+                      f"padding last frame by {pad:.2f}s")
+                audio_mux_cmd = [
+                    "ffmpeg",
+                    "-y",
+                    "-i", str(video_only_path),
+                    "-i", str(audio_path),
+                    "-vf", f"tpad=stop_mode=clone:stop_duration={pad:.3f}",
+                    "-c:v", "libx264",
+                    "-preset", "medium",
+                    "-crf", str(crf),
+                    "-pix_fmt", "yuv420p",
+                    "-movflags", "+faststart",
+                    "-c:a", "aac",
+                    "-shortest",
+                    str(output_path),
+                ]
+            else:
+                audio_mux_cmd = [
+                    "ffmpeg",
+                    "-y",
+                    "-i", str(video_only_path),
+                    "-i", str(audio_path),
+                    "-c:v", "copy",
+                    "-c:a", "aac",
+                    "-shortest",
+                    str(output_path),
+                ]
             audio_result = subprocess.run(audio_mux_cmd, capture_output=True, text=True, errors="replace")
             if audio_result.returncode != 0:
                 print(audio_result.stdout)

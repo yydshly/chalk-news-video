@@ -189,6 +189,64 @@ def main() -> None:
     for condition, msg in checks:
         check(condition, msg)
 
+    # 6b. timeline_daily_v1 style (CP58) — second exportable style
+    print("\n[timeline_daily_v1 render]")
+    td = render_episode_stage_html(MOCK_CONTRACT, style_id="timeline_daily_v1")
+    td_checks = [
+        ("<!DOCTYPE html>" in td, "DOCTYPE present"),
+        ("video-stage stage-9x16" in td, "video-stage stage-9x16 class"),
+        ("window.__getTotalDuration__" in td, "__getTotalDuration__ shim"),
+        ("window.__setTime__" in td, "__setTime__ shim"),
+        ("window.__ANIMATION_READY__" in td, "__ANIMATION_READY__ set"),
+        ("data-export-seek" in td, "seek-mode CSS present"),
+        ("data-appear-at" in td, "data-appear-at on seekable layers"),
+        ("stage-layer" in td, "stage-layer class used"),
+        ("data-progress-fill" in td, "data-progress-fill on progress bar"),
+        ("td-item-lead" in td, "lead timeline item present"),
+        ("今日 AI 速览" in td, "daily-brief kicker present"),
+        ("🔴 BREAKING NEWS" not in td, "no breaking-news badge (distinct style)"),
+    ]
+    for condition, msg in td_checks:
+        check(condition, msg)
+
+    # 6c. data_dashboard_v1 style (CP58) — third exportable style
+    print("\n[data_dashboard_v1 render]")
+    dd = render_episode_stage_html(MOCK_CONTRACT, style_id="data_dashboard_v1")
+    dd_checks = [
+        ("<!DOCTYPE html>" in dd, "DOCTYPE present"),
+        ("video-stage stage-9x16" in dd, "video-stage stage-9x16 class"),
+        ("window.__setTime__" in dd, "__setTime__ shim"),
+        ("window.__getTotalDuration__" in dd, "__getTotalDuration__ shim"),
+        ("data-export-seek" in dd, "seek-mode CSS present"),
+        ("data-appear-at" in dd, "data-appear-at on seekable layers"),
+        ("data-progress-fill" in dd, "data-progress-fill on progress bar"),
+        ("dd-bar-fill" in dd, "bar chart fills present"),
+        ("dd-bar-lead" in dd, "lead bar highlighted"),
+        ("LIVE 数据简报" in dd, "dashboard LIVE kicker present"),
+        ("各条目时长分布" in dd, "bar chart title present"),
+    ]
+    for condition, msg in dd_checks:
+        check(condition, msg)
+
+    # 6d. podcast_cards_v1 + research_briefing_v1 (CP58) — final two exportable styles
+    for sid, marker, marker_desc in [
+        ("podcast_cards_v1", "🎙 PODCAST", "podcast kicker"),
+        ("research_briefing_v1", "RESEARCH BRIEFING", "research kicker"),
+    ]:
+        print(f"\n[{sid} render]")
+        out = render_episode_stage_html(MOCK_CONTRACT, style_id=sid)
+        for condition, msg in [
+            ("<!DOCTYPE html>" in out, "DOCTYPE present"),
+            ("video-stage stage-9x16" in out, "video-stage stage-9x16 class"),
+            ("window.__setTime__" in out, "__setTime__ shim"),
+            ("window.__getTotalDuration__" in out, "__getTotalDuration__ shim"),
+            ("data-export-seek" in out, "seek-mode CSS present"),
+            ("data-appear-at" in out, "data-appear-at on seekable layers"),
+            ("data-progress-fill" in out, "data-progress-fill on progress bar"),
+            (marker in out, marker_desc + " present"),
+        ]:
+            check(condition, msg)
+
     # 7. Write to temp file
     print("\n[File output]")
     with tempfile.NamedTemporaryFile(suffix=".html", delete=False, mode="w", encoding="utf-8") as f:
@@ -203,13 +261,13 @@ def main() -> None:
     finally:
         tmp_path.unlink(missing_ok=True)
 
-    # 8. Style guard
+    # 8. Style guard — an id with no renderer must raise
     print("\n[Style guard]")
     try:
-        render_episode_stage_html(MOCK_CONTRACT, style_id="data_dashboard_v1")
+        render_episode_stage_html(MOCK_CONTRACT, style_id="nonexistent_style_v1")
         check(False, "should have raised ValueError for unsupported style")
     except ValueError as e:
-        check("breaking_news_v1" in str(e), "ValueError mentions breaking_news_v1")
+        check("breaking_news_v1" in str(e), "ValueError lists supported styles")
 
     # 9. Security: no external URLs / scripts
     print("\n[Security checks]")

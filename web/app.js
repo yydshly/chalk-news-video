@@ -562,11 +562,17 @@
     }, 1000);
   }
 
-  // CP40.6: Get current preview audio URL for episode export
+  // CP56: most recently generated real-TTS narration URL for the current episode
+  var latestEpisodeTtsAudioUrl = null;
+
+  // CP40.6 / CP56: Get current audio URL for episode export
   function getCurrentEpisodeAudioUrlForExport() {
     if (!checkEpisodeExportAudio || !checkEpisodeExportAudio.checked) return null;
 
-    // Prefer currently loaded preview audio if it is a server-relative /outputs/ URL
+    // CP56: prefer freshly generated real-TTS narration
+    if (latestEpisodeTtsAudioUrl) return latestEpisodeTtsAudioUrl;
+
+    // Fall back to currently loaded preview audio if it is a /outputs/ URL
     var audioEl = document.getElementById("preview-audio");
     if (!audioEl) return null;
     var src = audioEl.getAttribute("src");
@@ -656,6 +662,144 @@
       setEpisodeExportButtonState("failed");
       setStatus("导出失败：" + e.message, "error");
     }
+  }
+
+  // CP56: Generate real TTS narration for the current episode contract
+  async function generateEpisodeTts() {
+    var statusEl = document.getElementById("episode-tts-status");
+    var audioEl = document.getElementById("episode-tts-audio");
+    var scriptWrap = document.getElementById("episode-tts-script-wrap");
+    var scriptEl = document.getElementById("episode-tts-script");
+    var btn = document.getElementById("btn-generate-episode-tts");
+
+    if (!latestEpisodeTemplateContract) {
+      if (statusEl) { statusEl.className = "episode-tts-status is-error"; statusEl.textContent = "请先生成合集预览，再生成口播"; }
+      return;
+    }
+
+    if (btn) { btn.disabled = true; }
+    if (statusEl) { statusEl.className = "episode-tts-status is-pending"; statusEl.textContent = "正在用 MiniMax 合成真实口播，请稍候…"; }
+    setStatus("正在生成真实口播音频…", "info");
+
+    try {
+      var resp = await fetch("/api/episode/tts-audio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contract: latestEpisodeTemplateContract }),
+      });
+      var data = await resp.json();
+      if (!resp.ok || data.status === "failed") {
+        throw new Error(data.message || "口播生成失败");
+      }
+
+      latestEpisodeTtsAudioUrl = data.audio_url;
+
+      // Load into the inline player so the user can hear it immediately
+      if (audioEl) {
+        audioEl.src = data.audio_url;
+        audioEl.style.display = "block";
+        audioEl.load();
+      }
+      // Show the script
+      if (scriptEl && scriptWrap) {
+        scriptEl.textContent = data.script || "";
+        scriptWrap.style.display = "block";
+      }
+      // Auto-enable "export with audio"
+      if (checkEpisodeExportAudio) { checkEpisodeExportAudio.checked = true; }
+
+      var dur = data.duration ? data.duration.toFixed(1) + "s" : "";
+      var voice = data.voice || data.provider || "";
+      if (statusEl) {
+        statusEl.className = "episode-tts-status is-ok";
+        statusEl.textContent = "✅ 口播已生成（" + dur + (voice ? " · " + voice : "") + "），已自动勾选随 MP4 导出";
+      }
+      setStatus("真实口播已生成，可试听或直接导出 MP4", "success");
+    } catch (e) {
+      latestEpisodeTtsAudioUrl = null;
+      if (statusEl) { statusEl.className = "episode-tts-status is-error"; statusEl.textContent = "口播生成失败：" + e.message; }
+      setStatus("口播生成失败：" + e.message, "error");
+    } finally {
+      if (btn) { btn.disabled = false; }
+    }
+  }
+
+  var btnGenerateEpisodeTts = document.getElementById("btn-generate-episode-tts");
+  if (btnGenerateEpisodeTts) {
+    btnGenerateEpisodeTts.addEventListener("click", function () {
+      generateEpisodeTts();
+    });
+  }
+
+  // CP59: build an episode template contract from the current selection (1 or N).
+  // Returns the contract (also caches it in latestEpisodeTemplateContract) or null.
+  function buildCurrentEpisodeContractFromSelection() {
+    if (episodeItemList.length === 0) return null;
+    var plan = buildEpisodePlan();
+    if (!validateEpisodePlan(plan).ok) return null;
+    var script = buildEpisodeScriptFromPlan(plan);
+    if (!validateEpisodeScript(script).ok) return null;
+    var manifest = buildEpisodeAudioManifestFromScript(script);
+    if (!validateEpisodeAudioManifest(manifest).ok) return null;
+    var renderIr = buildEpisodeRenderIrFromContracts(plan, script, manifest);
+    if (!validateEpisodeRenderIr(renderIr).ok) return null;
+    var contract = buildEpisodeTemplateContract(renderIr);
+    if (!validateEpisodeTemplateContract(contract).ok) return null;
+    latestEpisodeTemplateContract = contract;
+    return contract;
+  }
+
+  // CP59: single rendering path — render a contract+style via the server (the SAME
+  // Python renderer used for MP4 export) and load it into the preview iframe.
+  // persist=false → ephemeral live preview; persist=true → saved artifact (history).
+  async function loadStyledPreview(contract, styleId, opts) {
+    opts = opts || {};
+    var resp = await fetch("/api/episode/preview-html", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contract: contract, style_id: styleId, persist: !!opts.persist }),
+    });
+    var data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      throw new Error(data.error || "预览渲染失败");
+    }
+    previewHtml.src = data.path + "?t=" + Date.now();
+    switchToPreviewTab();
+    setPreviewMode("html");
+    if (typeof setTabEmptyState === "function") setTabEmptyState("preview", false);
+    return data;
+  }
+
+  // CP59: preview the SELECTED export style — pixel-identical to the exported MP4.
+  async function previewExportStyle() {
+    if (episodeItemList.length === 0) {
+      setStatus("请先在候选中选择新闻（选 1 条=单条，选多条=合集）", "error");
+      return;
+    }
+    var contract = buildCurrentEpisodeContractFromSelection();
+    if (!contract) {
+      setStatus("无法生成预览契约，请检查所选新闻", "error");
+      return;
+    }
+    setStatus("正在渲染所选风格预览…", "info");
+    try {
+      await loadStyledPreview(contract, getCurrentEpisodeExportStyleId());
+      if (autoPreviewBanner) {
+        autoPreviewBanner.style.display = "block";
+        var n = episodeItemList.length;
+        autoPreviewBanner.textContent = "风格预览（" + (n === 1 ? "单条" : n + " 条合集") + "）· 与导出一致";
+      }
+      setStatus("已渲染所选风格预览，效果与导出 MP4 一致", "success");
+    } catch (e) {
+      setStatus("预览失败：" + e.message, "error");
+    }
+  }
+
+  var btnPreviewEpisodeStyle = document.getElementById("btn-preview-episode-style");
+  if (btnPreviewEpisodeStyle) {
+    btnPreviewEpisodeStyle.addEventListener("click", function () {
+      previewExportStyle();
+    });
   }
 
   // Wire up the export button
@@ -1214,8 +1358,22 @@
 
       hotNewsItems = data.items || [];
       renderHotNews();
+
+      // CP57: surface fallback notice (sample candidates loaded) without looking like a hard error
+      if (data.fallback && data.note) {
+        hotNewsError.style.display = "block";
+        hotNewsError.textContent = "ℹ️ " + data.note;
+        hotNewsError.style.color = "#fbbf24";
+        hotNewsError.style.borderColor = "#78600f";
+      } else {
+        hotNewsError.style.display = "none";
+        hotNewsError.style.color = "";
+        hotNewsError.style.borderColor = "";
+      }
     } catch (e) {
       hotNewsError.style.display = "block";
+      hotNewsError.style.color = "";
+      hotNewsError.style.borderColor = "";
       hotNewsError.textContent = "新闻加载失败，请重试";
       hotNewsLoading.style.display = "none";
     }
@@ -1234,11 +1392,12 @@
     hotNewsItems.forEach(function (item, index) {
       const isInEpisode = episodeItemList.some(function (e) { return e.id === item.id; });
       const div = document.createElement("div");
-      div.className = "hot-news-item";
+      div.className = isInEpisode ? "hot-news-item selected" : "hot-news-item";
       div.setAttribute("data-index", index);
 
-      const joinBtnClass = isInEpisode ? "hot-news-item-select-btn hot-news-item-joined-btn" : "hot-news-item-select-btn";
-      const joinBtnText = isInEpisode ? "已加入" : "加入合集";
+      // CP57: unified single-select pool — one toggle per card, no dual buttons
+      const pickBtnClass = isInEpisode ? "hot-news-item-pick-btn is-picked" : "hot-news-item-pick-btn";
+      const pickBtnText = isInEpisode ? "✓ 已选入" : "＋ 选入视频";
 
       div.innerHTML =
         '<span class="hot-news-item-rank">#' + (index + 1) + '</span>' +
@@ -1251,8 +1410,7 @@
         '</div>' +
         '<div class="style-recommend-tags"></div>' +
         '<div class="hot-news-item-actions-row">' +
-          '<button class="hot-news-item-select-btn" type="button">选择这条</button>' +
-          '<button class="hot-news-item-join-btn ' + joinBtnClass + '" type="button" data-episode-item-id="' + (item.id || "") + '">' + joinBtnText + '</button>' +
+          '<button class="' + pickBtnClass + '" type="button" data-episode-item-id="' + (item.id || "") + '">' + pickBtnText + '</button>' +
         '</div>';
 
       // CP30: Add style recommendation tags to this card
@@ -1280,22 +1438,17 @@
         recTagsContainer.appendChild(btn);
       });
 
-      div.querySelector(".hot-news-item-select-btn").addEventListener("click", function (ev) {
-        ev.stopPropagation();
-        selectHotNewsItem(index);
-      });
-
-      div.addEventListener("click", function () {
-        selectHotNewsItem(index);
-      });
-
-      const joinBtn = div.querySelector(".hot-news-item-join-btn");
-      joinBtn.addEventListener("click", function (ev) {
-        ev.stopPropagation();
-        if (!isInEpisode) {
+      // CP57: clicking the card or the toggle adds/removes from the unified pool
+      function togglePick(ev) {
+        if (ev) ev.stopPropagation();
+        if (episodeItemList.some(function (e) { return e.id === item.id; })) {
+          removeNewsFromEpisode(item.id);
+        } else {
           addNewsToEpisode(item);
         }
-      });
+      }
+      div.querySelector(".hot-news-item-pick-btn").addEventListener("click", togglePick);
+      div.addEventListener("click", togglePick);
 
       hotNewsList.appendChild(div);
     });
@@ -1349,14 +1502,37 @@
       points: item.points,
       comments: item.comments,
     });
+    syncSelectionFromPool();
     renderEpisodePlanner();
-    renderHotNews(); // Update join button states
+    renderHotNews(); // Update toggle button states
   }
 
   function removeNewsFromEpisode(id) {
     episodeItemList = episodeItemList.filter(function (e) { return e.id !== id; });
+    syncSelectionFromPool();
     renderEpisodePlanner();
-    renderHotNews(); // Update join button states
+    renderHotNews(); // Update toggle button states
+  }
+
+  // CP57: keep legacy single-news state derived from the unified pool.
+  // 1 selected = single video; N selected = collection. selectedNews stays as the
+  // lead item so the single-news pipeline and style recommendations keep working.
+  function syncSelectionFromPool() {
+    selectedNews = episodeItemList.length ? episodeItemList[0] : null;
+    if (hotNewsSelected && selectedNewsTitleEl) {
+      if (episodeItemList.length === 0) {
+        hotNewsSelected.style.display = "none";
+      } else {
+        hotNewsSelected.style.display = "block";
+        var label = episodeItemList.length === 1
+          ? "单条视频：" + (episodeItemList[0].title || "")
+          : episodeItemList.length + " 条合集（" + (episodeItemList[0].title || "") + " …）";
+        selectedNewsTitleEl.textContent = label;
+      }
+    }
+    updateStyleRecommendations();
+    updateGenModeUI();
+    updateGenerationPlan();
   }
 
   function moveEpisodeItem(id, direction) {
@@ -1372,7 +1548,8 @@
   function renderEpisodePlanner() {
     if (!episodeItemsList) return;
 
-    episodeCount.textContent = episodeItemList.length + " 条";
+    var _n = episodeItemList.length;
+    episodeCount.textContent = _n === 0 ? "未选" : (_n === 1 ? "单条视频" : _n + " 条 · 合集");
 
     if (episodeItemList.length === 0) {
       episodeItemsList.style.display = "none";
@@ -2528,1371 +2705,57 @@
     return { ok: errors.length === 0, warnings: warnings, errors: errors };
   }
 
-  // CP35: Episode style theme configuration
-  function getEpisodeStyleTheme(templateId) {
-    var t = {
-      bodyBg: "#0f172a",
-      heroBg: "linear-gradient(135deg,#0f172a 0%,#1e293b 100%)",
-      heroBorder: "#1e3a5f",
-      cardBg: "#111827",
-      cardBgLead: "#1a1a2e",
-      cardBorder: "#2d3748",
-      cardBorderLead: "#f59e0b",
-      accentBlue: "#38bdf8",
-      accentAmber: "#f59e0b",
-      accentGreen: "#4ade80",
-      accentText: "#94a3b8",
-      metaText: "#475569",
-      dotOpening: "#38bdf8",
-      dotLead: "#f59e0b",
-      dotSupport: "#334155",
-      dotTrans: "#334155",
-      dotClosing: "#4ade80",
-      statColor: "#38bdf8",
-      badgeBg: "#f59e0b",
-      badgeColor: "#0f172a",
-      sectionDivider: "#1e293b",
-      cardLayoutTagColor: "#38bdf8",
-      cardEmphasisColor: "#fbbf24",
-      cardBadgeBg: "#1e293b",
-      footerBg: "#0f172a",
-      footerText: "#475569",
-      heroGridOpacity: "0.3",
-      headlineGradient: "linear-gradient(90deg,#f9fafb,#94a3b8)",
-      openingBg: "linear-gradient(135deg,#1e293b,#0f172a)",
-      closingBg: "linear-gradient(135deg,#1e293b,#0f172a)",
-      closingBadgeBg: "#4ade80",
-      closingBadgeColor: "#0f172a",
-      podcastTransitionBg: "#2d1a0a"
-    };
-
-    if (templateId === "breaking_news_v1") {
-      t.bodyBg = "#0a0000";
-      t.heroBg = "linear-gradient(135deg,#1a0000 0%,#2d0000 100%)";
-      t.heroBorder = "#4a0000";
-      t.cardBg = "#1a0000";
-      t.cardBgLead = "#2a0000";
-      t.cardBorder = "#3a0000";
-      t.cardBorderLead = "#dc2626";
-      t.dotOpening = "#dc2626";
-      t.dotLead = "#dc2626";
-      t.dotClosing = "#dc2626";
-      t.statColor = "#dc2626";
-      t.badgeBg = "#dc2626";
-      t.heroGridOpacity = "0.1";
-      t.openingBg = "linear-gradient(135deg,#2d0000,#1a0000)";
-      t.closingBg = "linear-gradient(135deg,#2d0000,#1a0000)";
-      t.closingBadgeBg = "#dc2626";
-    } else if (templateId === "data_dashboard_v1") {
-      t.bodyBg = "#0a0f1a";
-      t.heroBg = "linear-gradient(135deg,#0a0f1a 0%,#0f172a 100%)";
-      t.heroBorder = "#164e63";
-      t.cardBg = "#0f172a";
-      t.cardBgLead = "#0c1a24";
-      t.cardBorder = "#164e63";
-      t.cardBorderLead = "#06b6d4";
-      t.accentBlue = "#06b6d4";
-      t.dotOpening = "#06b6d4";
-      t.dotLead = "#06b6d4";
-      t.dotClosing = "#06b6d4";
-      t.statColor = "#06b6d4";
-      t.badgeBg = "#06b6d4";
-      t.cardLayoutTagColor = "#06b6d4";
-      t.sectionDivider = "#164e63";
-      t.heroGridOpacity = "0.15";
-      t.openingBg = "linear-gradient(135deg,#0f172a,#0a0f1a)";
-      t.closingBg = "linear-gradient(135deg,#0f172a,#0a0f1a)";
-      t.closingBadgeBg = "#06b6d4";
-    } else if (templateId === "research_briefing_v1") {
-      t.bodyBg = "#0d1117";
-      t.heroBg = "linear-gradient(135deg,#0d1117 0%,#161b22 100%)";
-      t.heroBorder = "#30363d";
-      t.cardBg = "#161b22";
-      t.cardBgLead = "#1c2128";
-      t.cardBorder = "#30363d";
-      t.cardBorderLead = "#c9d1d9";
-      t.accentBlue = "#c9d1d9";
-      t.accentAmber = "#c9d1d9";
-      t.accentGreen = "#c9d1d9";
-      t.accentText = "#8b949e";
-      t.metaText = "#8b949e";
-      t.dotOpening = "#c9d1d9";
-      t.dotLead = "#c9d1d9";
-      t.dotSupport = "#30363d";
-      t.dotClosing = "#c9d1d9";
-      t.statColor = "#c9d1d9";
-      t.badgeBg = "#30363d";
-      t.badgeColor = "#c9d1d9";
-      t.sectionDivider = "#30363d";
-      t.cardLayoutTagColor = "#c9d1d9";
-      t.cardEmphasisColor = "#c9d1d9";
-      t.cardBadgeBg = "#21262d";
-      t.heroGridOpacity = "0.2";
-      t.headlineGradient = "none";
-      t.openingBg = "linear-gradient(135deg,#161b22,#0d1117)";
-      t.closingBg = "linear-gradient(135deg,#161b22,#0d1117)";
-      t.closingBadgeBg = "#c9d1d9";
-      t.closingBadgeColor = "#0d1117";
-      t.footerBg = "#0d1117";
-    } else if (templateId === "podcast_cards_v1") {
-      t.bodyBg = "#1a1209";
-      t.heroBg = "linear-gradient(135deg,#1a1209 0%,#231810 100%)";
-      t.heroBorder = "#78350f";
-      t.cardBg = "#231810";
-      t.cardBgLead = "#2d1a0a";
-      t.cardBorder = "#78350f";
-      t.cardBorderLead = "#f59e0b";
-      t.dotOpening = "#f59e0b";
-      t.dotLead = "#f59e0b";
-      t.dotClosing = "#f59e0b";
-      t.statColor = "#f59e0b";
-      t.badgeBg = "#f59e0b";
-      t.heroGridOpacity = "0.15";
-      t.openingBg = "linear-gradient(135deg,#231810,#1a1209)";
-      t.closingBg = "linear-gradient(135deg,#231810,#1a1209)";
-      t.closingBadgeBg = "#f59e0b";
-    }
-
-    return t;
-  }
-
-  // CP35.1: Dispatch to per-style layout renderer
-  function renderEpisodeTemplateHtml(contract) {
-    if (!contract) return "";
-    var templateId = contract.template_id || "timeline_daily_v1";
-    var st = getEpisodeStyleTheme(templateId);
-    if (templateId === "breaking_news_v1") return renderBreakingNewsStageEpisodeHtml(contract, st);
-    if (templateId === "data_dashboard_v1") return renderDataDashboardEpisodeHtml(contract, st);
-    if (templateId === "research_briefing_v1") return renderResearchBriefingEpisodeHtml(contract, st);
-    if (templateId === "podcast_cards_v1") return renderPodcastCardsEpisodeHtml(contract, st);
-    return renderTimelineDailyEpisodeHtml(contract, st);
-  }
-
-  // CP35.1: Shared helpers used by all layout renderers
-  function renderSharedTimelineMarkersHtml(timeline, st) {
-    if (!timeline || !timeline.markers) return "";
-    var htmlParts = [];
-    timeline.markers.forEach(function (marker) {
-      var dotClass = "tl-dot";
-      if (marker.type === "opening") dotClass = "tl-dot tl-dot-opening";
-      else if (marker.type === "news_segment") dotClass = "tl-dot " + (marker.role === "lead" ? "tl-dot-lead" : "tl-dot-supporting");
-      else if (marker.type === "transition") dotClass = "tl-dot tl-dot-trans";
-      else if (marker.type === "closing") dotClass = "tl-dot tl-dot-closing";
-      htmlParts.push('<div class="tl-marker">' +
-        '<div class="' + dotClass + '"></div>' +
-        '<div class="tl-label"><span class="tl-time">' + marker.timecode + '</span><span class="tl-name">' + escapeHtml(marker.label) + '</span></div>' +
-        '</div>');
-    });
-    return htmlParts.join("");
-  }
-
-  function getSharedCss(st) {
-    return '<style>\n' +
-      '*{margin:0;padding:0;box-sizing:border-box}\n' +
-      'body{background:' + st.bodyBg + ';color:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;' +
-      'display:flex;flex-direction:column;min-height:100vh;padding:0}\n' +
-      '.hero{background:' + st.heroBg + ';padding:32px 40px;border-bottom:1px solid ' + st.heroBorder + ';position:relative;overflow:hidden;}\n' +
-      '.hero::before{content:"";position:absolute;top:0;left:0;right:0;bottom:0;background:repeating-linear-gradient(90deg,transparent,transparent 40px,' + st.heroBorder + ' 40px,' + st.heroBorder + ' 41px);opacity:' + st.heroGridOpacity + ';pointer-events:none;}\n' +
-      '.hero-content{position:relative;z-index:1;}\n' +
-      '.hero-eyebrow{display:flex;gap:12px;align-items:center;margin-bottom:12px;}\n' +
-      '.hero-badge{background:' + st.badgeBg + ';color:' + st.badgeColor + ';padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:0.5px;}\n' +
-      '.hero-theme{color:' + st.accentBlue + ';font-size:12px;background:' + st.heroBorder + ';padding:3px 10px;border-radius:20px;}\n' +
-      '.hero-badge-dur{color:' + st.metaText + ';font-size:12px;}\n' +
-      '.hero h1{font-size:28px;font-weight:800;margin-bottom:8px;}\n' +
-      '.hero-subtitle{color:' + st.accentText + ';font-size:14px;margin-bottom:16px;}\n' +
-      '.hero-stats{display:flex;gap:20px;}\n' +
-      '.hero-stat{text-align:center;}\n' +
-      '.hero-stat-num{font-size:20px;font-weight:700;color:' + st.statColor + ';}\n' +
-      '.hero-stat-label{font-size:11px;color:' + st.metaText + ';}\n' +
-      '.tl-rail{background:' + st.bodyBg + ';padding:16px 40px;border-bottom:1px solid ' + st.heroBorder + ';overflow-x:auto;}\n' +
-      '.tl-track{display:flex;align-items:center;gap:0;min-width:600px;position:relative;padding:8px 0;}\n' +
-      '.tl-track::before{content:"";position:absolute;left:0;right:0;top:50%;height:2px;background:' + st.heroBorder + ';transform:translateY(-50%);z-index:0;}\n' +
-      '.tl-marker{display:flex;flex-direction:column;align-items:center;position:relative;z-index:1;flex:1;min-width:60px;}\n' +
-      '.tl-dot{width:12px;height:12px;border-radius:50%;border:2px solid ' + st.dotSupport + ';background:' + st.bodyBg + ';position:relative;}\n' +
-      '.tl-dot-opening{background:' + st.dotOpening + ';border-color:' + st.dotOpening + ';animation:pulseLine 2s infinite;}\n' +
-      '.tl-dot-lead{background:' + st.dotLead + ';border-color:' + st.dotLead + ';box-shadow:0 0 8px ' + st.dotLead + '80;}\n' +
-      '.tl-dot-supporting{background:' + st.dotSupport + ';border-color:' + st.dotSupport + ';}\n' +
-      '.tl-dot-trans{background:' + st.dotTrans + ';border-color:' + st.dotTrans + ';width:8px;height:8px;}\n' +
-      '.tl-dot-closing{background:' + st.dotClosing + ';border-color:' + st.dotClosing + ';animation:pulseLine 2s infinite;}\n' +
-      '.tl-label{text-align:center;margin-top:4px;}\n' +
-      '.tl-time{color:' + st.metaText + ';font-size:10px;font-family:monospace;display:block;}\n' +
-      '.tl-name{color:' + st.accentText + ';font-size:10px;display:block;white-space:nowrap;}\n' +
-      '.tl-marker-trans .tl-name{color:' + st.metaText + ';}\n' +
-      '.content{padding:24px 40px;flex:1;max-width:900px;margin:0 auto;width:100%;}\n' +
-      '.section-label{color:' + st.metaText + ';font-size:11px;text-transform:uppercase;letter-spacing:1.5px;margin:20px 0 8px 0;display:flex;align-items:center;gap:10px;}\n' +
-      '.section-label::after{content:"";flex:1;height:1px;background:' + st.sectionDivider + ';}\n' +
-      '.mock-news-card-lead{border-left:3px solid ' + st.cardBorderLead + '!important;}\n' +
-      '.card-lead-badge{background:' + st.badgeBg + ';color:' + st.badgeColor + ';padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;margin-left:6px;}\n' +
-      '.footer-bar{background:' + st.footerBg + ';padding:12px 40px;border-top:1px solid ' + st.heroBorder + ';font-size:11px;color:' + st.footerText + ';display:flex;justify-content:space-between;align-items:center;}\n' +
-      '@keyframes fadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}\n' +
-      '@keyframes pulseLine{0%,100%{opacity:1;}50%{opacity:0.5;}}\n' +
-      '@keyframes shimmer{0%{background-position:-200% 0;}100%{background-position:200% 0;}}\n' +
-      '</style>\n';
-  }
-
-  // CP35.1: Layout 1 — timeline_daily_v1 (standard vertical news cards — the baseline)
-  function renderTimelineDailyEpisodeHtml(contract, st) {
-    var episode = contract.episode;
-    var timeline = contract.timeline;
-    var sections = contract.sections;
-    var totalTimeStr = formatTimecode(episode.estimated_duration_sec);
-    var themeName = episode.theme_name || "";
-    var hlStyle = st.headlineGradient !== "none"
-      ? 'background:' + st.headlineGradient + ';-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;'
-      : 'color:#f9fafb;';
-
-    function cardHtml(card) {
-      var isLead = card.is_lead;
-      var bc = isLead ? st.cardBorderLead : st.cardBorder;
-      var bg = isLead ? st.cardBgLead : st.cardBg;
-      var leadBadge = isLead ? '<span class="card-lead-badge">★ 主线</span>' : '';
-      var empTag = card.emphasis ? '<span style="color:' + st.cardEmphasisColor + ';font-size:11px;background:' + st.cardBadgeBg + ';padding:2px 6px;border-radius:3px;">' + escapeHtml(card.emphasis) + '</span>' : '';
-      var badges = card.badges.map(function (b) { return '<span class="card-badge">' + escapeHtml(b) + '</span>'; }).join("");
-      return '<div class="mock-news-card' + (isLead ? ' mock-news-card-lead' : '') + '" data-section-type="news_segment" style="background:' + bg + ';border:1px solid ' + bc + ';border-radius:12px;padding:20px;margin:10px 0;animation:fadeUp 0.4s ease-out both;">' +
-        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">' +
-        '<span style="background:' + st.cardBadgeBg + ';color:' + st.metaText + ';border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;">#' + card.order + '</span>' +
-        '<span style="color:' + st.metaText + ';font-size:11px;font-family:monospace;">' + card.time_range + '</span>' +
-        '<span style="color:' + st.metaText + ';font-size:11px;">' + card.duration_hint_sec + 's</span>' + leadBadge + '</div>' +
-        '<div style="color:#f9fafb;font-size:16px;font-weight:600;margin-bottom:8px;line-height:1.4;' + hlStyle + '">' + escapeHtml(card.headline) + '</div>' +
-        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">' +
-        '<span style="color:' + st.cardLayoutTagColor + ';font-size:11px;background:' + st.cardBadgeBg + ';padding:2px 6px;border-radius:3px;">' + escapeHtml(card.layout) + '</span>' + empTag + badges + '</div>' +
-        '<div style="color:' + st.metaText + ';font-size:11px;margin-top:8px;">🎙 ' + card.audio_clip_count + ' 片段 &nbsp;📋 ' + (isLead ? '主线' : '补充') + '</div></div>';
-    }
-
-    function transHtml(row) {
-      return '<div style="display:flex;align-items:center;gap:12px;padding:8px 16px;margin:4px 0;color:' + st.metaText + ';font-size:12px;">' +
-        '<span style="flex:1;height:1px;background:' + st.sectionDivider + ';"></span>' +
-        '<span style="white-space:nowrap;">→ ' + escapeHtml(row.text) + ' →</span>' +
-        '<span style="flex:1;height:1px;background:' + st.sectionDivider + ';"></span></div>';
-    }
-
-    var cards = [];
-    sections.news_cards.forEach(function (card, i) {
-      cards.push(cardHtml(card));
-      if (i < sections.news_cards.length - 1 && sections.transitions && sections.transitions[i]) {
-        cards.push(transHtml(sections.transitions[i]));
-      }
-    });
-
-    return '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0">\n<title>' + escapeHtml(episode.title) + '</title>\n' + getSharedCss(st) + '</head>\n<body>\n' +
-      '<div class="hero">\n<div class="hero-content">' +
-      '<div class="hero-eyebrow"><span class="hero-badge">🔥 合集</span><span class="hero-theme">' + escapeHtml(themeName) + '</span><span class="hero-badge-dur">⏱ ' + totalTimeStr + '</span></div>' +
-      '<h1 style="' + hlStyle + '">' + escapeHtml(episode.title) + '</h1>' +
-      '<div class="hero-subtitle">' + escapeHtml(episode.subtitle) + '</div>' +
-      '<div class="hero-stats"><div class="hero-stat"><div class="hero-stat-num">' + sections.news_cards.length + '</div><div class="hero-stat-label">条新闻</div></div>' +
-      '<div class="hero-stat"><div class="hero-stat-num">' + totalTimeStr + '</div><div class="hero-stat-label">总时长</div></div>' +
-      '<div class="hero-stat"><div class="hero-stat-num">' + episode.lead_count + '</div><div class="hero-stat-label">主线</div></div></div></div>\n</div>\n' +
-      '<div class="tl-rail"><div class="tl-track">' + renderSharedTimelineMarkersHtml(timeline, st) + '</div></div>\n' +
-      '<div class="content">' +
-      '<div class="section-label">开场</div>' +
-      '<div style="background:' + st.openingBg + ';border-radius:12px;padding:20px;margin-bottom:8px;border:1px solid ' + st.heroBorder + ';">' +
-      '<div style="font-size:15px;color:#e2e8f0;font-weight:600;margin-bottom:4px;">' + escapeHtml(sections.opening.title) + '</div>' +
-      '<div style="color:' + st.metaText + ';font-size:12px;">' + escapeHtml(sections.opening.subtitle) + '</div></div>\n' +
-      '<div class="section-label">新闻列表</div>\n' + cards.join("") +
-      '<div class="section-label">结尾</div>' +
-      '<div style="background:' + st.closingBg + ';border-radius:12px;padding:20px;border:1px solid ' + st.heroBorder + ';">' +
-      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><span style="background:' + st.closingBadgeBg + ';color:' + st.closingBadgeColor + ';padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;">重点回看</span></div>' +
-      '<div style="color:#f9fafb;font-size:14px;font-weight:600;margin-bottom:4px;">' + escapeHtml(sections.closing.title) + '</div>' +
-      (sections.closing.focus_news_id ? '<div style="color:' + st.metaText + ';font-size:11px;">📋 主线新闻 ID: ' + escapeHtml(sections.closing.focus_news_id) + '</div>' : '') + '</div>\n' +
-      '</div>\n<div class="footer-bar"><span>Mock Timeline Preview · ' + escapeHtml(themeName) + ' · no real render</span><span>' + escapeHtml(episode.title) + '</span></div>\n</body>\n</html>';
-  }
-
-  // CP35.1: Layout 2 — breaking_news_v1 (news channel big-screen: big lead card + compact supporting grid)
-  function renderBreakingNewsEpisodeHtml(contract, st) {
-    var episode = contract.episode;
-    var timeline = contract.timeline;
-    var sections = contract.sections;
-    var totalTimeStr = formatTimecode(episode.estimated_duration_sec);
-    var themeName = episode.theme_name || "";
-
-    var leadCard = null;
-    var supportCards = [];
-    sections.news_cards.forEach(function (card) {
-      if (card.is_lead && !leadCard) leadCard = card;
-      else supportCards.push(card);
-    });
-    if (!leadCard && sections.news_cards.length > 0) {
-      leadCard = sections.news_cards[0];
-      supportCards = sections.news_cards.slice(1);
-    }
-
-    function supportCardHtml(card, idx) {
-      return '<div class="mock-news-card" data-section-type="news_segment" style="background:' + st.cardBg + ';border:1px solid ' + st.cardBorder + ';border-radius:8px;padding:14px;margin:6px 0;">' +
-        '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">' +
-        '<span style="background:' + st.cardBorder + ';color:' + st.metaText + ';border-radius:3px;padding:1px 6px;font-size:10px;font-weight:700;">#' + card.order + '</span>' +
-        '<span style="color:' + st.metaText + ';font-size:10px;font-family:monospace;">' + card.time_range + '</span></div>' +
-        '<div style="color:#f9fafb;font-size:13px;font-weight:600;line-height:1.3;">' + escapeHtml(card.headline) + '</div>' +
-        '<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;">' +
-        '<span style="color:' + st.cardLayoutTagColor + ';font-size:10px;background:' + st.cardBadgeBg + ';padding:1px 5px;border-radius:3px;">' + escapeHtml(card.layout) + '</span></div></div>';
-    }
-
-    function breakingTransHtml(row) {
-      var texts = ["继续关注", "最新进展", "下一条快讯", "更多详情"];
-      var t = row && row.text ? row.text : texts[Math.floor(Math.random() * texts.length)];
-      return '<div style="text-align:center;padding:6px 0;color:' + st.metaText + ';font-size:11px;font-weight:600;letter-spacing:1px;">— ' + escapeHtml(t) + ' —</div>';
-    }
-
-    var leadHtml = "";
-    if (leadCard) {
-      leadHtml = '<div class="mock-news-card mock-news-card-lead" data-section-type="news_segment" style="background:' + st.cardBgLead + ';border:2px solid ' + st.cardBorderLead + ';border-radius:12px;padding:24px;margin:16px 0;animation:fadeUp 0.4s ease-out both;">' +
-        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">' +
-        '<span style="background:' + st.badgeBg + ';color:' + st.badgeColor + ';padding:3px 10px;border-radius:4px;font-size:11px;font-weight:900;letter-spacing:1px;">★ 主线</span>' +
-        '<span style="color:' + st.metaText + ';font-size:11px;font-family:monospace;">' + leadCard.time_range + '</span>' +
-        '<span style="color:' + st.metaText + ';font-size:11px;">' + leadCard.duration_hint_sec + 's</span></div>' +
-        '<div style="color:#f9fafb;font-size:22px;font-weight:900;line-height:1.3;margin-bottom:12px;">' + escapeHtml(leadCard.headline) + '</div>' +
-        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">' +
-        '<span style="color:' + st.cardLayoutTagColor + ';font-size:11px;background:' + st.cardBadgeBg + ';padding:2px 8px;border-radius:4px;">' + escapeHtml(leadCard.layout) + '</span>' +
-        (leadCard.emphasis ? '<span style="color:' + st.cardEmphasisColor + ';font-size:11px;background:' + st.cardBadgeBg + ';padding:2px 8px;border-radius:4px;">' + escapeHtml(leadCard.emphasis) + '</span>' : '') + '</div>' +
-        '<div style="color:' + st.metaText + ';font-size:11px;">🎙 ' + leadCard.audio_clip_count + ' 音频片段</div></div>';
-    }
-
-    var supportGridHtml = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0;">';
-    supportCards.forEach(function (card) {
-      supportGridHtml += supportCardHtml(card);
-    });
-    if (supportCards.length === 0) supportGridHtml = "";
-    else if (supportCards.length === 1) supportGridHtml = supportGridHtml.replace('grid-template-columns:1fr 1fr;', 'grid-template-columns:1fr;');
-
-    return '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0">\n<title>' + escapeHtml(episode.title) + '</title>\n' + getSharedCss(st) + '</head>\n<body>\n' +
-      '<div style="background:' + st.breakingBannerBg + ';color:#ffffff;text-align:center;padding:10px;font-size:16px;font-weight:900;letter-spacing:3px;">🔴 BREAKING NEWS — ' + escapeHtml(episode.title) + '</div>\n' +
-      '<div class="hero">\n<div class="hero-content">' +
-      '<div class="hero-eyebrow"><span class="hero-badge">🔥 合集</span><span class="hero-theme">' + escapeHtml(themeName) + '</span><span class="hero-badge-dur">⏱ ' + totalTimeStr + '</span></div>' +
-      '<h1 style="color:#ffffff;">' + escapeHtml(episode.title) + '</h1>' +
-      '<div class="hero-subtitle">' + escapeHtml(episode.subtitle) + '</div>' +
-      '<div class="hero-stats"><div class="hero-stat"><div class="hero-stat-num">' + sections.news_cards.length + '</div><div class="hero-stat-label">条新闻</div></div>' +
-      '<div class="hero-stat"><div class="hero-stat-num">' + totalTimeStr + '</div><div class="hero-stat-label">总时长</div></div>' +
-      '<div class="hero-stat"><div class="hero-stat-num">' + episode.lead_count + '</div><div class="hero-stat-label">主线</div></div></div></div>\n</div>\n' +
-      '<div class="tl-rail"><div class="tl-track">' + renderSharedTimelineMarkersHtml(timeline, st) + '</div></div>\n' +
-      '<div class="content">' +
-      '<div class="section-label">头条</div>' + leadHtml +
-      (supportCards.length > 0 ? '<div class="section-label">其他快讯</div>' + supportGridHtml + '</div>' : '') +
-      '<div class="section-label">重点回看</div>' +
-      '<div style="background:' + st.closingBg + ';border-radius:12px;padding:20px;border:1px solid ' + st.heroBorder + ';">' +
-      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><span style="background:' + st.closingBadgeBg + ';color:' + st.closingBadgeColor + ';padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;">重点回看</span></div>' +
-      '<div style="color:#f9fafb;font-size:14px;font-weight:600;margin-bottom:4px;">' + escapeHtml(sections.closing.title) + '</div>' +
-      (sections.closing.focus_news_id ? '<div style="color:' + st.metaText + ';font-size:11px;">📋 主线新闻 ID: ' + escapeHtml(sections.closing.focus_news_id) + '</div>' : '') + '</div>\n' +
-      '</div>\n<div class="footer-bar"><span>Mock Timeline Preview · ' + escapeHtml(themeName) + ' · no real render</span><span>' + escapeHtml(episode.title) + '</span></div>\n</body>\n</html>';
-  }
-
-  // CP37: Cartoon anchor helpers — context inference and SVG rendering
-  // ----------------------------------------------------------------
-
-  // Infer news context type from contract using keyword rules (no LLM)
-  function inferNewsContextFromContract(contract) {
-    var episode = contract.episode || {};
-    var sections = contract.sections || {};
-    var cards = sections.news_cards || [];
-
-    // Build a combined text blob for keyword scanning
-    var text = [
-      episode.title || "",
-      episode.subtitle || "",
-      sections.opening ? sections.opening.title : "",
-      sections.closing ? sections.closing.title : "",
-    ].concat(cards.map(function (c) {
-      return [c.headline || "", c.emphasis || "", (c.badges || []).join(" "), c.layout || ""].join(" ");
-    })).join(" ").toLowerCase();
-
-    var context_type = "general";
-    var severity = "normal";
-
-    if (/breaking|outage|security|risk|lawsuit|ban|regulation|alert|emergency|crisis|scandal/i.test(text)) {
-      context_type = "alert";
-      severity = "high";
-    } else if (/launch|release|announce|unveil|model|product|feature| debut|coming soon/i.test(text)) {
-      context_type = "launch";
-      severity = "normal";
-    } else if (/benchmark|score|ranking|leaderboard|funding|valuation|revenue|profit|market|percent|%/i.test(text)) {
-      context_type = "data";
-      severity = "normal";
-    } else if (/research|paper|arxiv|study|reasoning|method|dataset|experiment|result|finding/i.test(text)) {
-      context_type = "research";
-      severity = "low";
-    }
-
-    return { context_type: context_type, severity: severity };
-  }
-
-  // Map context_type + severity to anchor cue
-  function inferEpisodeAnchorCue(contract) {
-    var ctx = inferNewsContextFromContract(contract);
-    var context_type = ctx.context_type;
-    var severity = ctx.severity;
-
-    var expression = "neutral";
-    var action = "talk";
-    var position = "left";
-    var tone = "normal";
-
-    if (context_type === "alert") {
-      expression = severity === "high" ? "serious" : "focused";
-      action = "alert_point";
-      tone = "breaking";
-    } else if (context_type === "launch") {
-      expression = "excited";
-      action = "introduce";
-      tone = "energetic";
-    } else if (context_type === "data") {
-      expression = "focused";
-      action = "point_right";
-      tone = "analytical";
-    } else if (context_type === "research") {
-      expression = "thinking";
-      action = "explain";
-      tone = "calm";
-    }
-
-    return { role: "anchor", position: position, expression: expression, action: action, tone: tone };
-  }
-
-  // Generate inline SVG for cartoon anchor with CSS animation classes
-  function renderCartoonAnchorSvg(anchorCue) {
-    var expr = anchorCue.expression || "neutral";
-    var act = anchorCue.action || "talk";
-
-    // ----------------------------------------------------------------
-    // Expression configs — control mouth, brows, pupils, blush
-    // ----------------------------------------------------------------
-    var exprConfig = {
-      neutral: {
-        mouth: '<path class="anchor-mouth" d="M50 82 Q60 90 70 82" stroke="#2d1b0e" stroke-width="2.5" fill="none" stroke-linecap="round"/>',
-        brows: '<path class="anchor-brow anchor-brow-left" d="M40 59 Q48 56 55 59" stroke="#3d2517" stroke-width="2.5" fill="none" stroke-linecap="round"/><path class="anchor-brow anchor-brow-right" d="M65 59 Q72 56 80 59" stroke="#3d2517" stroke-width="2.5" fill="none" stroke-linecap="round"/>',
-        pupilDx: 0,
-        cheek: '',
-      },
-      serious: {
-        mouth: '<path class="anchor-mouth" d="M50 84 Q60 82 70 84" stroke="#2d1b0e" stroke-width="3" fill="none" stroke-linecap="round"/>',
-        brows: '<path class="anchor-brow anchor-brow-left" d="M40 57 Q48 53 55 57" stroke="#3d2517" stroke-width="3" fill="none" stroke-linecap="round"/><path class="anchor-brow anchor-brow-right" d="M65 57 Q72 53 80 57" stroke="#3d2517" stroke-width="3" fill="none" stroke-linecap="round"/>',
-        pupilDx: 0,
-        cheek: '',
-      },
-      excited: {
-        mouth: '<path class="anchor-mouth" d="M47 80 Q60 94 73 80 Q60 86 47 80 Z" fill="#2d1b0e" stroke="#2d1b0e" stroke-width="1"/>',
-        brows: '<path class="anchor-brow anchor-brow-left" d="M40 58 Q48 54 55 58" stroke="#3d2517" stroke-width="2.5" fill="none" stroke-linecap="round"/><path class="anchor-brow anchor-brow-right" d="M65 58 Q72 54 80 58" stroke="#3d2517" stroke-width="2.5" fill="none" stroke-linecap="round"/>',
-        pupilDx: 0,
-        cheek: '<ellipse cx="36" cy="76" rx="8" ry="5" fill="#fca5a5" opacity=".45"/><ellipse cx="84" cy="76" rx="8" ry="5" fill="#fca5a5" opacity=".45"/>',
-      },
-      focused: {
-        mouth: '<path class="anchor-mouth" d="M50 82 Q60 88 70 82" stroke="#2d1b0e" stroke-width="2.5" fill="none" stroke-linecap="round"/>',
-        brows: '<path class="anchor-brow anchor-brow-left" d="M40 58 Q48 55 55 58" stroke="#3d2517" stroke-width="2.5" fill="none" stroke-linecap="round"/><path class="anchor-brow anchor-brow-right" d="M65 58 Q72 55 80 58" stroke="#3d2517" stroke-width="2.5" fill="none" stroke-linecap="round"/>',
-        pupilDx: 1.5,
-        cheek: '',
-      },
-      thinking: {
-        mouth: '<path class="anchor-mouth" d="M53 84 Q60 81 67 84" stroke="#2d1b0e" stroke-width="2" fill="none" stroke-linecap="round"/>',
-        brows: '<path class="anchor-brow anchor-brow-left" d="M40 60 Q48 58 55 60" stroke="#3d2517" stroke-width="2" fill="none" stroke-linecap="round"/><path class="anchor-brow anchor-brow-right" d="M65 56 Q72 54 80 56" stroke="#3d2517" stroke-width="2" fill="none" stroke-linecap="round"/>',
-        pupilDx: -1,
-        cheek: '',
-      },
-    };
-    var cfg = exprConfig[expr] || exprConfig.neutral;
-
-    var hairColor = "#2d1b0e";
-    var skinColor = "#f5c9a0";
-    var suitColor = "#1a1a2e";
-    var tieColor = "#dc2626";
-    var pd = cfg.pupilDx;
-
-    var svgContent = '<svg class="cartoon-anchor-svg" viewBox="0 0 120 180" aria-hidden="true" ' +
-      'style="width:100%;height:100%;overflow:visible;">' +
-
-      // Ground shadow
-      '<ellipse cx="60" cy="176" rx="28" ry="4" fill="rgba(0,0,0,.28)"/>' +
-
-      // === BODY (taller, more presenter-like) ===
-      // Torso
-      '<rect x="28" y="96" width="64" height="78" rx="10" fill="' + suitColor + '"/>' +
-      // Shirt front
-      '<path d="M52 96 L60 124 L68 96" fill="#e8e8f0" stroke="none"/>' +
-      // Lapels
-      '<path d="M48 96 L60 126 L72 96" fill="#252540" stroke="none"/>' +
-      // Red tie
-      '<path d="M56 96 L64 96 L62 144 L60 150 L58 144 Z" fill="' + tieColor + '"/>' +
-
-      // Left arm — connected, hangs naturally
-      '<path class="anchor-arm anchor-arm-left" d="M28 100 Q10 122 14 154" stroke="' + suitColor + '" stroke-width="15" fill="none" stroke-linecap="round"/>' +
-      '<circle cx="14" cy="156" r="8" fill="' + skinColor + '"/>' +
-
-      // Right arm — animated per action
-      '<path class="anchor-arm anchor-arm-right" d="M92 100 Q110 122 106 154" stroke="' + suitColor + '" stroke-width="15" fill="none" stroke-linecap="round"/>' +
-      '<circle cx="106" cy="156" r="8" fill="' + skinColor + '"/>' +
-
-      // Neck
-      '<rect x="50" y="82" width="20" height="16" fill="' + skinColor + '"/>' +
-
-      // Head
-      '<ellipse cx="60" cy="60" rx="30" ry="32" fill="' + skinColor + '"/>' +
-
-      // Hair — full coverage top
-      '<path d="M31 52 Q34 22 60 18 Q86 22 89 52 Q84 38 60 34 Q36 38 31 52Z" fill="' + hairColor + '"/>' +
-
-      // Ears
-      '<ellipse cx="31" cy="60" rx="6" ry="8" fill="' + skinColor + '"/>' +
-      '<ellipse cx="89" cy="60" rx="6" ry="8" fill="' + skinColor + '"/>' +
-
-      // === EYES (proper layering: white → iris → pupil → shine) ===
-      // Left eye white
-      '<circle cx="47" cy="60" r="8" fill="#fff"/>' +
-      // Right eye white
-      '<circle cx="73" cy="60" r="8" fill="#fff"/>' +
-      // Left iris
-      '<circle cx="48" cy="61" r="5.5" fill="#3a5f8a"/>' +
-      // Right iris
-      '<circle cx="74" cy="61" r="5.5" fill="#3a5f8a"/>' +
-      // Left pupil (offset by pd for focused/looking)
-      '<circle class="anchor-pupil" cx="' + (49 + pd) + '" cy="61" r="3" fill="#1a1a2e"/>' +
-      // Right pupil
-      '<circle class="anchor-pupil" cx="' + (75 + pd) + '" cy="61" r="3" fill="#1a1a2e"/>' +
-      // Left eye shine (two dots for cartoon depth)
-      '<circle cx="50" cy="59" r="1.5" fill="#fff"/>' +
-      '<circle cx="46" cy="63" r="0.8" fill="#fff" opacity=".6"/>' +
-      // Right eye shine
-      '<circle cx="76" cy="59" r="1.5" fill="#fff"/>' +
-      '<circle cx="72" cy="63" r="0.8" fill="#fff" opacity=".6"/>' +
-
-      // Eyebrows
-      cfg.brows +
-
-      // Nose
-      '<ellipse cx="60" cy="68" rx="2.5" ry="3.5" fill="#d4a882" opacity=".6"/>' +
-
-      // Mouth
-      cfg.mouth +
-
-      // Cheek blush (excited only)
-      cfg.cheek +
-
-      // Thinking indicator: small raised dot for "thinking" expression
-      (expr === "thinking" ? '<circle cx="86" cy="44" r="3" fill="#f5c9a0" stroke="#d4a882" stroke-width="1"/><path d="M86 41 Q88 38 90 41" stroke="#3d2517" stroke-width="1.2" fill="none" stroke-linecap="round"/>' : '') +
-
-      '</svg>';
-
-    return svgContent;
-  }
-
-  // Generate anchor CSS animation classes
-  function getAnchorActionClass(action) {
-    var map = {
-      talk: "anchor-action-talk",
-      point_right: "anchor-action-point-right",
-      alert_point: "anchor-action-alert-point",
-      introduce: "anchor-action-introduce",
-      explain: "anchor-action-explain",
-    };
-    return map[action] || "anchor-action-talk";
-  }
-
-  function getAnchorExpressionClass(expression) {
-    var map = {
-      neutral: "anchor-expression-neutral",
-      serious: "anchor-expression-serious",
-      excited: "anchor-expression-excited",
-      focused: "anchor-expression-focused",
-      thinking: "anchor-expression-thinking",
-    };
-    return map[expression] || "anchor-expression-neutral";
-  }
-
-  // Render full anchor layer HTML (SVG + wrapper div with CSS)
-  // CP38.1: Render anchor with split layers (entrance wrapper + action layer + SVG)
-  function renderCartoonAnchorLayer(anchorCue, delaySec) {
-    var actionClass = getAnchorActionClass(anchorCue.action);
-    var expressionClass = getAnchorExpressionClass(anchorCue.expression);
-    var svg = renderCartoonAnchorSvg(anchorCue);
-    var delay = typeof delaySec === "number" ? delaySec : 1;
-
-    // Split structure: .stage-anchor-enter (entrance) → .stage-anchor-layer (action) → SVG
-    return '<div class="stage-anchor-enter" style="animation-delay:' + delay + 's">' +
-      '<div class="stage-anchor-layer ' + actionClass + ' ' + expressionClass + '">' +
-      svg + '</div></div>';
-  }
-
-  // CP38: Build shot timeline for breaking_news_v1 stage playback mock
-  function buildBreakingNewsShotTimeline(contract) {
-    var sections = contract.sections || {};
-    var cardCount = (sections.news_cards || []).length;
-    var totalSec = contract.episode ? (contract.episode.estimated_duration_sec || 30) : 30;
-
-    return [
-      { shot_id: "opening", label: "开场", start_sec: 0, duration_sec: 3, layer_targets: ["stage-title-area", "stage-topbar"] },
-      { shot_id: "anchor_intro", label: "主持人导入", start_sec: 1, duration_sec: 3, layer_targets: ["stage-anchor-layer"] },
-      { shot_id: "lead_news", label: "主新闻", start_sec: 3, duration_sec: 6, layer_targets: ["stage-main-card", "stage-subtitle-bar"] },
-      { shot_id: "supporting_news", label: "补充快讯", start_sec: 7, duration_sec: 6, layer_targets: ["stage-supporting"] },
-      { shot_id: "closing", label: "结尾", start_sec: 11, duration_sec: 3, layer_targets: ["stage-closing-chip", "stage-timeline"] },
-    ];
-  }
-
-  // CP38.1: Timing helpers
-  function getShotById(shotTimeline, shotId) {
-    for (var i = 0; i < shotTimeline.length; i++) {
-      if (shotTimeline[i].shot_id === shotId) return shotTimeline[i];
-    }
-    return null;
-  }
-
-  function getShotStart(shotTimeline, shotId, fallbackSec) {
-    var shot = getShotById(shotTimeline, shotId);
-    return shot ? shot.start_sec : (fallbackSec !== undefined ? fallbackSec : 0);
-  }
-
-  function getShotDuration(shotTimeline, shotId, fallbackSec) {
-    var shot = getShotById(shotTimeline, shotId);
-    return shot ? shot.duration_sec : (fallbackSec !== undefined ? fallbackSec : 3);
-  }
-
-  function getShotTimelineTotalDuration(shotTimeline) {
-    var last = shotTimeline[shotTimeline.length - 1];
-    return last ? last.start_sec + last.duration_sec : 12;
-  }
-
-  // CP38.1: Build timing object from shot timeline (all delays derived from timeline, not hardcoded)
-  function buildBreakingNewsStageTiming(contract) {
-    var shotTimeline = buildBreakingNewsShotTimeline(contract);
-    var totalSec = getShotTimelineTotalDuration(shotTimeline);
-
-    function m(val) { return Math.max(0, val); }
-
-    return {
-      shotTimeline: shotTimeline,
-      totalDurationSec: totalSec,
-      delays: {
-        topbar: m(getShotStart(shotTimeline, "opening", 0) + 0.1),
-        title: m(getShotStart(shotTimeline, "opening", 0) + 0.2),
-        openingLabel: m(getShotStart(shotTimeline, "opening", 0) + 0.15),
-        recap: m(getShotStart(shotTimeline, "opening", 0) + 0.3),
-        shotLabel: m(getShotStart(shotTimeline, "opening", 0) + 0.1),
-        anchor: m(getShotStart(shotTimeline, "anchor_intro", 1)),
-        mainCard: m(getShotStart(shotTimeline, "lead_news", 3) - 0.5),
-        subtitle: m(getShotStart(shotTimeline, "lead_news", 3) + 0.2),
-        supporting: m(getShotStart(shotTimeline, "supporting_news", 7) - 2.0),
-        support1: m(getShotStart(shotTimeline, "supporting_news", 7) - 1.8),
-        support2: m(getShotStart(shotTimeline, "supporting_news", 7) - 1.45),
-        support3: m(getShotStart(shotTimeline, "supporting_news", 7) - 1.1),
-        closing: m(getShotStart(shotTimeline, "closing", 11) - 1.5),
-      }
-    };
-  }
-
-  // CP36: Layout 2 — breaking_news_v1 fixed video stage (9:16 vertical video canvas)
-  function renderBreakingNewsStageEpisodeHtml(contract, st) {
-    var episode = contract.episode;
-    var timeline = contract.timeline;
-    var sections = contract.sections;
-    var totalTimeStr = formatTimecode(episode.estimated_duration_sec);
-    var themeName = episode.theme_name || "";
-
-    var leadCard = null;
-    var supportCards = [];
-    sections.news_cards.forEach(function (card) {
-      if (card.is_lead && !leadCard) leadCard = card;
-      else supportCards.push(card);
-    });
-    if (!leadCard && sections.news_cards.length > 0) {
-      leadCard = sections.news_cards[0];
-      supportCards = sections.news_cards.slice(1);
-    }
-
-    // CP38.1: Build timing from shot timeline (all delays derived, not hardcoded)
-    var timing = buildBreakingNewsStageTiming(contract);
-    var delays = timing.delays;
-    var totalDur = timing.totalDurationSec;
-
-    // Stage CSS — 9:16 fixed canvas, no scrolling, video-like layers
-    var stageCss = '<style>\n' +
-      '.video-stage-shell{width:100%;min-height:100vh;display:flex;align-items:center;justify-content:center;' +
-      'background:#050505;padding:24px;}\n' +
-      '.video-stage{position:relative;width:min(420px,92vw);aspect-ratio:9/16;overflow:hidden;' +
-      'border-radius:24px;background:#0a0000;box-shadow:0 24px 80px rgba(0,0,0,.55);}\n' +
-      '.stage-bg{position:absolute;inset:0;background:linear-gradient(160deg,#1a0000 0%,#0a0000 40%,#120000 100%);' +
-      'animation:stageBgPulse 6s ease-in-out infinite;}\n' +
-      '@keyframes stageBgPulse{0%,100%{opacity:1;}50%{opacity:.85;}}\n' +
-      '.stage-topbar{position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;' +
-      'justify-content:space-between;padding:10px 16px;background:linear-gradient(180deg,rgba(0,0,0,.7) 0%,transparent 100%);}\n' +
-      '.stage-breaking-badge{background:#dc2626;color:#fff;font-size:10px;font-weight:900;' +
-      'letter-spacing:2px;padding:3px 10px;border-radius:4px;animation:breakingBlink 2s ease-in-out infinite;}\n' +
-      '@keyframes breakingBlink{0%,100%{opacity:1;}50%{opacity:.7;}}\n' +
-      '.stage-meta{color:#f87171;font-size:9px;font-family:monospace;}\n' +
-      '.stage-title-area{position:absolute;top:44px;left:0;right:0;z-index:15;padding:0 16px 12px;' +
-      'background:linear-gradient(180deg,transparent 0%,rgba(0,0,0,.3) 100%);}\n' +
-      '.stage-episode-title{color:#fff;font-size:14px;font-weight:800;line-height:1.3;' +
-      'text-shadow:0 2px 8px rgba(0,0,0,.8);margin-bottom:4px;}\n' +
-      '.stage-episode-subtitle{color:#fca5a5;font-size:10px;opacity:.9;line-height:1.3;}\n' +
-      '.stage-main-card{position:absolute;top:128px;left:100px;right:14px;z-index:12;' +
-      'background:rgba(20,0,0,.88);border:1px solid #dc2626;border-radius:14px;' +
-      'padding:16px;animation:cardEnter 0.5s ease-out both;}\n' +
-      '@keyframes cardEnter{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}\n' +
-      '.stage-lead-badge{display:inline-block;background:#dc2626;color:#fff;font-size:9px;font-weight:900;' +
-      'letter-spacing:1px;padding:2px 8px;border-radius:3px;margin-bottom:8px;}\n' +
-      '.stage-lead-headline{color:#fff;font-size:15px;font-weight:800;line-height:1.35;' +
-      'margin-bottom:8px;text-shadow:0 1px 4px rgba(0,0,0,.6);}\n' +
-      '.stage-lead-meta{display:flex;gap:8px;font-size:9px;color:#fca5a5;font-family:monospace;}\n' +
-      '.stage-supporting{position:absolute;bottom:120px;right:14px;z-index:12;width:130px;' +
-      'display:flex;flex-direction:column;gap:6px;}\n' +
-      '.stage-support-card{background:rgba(15,0,0,.82);border:1px solid #7f1d1d;' +
-      'border-radius:8px;padding:8px 10px;}\n' +
-      '.stage-support-headline{color:#fecaca;font-size:10px;font-weight:600;line-height:1.3;' +
-      'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}\n' +
-      '.stage-support-meta{color:#f87171;font-size:8px;font-family:monospace;margin-top:4px;}\n' +
-      '.stage-subtitle-bar{position:absolute;bottom:70px;left:14px;right:14px;z-index:14;' +
-      'background:rgba(0,0,0,.75);border-radius:8px;padding:8px 12px;}\n' +
-      '.stage-subtitle-text{color:#f9f9f9;font-size:11px;line-height:1.4;' +
-      'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}\n' +
-      '.stage-timeline{position:absolute;bottom:0;left:0;right:0;z-index:20;' +
-      'padding:10px 16px;background:linear-gradient(0deg,rgba(0,0,0,.8) 0%,transparent 100%);}\n' +
-      '.tl-rail{padding:0;}\n' +
-      '.tl-track{min-width:0;position:relative;}\n' +
-      '.tl-track::before{background:#4a0000;}\n' +
-      '.tl-dot{width:8px;height:8px;border-radius:50%;border:2px solid #dc2626;background:#0a0000;}\n' +
-      '.tl-dot-opening{background:#dc2626;border-color:#dc2626;}\n' +
-      '.tl-dot-lead{background:#dc2626;border-color:#dc2626;box-shadow:0 0 6px #dc262680;}\n' +
-      '.tl-dot-supporting{background:#7f1d1d;border-color:#dc2626;}\n' +
-      '.tl-dot-closing{background:#f87171;border-color:#f87171;animation:pulseLine 2s infinite;}\n' +
-      '@keyframes pulseLine{0%,100%{opacity:1;}50%{opacity:.5;}}\n' +
-      '.tl-marker{flex:.5;min-width:30px;}\n' +
-      '.tl-label{text-align:center;margin-top:2px;}\n' +
-      '.tl-time{color:#fca5a5;font-size:8px;font-family:monospace;display:block;}\n' +
-      '.tl-name{color:#f87171;font-size:8px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40px;}\n' +
-      '.stage-recap{position:absolute;top:44px;right:14px;z-index:18;' +
-      'background:rgba(220,38,38,.85);border-radius:6px;padding:3px 8px;' +
-      'font-size:9px;color:#fff;font-weight:700;opacity:0;' +
-      'animation:shotFadeIn 0.4s ' + delays.recap + 's ease-out both;}\n' +
-      '.stage-opening-label{position:absolute;top:44px;left:14px;z-index:18;' +
-      'color:#fca5a5;font-size:9px;font-weight:700;letter-spacing:1px;opacity:0;' +
-      'animation:shotFadeIn 0.4s ' + delays.openingLabel + 's ease-out both;}\n' +
-      '.stage-closing-chip{position:absolute;bottom:96px;left:14px;z-index:15;' +
-      'display:flex;align-items:center;gap:6px;font-size:9px;color:#fca5a5;opacity:0;' +
-      'animation:shotFadeIn 0.5s ' + delays.closing + 's ease-out both;}\n' +
-      '.stage-closing-dot{width:6px;height:6px;border-radius:50%;background:#dc2626;}\n' +
-      // CP37/38.1: Split anchor layers — entrance wrapper + action layer
-      '.stage-anchor-enter{position:absolute;left:8px;bottom:112px;width:86px;height:130px;' +
-      'z-index:16;pointer-events:none;opacity:0;' +
-      'animation:anchorEnter 0.7s ease-out forwards;}\n' +
-      '.stage-anchor-layer{width:100%;height:100%;}\n' +
-      '.cartoon-anchor-svg{width:100%;height:100%;filter:drop-shadow(0 6px 18px rgba(0,0,0,.6));}\n' +
-      // Anchor action animations (body float + arm movement)
-      '@keyframes anchorFloat{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}\n' +
-      '@keyframes anchorAlert{0%,100%{transform:rotate(0deg);}25%{transform:rotate(-6deg);}75%{transform:rotate(4deg);}}\n' +
-      '@keyframes anchorTilt{0%,100%{transform:rotate(0deg);}50%{transform:rotate(-4deg);}}\n' +
-      '@keyframes armWave{0%,100%{transform:rotate(0deg);}50%{transform:rotate(-10deg);}}\n' +
-      '@keyframes armPointR{0%,100%{transform:rotate(0deg);}50%{transform:rotate(-10deg);}}\n' +
-      '@keyframes armAlert{0%,100%{transform:rotate(0deg);}40%{transform:rotate(-12deg);}}\n' +
-      '@keyframes armIntro{0%,100%{transform:rotate(0deg) scaleX(1);}50%{transform:rotate(-6deg) scaleX(1.05);}}\n' +
-      '@keyframes mouthOpen{0%,100%{transform:scaleY(1);}50%{transform:scaleY(1.5);}}\n' +
-      '@keyframes pupilLook{0%,100%{transform:translate(0,0);}33%{transform:translate(1.5px,0);}66%{transform:translate(-1px,0);}}\n' +
-      // Action: talk — gentle float + arm wave + mouth
-      '.anchor-action-talk{animation:anchorFloat 2.2s ease-in-out infinite;transform-origin:60px 176px;}\n' +
-      '.anchor-action-talk .anchor-arm-right{animation:armWave 1.8s ease-in-out infinite;transform-origin:92px 100px;}\n' +
-      '.anchor-action-talk .anchor-mouth{animation:mouthOpen 1s ease-in-out infinite;transform-origin:60px 82px;}\n' +
-      // Action: point_right — float + right arm points toward main card
-      '.anchor-action-point-right{animation:anchorFloat 2.2s ease-in-out infinite;transform-origin:60px 176px;}\n' +
-      '.anchor-action-point-right .anchor-arm-right{animation:armPointR 1.4s ease-in-out infinite;transform-origin:92px 100px;}\n' +
-      '.anchor-action-point-right .anchor-pupil{animation:pupilLook 3s ease-in-out infinite;}\n' +
-      // Action: alert_point — body tilt + arm alert
-      '.anchor-action-alert-point{animation:anchorTilt 1s ease-in-out infinite;transform-origin:60px 176px;}\n' +
-      '.anchor-action-alert-point .anchor-arm-right{animation:armAlert .7s ease-in-out infinite;transform-origin:92px 100px;}\n' +
-      // Action: introduce — float + palm-out gesture
-      '.anchor-action-introduce{animation:anchorFloat 2.2s ease-in-out infinite;transform-origin:60px 176px;}\n' +
-      '.anchor-action-introduce .anchor-arm-right{animation:armIntro 2s ease-in-out infinite;transform-origin:92px 100px;}\n' +
-      // Action: explain — slow float + gentle arm
-      '.anchor-action-explain{animation:anchorFloat 3s ease-in-out infinite;transform-origin:60px 176px;}\n' +
-      '.anchor-action-explain .anchor-arm-right{animation:armWave 2.5s ease-in-out infinite;transform-origin:92px 100px;}\n' +
-      // Default pupil animation
-      '.anchor-pupil{animation:pupilLook 4s ease-in-out infinite;}\n' +
-      // Expression-specific tweaks
-      '.anchor-expression-excited .cartoon-anchor-svg{filter:drop-shadow(0 8px 20px rgba(0,0,0,.5)) brightness(1.08);}\n' +
-      // Expression differentiation via eyebrow/brow animation
-      '.anchor-expression-serious .anchor-brow{animation:seriousBrow 2s ease-in-out infinite;}\n' +
-      '@keyframes seriousBrow{0%,100%{transform:translateY(0);}50%{transform:translateY(-1px);}}\n' +
-      // Thinking: slight head tilt
-      '.anchor-expression-thinking .cartoon-anchor-svg{animation:thinkTilt 3s ease-in-out infinite;transform-origin:60px 60px;}\n' +
-      '@keyframes thinkTilt{0%,100%{transform:rotate(0deg);}30%{transform:rotate(-3deg);}70%{transform:rotate(1deg);}}\n' +
-      // Focused: pupils shift right slightly
-      '.anchor-expression-focused .anchor-pupil{animation:focusPupil 3s ease-in-out infinite;}\n' +
-      '@keyframes focusPupil{0%,100%{transform:translate(0,0);}50%{transform:translate(1.5px,0);}}\n' +
-      // CP38: Shot entrance animations (all delays derived from timing object)
-      // Shot 1 - Opening: topbar + title-area fade in
-      '.stage-topbar{opacity:0;animation:shotFadeIn 0.5s ' + delays.topbar + 's ease-out both;}\n' +
-      '.stage-title-area{opacity:0;animation:shotFadeIn 0.6s ' + delays.title + 's ease-out both;}\n' +
-      '@keyframes shotFadeIn{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}\n' +
-      // Shot 2 - Anchor: entrance handled by .stage-anchor-enter CSS; action by .stage-anchor-layer
-      '@keyframes anchorEnter{from{opacity:0;transform:translateX(-14px) translateY(8px);}to{opacity:1;transform:translateX(0) translateY(0);}}\n' +
-      // Shot 3 - Lead news: card + subtitle bar enter
-      '.stage-main-card{opacity:0;animation:shotCardIn 0.6s ' + delays.mainCard + 's ease-out both;}\n' +
-      '@keyframes shotCardIn{from{opacity:0;transform:translateY(14px) scale(0.97);}to{opacity:1;transform:translateY(0) scale(1);}}\n' +
-      '.stage-subtitle-bar{opacity:0;animation:shotFadeIn 0.5s ' + delays.subtitle + 's ease-out both;}\n' +
-      // Shot 4 - Supporting cards: staggered entries
-      '.stage-supporting{opacity:0;animation:shotFadeIn 0.5s ' + delays.supporting + 's ease-out both;}\n' +
-      '.stage-support-card:nth-child(1){animation:shotCardIn 0.5s ' + delays.support1 + 's ease-out both;}\n' +
-      '.stage-support-card:nth-child(2){animation:shotCardIn 0.5s ' + delays.support2 + 's ease-out both;}\n' +
-      '.stage-support-card:nth-child(3){animation:shotCardIn 0.5s ' + delays.support3 + 's ease-out both;}\n' +
-      // Shot 5 - Closing: closing chip handled above via delays.closing (recap via delays.recap)
-      // CP38: Mock progress bar (duration derived from shot timeline total)
-      '.stage-progress-wrap{position:absolute;bottom:6px;left:16px;right:16px;z-index:25;height:4px;}\n' +
-      '.stage-progress-track{width:100%;height:100%;background:rgba(255,255,255,.15);border-radius:999px;overflow:hidden;}\n' +
-      '.stage-progress-fill{width:0%;height:100%;background:linear-gradient(90deg,#dc2626,#f87171);' +
-      'border-radius:999px;animation:mockProgressFill ' + totalDur + 's linear forwards;}\n' +
-      '@keyframes mockProgressFill{0%{width:0%;}100%{width:100%;}}\n' +
-      // CP38: Shot label
-      '.stage-shot-label{position:absolute;top:38px;left:50%;transform:translateX(-50%);z-index:22;' +
-      'background:rgba(0,0,0,.55);border-radius:20px;padding:2px 10px;font-size:8px;color:#fca5a5;' +
-      'white-space:nowrap;letter-spacing:0.5px;opacity:0;animation:shotFadeIn 0.4s ' + delays.shotLabel + 's ease-out both;}\n' +
-      '</style>\n';
-
-    // Build lead card HTML
-    var leadHtml = "";
-    if (leadCard) {
-      leadHtml = '<div class="mock-news-card mock-news-card-lead" data-section-type="news_segment" style="display:none"></div>' +
-        '<div class="stage-main-card mock-news-card mock-news-card-lead" data-section-type="news_segment">' +
-        '<div class="stage-lead-badge">★ 主线</div>' +
-        '<div class="stage-lead-headline">' + escapeHtml(leadCard.headline) + '</div>' +
-        '<div class="stage-lead-meta">' +
-        '<span>' + leadCard.time_range + '</span>' +
-        '<span>' + leadCard.duration_hint_sec + 's</span>' +
-        '<span>' + escapeHtml(leadCard.layout) + '</span></div></div>';
-    }
-
-    // Build supporting cards (compact stacked on right side)
-    var supportHtml = "";
-    supportCards.slice(0, 3).forEach(function (card, i) {
-      supportHtml += '<div class="stage-support-card mock-news-card" data-section-type="news_segment">' +
-        '<div class="stage-support-headline">' + escapeHtml(card.headline) + '</div>' +
-        '<div class="stage-support-meta">' + card.time_range + '</div></div>';
-    });
-    if (supportHtml) {
-      supportHtml = '<div class="stage-supporting">' + supportHtml + '</div>';
-    }
-
-    // Subtitle bar — use opening title or lead headline as mock subtitle
-    var subtitleText = sections.opening && sections.opening.title ? sections.opening.title :
-      (leadCard ? leadCard.headline : "");
-    var subtitleBarHtml = '<div class="stage-subtitle-bar">' +
-      '<div class="stage-subtitle-text">' + escapeHtml(subtitleText) + '</div></div>';
-
-    // Timeline rail (compact video-progress style)
-    var timelineHtml = '<div class="stage-timeline"><div class="tl-rail"><div class="tl-track">' +
-      renderSharedTimelineMarkersHtml(timeline, st) + '</div></div></div>';
-
-    // Closing chip (recap label)
-    var closingHtml = '<div class="stage-closing-chip">' +
-      '<div class="stage-closing-dot"></div>' +
-      '<span>📍 结尾 — ' + escapeHtml(sections.closing.title) + '</span></div>';
-
-    // Recap chip (top right)
-    var recapHtml = '<div class="stage-recap">RECAP</div>';
-
-    // Opening label
-    var openingHtml = '<div class="stage-opening-label">📍 开场</div>';
-
-    // CP37: Cartoon anchor layer — infer context and render SVG character
-    var anchorCue = inferEpisodeAnchorCue(contract);
-    var anchorLayerHtml = renderCartoonAnchorLayer(anchorCue, delays.anchor);
-
-    return '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n' +
-      '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
-      '<title>' + escapeHtml(episode.title) + '</title>\n' + stageCss + '</head>\n<body>\n' +
-      '<div class="video-stage-shell">\n' +
-      '<div class="video-stage stage-9x16">\n' +
-      '<div class="stage-bg"></div>\n' +
-      // Topbar
-      '<div class="stage-topbar">' +
-      '<span class="stage-breaking-badge">🔴 BREAKING NEWS</span>' +
-      '<span class="stage-meta">' + sections.news_cards.length + ' 条 · ' + totalTimeStr + '</span></div>\n' +
-      // CP38: Shot label (shot flow indicator)
-      '<div class="stage-shot-label">SHOT FLOW · 开场 → 主持人 → 主新闻 → 快讯 → 结尾</div>\n' +
-      // Recap chip (top right)
-      recapHtml + '\n' +
-      // Opening label
-      openingHtml + '\n' +
-      // Title area
-      '<div class="stage-title-area">' +
-      '<div class="stage-episode-title">' + escapeHtml(episode.title) + '</div>' +
-      '<div class="stage-episode-subtitle">' + escapeHtml(episode.subtitle) + '</div></div>\n' +
-      // Main lead card
-      leadHtml + '\n' +
-      // Supporting stacked cards (right side)
-      supportHtml + '\n' +
-      // Subtitle bar
-      subtitleBarHtml + '\n' +
-      // CP37: Cartoon anchor layer
-      anchorLayerHtml + '\n' +
-      // Closing chip
-      closingHtml + '\n' +
-      // Timeline rail
-      timelineHtml + '\n' +
-      // CP38: Mock progress bar (overlaid at bottom)
-      '<div class="stage-progress-wrap"><div class="stage-progress-track"><div class="stage-progress-fill"></div></div></div>\n' +
-      // CP38.1: Hidden shot metadata (for future Remotion wiring / debugging)
-      '<div class="stage-shot-meta" data-shot-count="' + timing.shotTimeline.length + '" data-duration="' + totalDur + '" style="display:none">' +
-      'opening|' + timing.shotTimeline[0].start_sec + '|' + timing.shotTimeline[0].duration_sec + ';' +
-      'anchor_intro|' + timing.shotTimeline[1].start_sec + '|' + timing.shotTimeline[1].duration_sec + ';' +
-      'lead_news|' + timing.shotTimeline[2].start_sec + '|' + timing.shotTimeline[2].duration_sec + ';' +
-      'supporting_news|' + timing.shotTimeline[3].start_sec + '|' + timing.shotTimeline[3].duration_sec + ';' +
-      'closing|' + timing.shotTimeline[4].start_sec + '|' + timing.shotTimeline[4].duration_sec +
-      '</div>\n' +
-      '</div>\n</div>\n</body>\n</html>';
-  }
-
-  // CP35.1: Layout 3 — data_dashboard_v1 (monitoring dashboard with metric panels and 2-col grid)
-  function renderDataDashboardEpisodeHtml(contract, st) {
-    var episode = contract.episode;
-    var timeline = contract.timeline;
-    var sections = contract.sections;
-    var totalTimeStr = formatTimecode(episode.estimated_duration_sec);
-    var themeName = episode.theme_name || "";
-    var totalAudio = sections.news_cards.reduce(function (s, c) { return s + (c.audio_clip_count || 0); }, 0);
-
-    function metricChip(label, value, unit) {
-      return '<div style="background:' + st.cardBg + ';border:1px solid ' + st.cardBorder + ';border-radius:8px;padding:16px;text-align:center;flex:1;">' +
-        '<div style="font-size:22px;font-weight:900;color:' + st.statColor + ';font-family:monospace;">' + value + '</div>' +
-        '<div style="font-size:11px;color:' + st.metaText + ';margin-top:4px;">' + label + (unit ? ' (' + unit + ')' : '') + '</div></div>';
-    }
-
-    function dashCardHtml(card) {
-      var isLead = card.is_lead;
-      var bc = isLead ? st.cardBorderLead : st.cardBorder;
-      var bg = isLead ? st.cardBgLead : st.cardBg;
-      return '<div class="mock-news-card' + (isLead ? ' mock-news-card-lead' : '') + '" data-section-type="news_segment" style="background:' + bg + ';border:1px solid ' + bc + ';border-radius:8px;padding:16px;margin:6px 0;animation:fadeUp 0.4s ease-out both;">' +
-        '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">' +
-        '<div style="display:flex;align-items:center;gap:6px;">' +
-        '<span style="background:' + st.statColor + ';color:' + st.bodyBg + ';border-radius:4px;padding:2px 8px;font-size:11px;font-weight:900;">#' + card.order + '</span>' +
-        '<span style="color:' + st.metaText + ';font-size:10px;font-family:monospace;">' + card.time_range + '</span></div>' +
-        '<span style="color:' + st.metaText + ';font-size:10px;">' + card.duration_hint_sec + 's</span></div>' +
-        '<div style="color:#f9fafb;font-size:14px;font-weight:700;margin-bottom:8px;line-height:1.3;">' + escapeHtml(card.headline) + '</div>' +
-        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">' +
-        '<span style="color:' + st.statColor + ';font-size:10px;background:' + st.cardBorder + ';padding:2px 6px;border-radius:3px;font-family:monospace;">' + escapeHtml(card.layout) + '</span>' +
-        (card.emphasis ? '<span style="color:' + st.cardEmphasisColor + ';font-size:10px;background:' + st.cardBorder + ';padding:2px 6px;border-radius:3px;">' + escapeHtml(card.emphasis) + '</span>' : '') + '</div>' +
-        '<div style="display:flex;gap:12px;color:' + st.metaText + ';font-size:10px;font-family:monospace;">' +
-        '<span>🎙 ' + card.audio_clip_count + '</span><span>📋 ' + (isLead ? '主线' : '补充') + '</span></div></div>';
-    }
-
-    var dashCardsHtml = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
-    sections.news_cards.forEach(function (card) {
-      dashCardsHtml += dashCardHtml(card);
-    });
-    dashCardsHtml += '</div>';
-
-    return '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0">\n<title>' + escapeHtml(episode.title) + '</title>\n' + getSharedCss(st) + '</head>\n<body>\n' +
-      '<div class="hero" style="border-bottom:2px solid ' + st.statColor + ';">\n<div class="hero-content">' +
-      '<div class="hero-eyebrow"><span class="hero-badge" style="background:' + st.statColor + ';color:' + st.bodyBg + ';">📊 数据仪表盘</span><span class="hero-theme">' + escapeHtml(themeName) + '</span><span class="hero-badge-dur">⏱ ' + totalTimeStr + '</span></div>' +
-      '<h1 style="color:' + st.statColor + ';">' + escapeHtml(episode.title) + '</h1>' +
-      '<div class="hero-subtitle">' + escapeHtml(episode.subtitle) + '</div>' +
-      '<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;">' +
-      metricChip('条新闻', sections.news_cards.length, '') +
-      metricChip('主线', episode.lead_count, '') +
-      metricChip('总时长', totalTimeStr, '') +
-      metricChip('音频片段', totalAudio, '片段') +
-      '</div></div>\n</div>\n' +
-      '<div class="tl-rail" style="padding:10px 40px;"><div class="tl-track" style="min-width:400px;">' + renderSharedTimelineMarkersHtml(timeline, st) + '</div></div>\n' +
-      '<div class="content">' +
-      '<div class="section-label">新闻面板</div>\n' + dashCardsHtml +
-      '<div class="section-label">结语</div>' +
-      '<div style="background:' + st.closingBg + ';border-radius:8px;padding:20px;border:1px solid ' + st.statColor + ';">' +
-      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><span style="background:' + st.closingBadgeBg + ';color:' + st.closingBadgeColor + ';padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;">INSIGHT</span></div>' +
-      '<div style="color:#f9fafb;font-size:14px;font-weight:600;margin-bottom:4px;">' + escapeHtml(sections.closing.title) + '</div>' +
-      (sections.closing.focus_news_id ? '<div style="color:' + st.metaText + ';font-size:11px;font-family:monospace;">📋 ' + escapeHtml(sections.closing.focus_news_id) + '</div>' : '') + '</div>\n' +
-      '</div>\n<div class="footer-bar"><span>Mock Dashboard Preview · ' + escapeHtml(themeName) + ' · no real render</span><span>' + escapeHtml(episode.title) + '</span></div>\n</body>\n</html>';
-  }
-
-  // CP35.1: Layout 4 — research_briefing_v1 (research memo / briefing note format)
-  function renderResearchBriefingEpisodeHtml(contract, st) {
-    var episode = contract.episode;
-    var timeline = contract.timeline;
-    var sections = contract.sections;
-    var totalTimeStr = formatTimecode(episode.estimated_duration_sec);
-    var themeName = episode.theme_name || "";
-
-    function briefCardHtml(card, idx) {
-      var isLead = card.is_lead;
-      var bc = isLead ? st.cardBorderLead : st.cardBorder;
-      var bg = isLead ? st.cardBgLead : st.cardBg;
-      var prefix = isLead ? '◆ KEY FINDING' : '○ OBSERVATION ' + (idx + 1);
-      return '<div class="mock-news-card' + (isLead ? ' mock-news-card-lead' : '') + '" data-section-type="news_segment" style="background:' + bg + ';border:1px solid ' + bc + ';border-radius:4px;padding:20px;margin:8px 0;border-left:3px solid ' + bc + ';animation:fadeUp 0.4s ease-out both;">' +
-        '<div style="color:' + st.metaText + ';font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;">' + prefix + '</div>' +
-        '<div style="color:#f9fafb;font-size:15px;font-weight:600;margin-bottom:10px;line-height:1.5;">' + escapeHtml(card.headline) + '</div>' +
-        '<div style="border-top:1px solid ' + st.sectionDivider + ';padding-top:8px;margin-top:8px;">' +
-        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">' +
-        '<span style="color:' + st.cardLayoutTagColor + ';font-size:10px;background:' + st.cardBadgeBg + ';padding:2px 6px;border-radius:2px;">📋 ' + escapeHtml(card.layout) + '</span>' +
-        (card.emphasis ? '<span style="color:' + st.cardEmphasisColor + ';font-size:10px;background:' + st.cardBadgeBg + ';padding:2px 6px;border-radius:2px;">⚡ ' + escapeHtml(card.emphasis) + '</span>' : '') +
-        (card.badges || []).map(function (b) { return '<span style="color:' + st.accentText + ';font-size:10px;background:' + st.cardBadgeBg + ';padding:2px 6px;border-radius:2px;">' + escapeHtml(b) + '</span>'; }).join('') + '</div>' +
-        '<div style="color:' + st.metaText + ';font-size:10px;">⏱ ' + card.duration_hint_sec + 's &nbsp; 🎙 ' + card.audio_clip_count + ' clip(s) &nbsp; #' + card.order + '</div></div></div>';
-    }
-
-    function briefTransHtml(row) {
-      return '<div style="text-align:center;padding:4px 0;border-top:1px dashed ' + st.sectionDivider + ';border-bottom:1px dashed ' + st.sectionDivider + ';margin:4px 0;color:' + st.metaText + ';font-size:10px;font-style:italic;letter-spacing:0.5px;">— ' + escapeHtml(row && row.text ? row.text : "接着看下一条") + ' —</div>';
-    }
-
-    var briefItems = [];
-    sections.news_cards.forEach(function (card, i) {
-      briefItems.push(briefCardHtml(card, i));
-      if (i < sections.news_cards.length - 1 && sections.transitions && sections.transitions[i]) {
-        briefItems.push(briefTransHtml(sections.transitions[i]));
-      }
-    });
-
-    return '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0">\n<title>Research Briefing — ' + escapeHtml(episode.title) + '</title>\n' + getSharedCss(st) + '</head>\n<body>\n' +
-      '<div class="hero" style="border-bottom:2px solid ' + st.cardBorder + ';">\n<div class="hero-content">' +
-      '<div style="color:' + st.metaText + ';font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;">📄 RESEARCH BRIEFING</div>' +
-      '<h1 style="color:' + st.accentText + ';font-size:24px;">' + escapeHtml(episode.title) + '</h1>' +
-      '<div style="color:' + st.metaText + ';font-size:13px;margin-bottom:12px;line-height:1.5;">' + escapeHtml(episode.subtitle) + '</div>' +
-      '<div style="display:flex;gap:20px;font-size:11px;color:' + st.metaText + ';font-family:monospace;">' +
-      '<span>📰 ' + sections.news_cards.length + ' observations</span>' +
-      '<span>⏱ ' + totalTimeStr + '</span>' +
-      '<span>◆ ' + episode.lead_count + ' key findings</span></div></div>\n</div>\n' +
-      '<div class="tl-rail" style="padding:8px 40px;border-bottom:1px solid ' + st.sectionDivider + ';"><div class="tl-track">' + renderSharedTimelineMarkersHtml(timeline, st) + '</div></div>\n' +
-      '<div style="background:' + st.bodyBg + ';padding:0 40px;border-bottom:1px solid ' + st.sectionDivider + ';"><div style="display:flex;gap:24px;padding:8px 0;font-size:10px;color:' + st.metaText + ';overflow-x:auto;white-space:nowrap;">' +
-      '<span>📍 开场</span>' +
-      (sections.news_cards.map(function (c, i) { return '<span>#' + (i + 1) + ' ' + escapeHtml(c.headline).substring(0, 20) + '...</span>'; }).join(' → ')) +
-      '<span>📍 结尾</span></div></div>\n' +
-      '<div class="content" style="max-width:700px;">' +
-      '<div style="background:' + st.openingBg + ';border-left:3px solid ' + st.cardBorder + ';border-radius:4px;padding:16px;margin-bottom:16px;">' +
-      '<div style="color:' + st.metaText + ';font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">📋 OVERVIEW</div>' +
-      '<div style="color:#f9fafb;font-size:14px;font-weight:600;margin-bottom:4px;">' + escapeHtml(sections.opening.title) + '</div>' +
-      '<div style="color:' + st.metaText + ';font-size:12px;">' + escapeHtml(sections.opening.subtitle) + '</div></div>\n' +
-      '<div class="section-label">Key Findings & Observations</div>\n' + briefItems.join("") +
-      '<div style="background:' + st.closingBg + ';border-left:3px solid ' + st.cardBorder + ';border-radius:4px;padding:16px;margin-top:16px;">' +
-      '<div style="color:' + st.metaText + ';font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">🔬 结尾 — CLOSING TAKEAWAY</div>' +
-      '<div style="color:#f9fafb;font-size:14px;font-weight:600;margin-bottom:4px;">' + escapeHtml(sections.closing.title) + '</div>' +
-      (sections.closing.focus_news_id ? '<div style="color:' + st.metaText + ';font-size:11px;margin-top:6px;">📋 ID: ' + escapeHtml(sections.closing.focus_news_id) + '</div>' : '') + '</div>\n' +
-      '</div>\n<div class="footer-bar"><span>Research Briefing · ' + escapeHtml(themeName) + ' · no real render</span><span>' + escapeHtml(episode.title) + '</span></div>\n</body>\n</html>';
-  }
-
-  // CP35.1: Layout 5 — podcast_cards_v1 (podcast episode format with chapters and warm topic cards)
-  function renderPodcastCardsEpisodeHtml(contract, st) {
-    var episode = contract.episode;
-    var timeline = contract.timeline;
-    var sections = contract.sections;
-    var totalTimeStr = formatTimecode(episode.estimated_duration_sec);
-    var themeName = episode.theme_name || "";
-
-    function topicCardHtml(card, idx) {
-      var isLead = card.is_lead;
-      var bc = isLead ? st.cardBorderLead : st.cardBorder;
-      var bg = isLead ? st.cardBgLead : st.cardBg;
-      var epNum = String(idx + 1).padStart(2, '0');
-      return '<div class="mock-news-card' + (isLead ? ' mock-news-card-lead' : '') + '" data-section-type="news_segment" style="background:' + bg + ';border:1px solid ' + bc + ';border-radius:16px;padding:20px;margin:10px 0;animation:fadeUp 0.4s ease-out both;">' +
-        '<div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;">' +
-        '<div style="background:' + st.badgeBg + ';color:' + st.badgeColor + ';border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;flex-shrink:0;">' + epNum + '</div>' +
-        '<div style="flex:1;">' +
-        '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
-        '<span style="color:' + st.cardLayoutTagColor + ';font-size:11px;font-weight:600;">' + escapeHtml(card.layout) + '</span>' +
-        (isLead ? '<span style="background:' + st.badgeBg + ';color:' + st.badgeColor + ';padding:1px 6px;border-radius:10px;font-size:9px;font-weight:700;">★ 主线</span>' : '') + '</div>' +
-        '<div style="color:' + st.metaText + ';font-size:10px;font-family:monospace;">' + card.time_range + ' · ' + card.duration_hint_sec + 's</div></div></div>' +
-        '<div style="color:#f9fafb;font-size:15px;font-weight:600;line-height:1.5;margin-bottom:10px;">' + escapeHtml(card.headline) + '</div>' +
-        (card.emphasis ? '<div style="background:' + st.podcastTransitionBg + ';border-radius:8px;padding:8px 12px;margin-bottom:8px;color:' + st.accentText + ';font-size:12px;font-style:italic;">💬 ' + escapeHtml(card.emphasis) + '</div>' : '') +
-        '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;">' +
-        (card.badges || []).map(function (b) { return '<span style="background:' + st.cardBadgeBg + ';color:' + st.accentText + ';font-size:10px;padding:2px 6px;border-radius:10px;">' + escapeHtml(b) + '</span>'; }).join('') + '</div>' +
-        '<div style="color:' + st.metaText + ';font-size:10px;">🎙 ' + card.audio_clip_count + ' clips &nbsp; ' + (isLead ? '📌 主线' : '📎 补充') + '</div></div>';
-    }
-
-    function hostTransHtml(row) {
-      var texts = ["好，咱们接着聊", "来，看看下一条", "下个话题", "继续"];
-      var t = row && row.text ? row.text : texts[Math.floor(Math.random() * texts.length)];
-      return '<div style="text-align:center;padding:10px 20px;margin:4px 20px;background:' + st.podcastTransitionBg + ';border-radius:20px;color:' + st.accentText + ';font-size:12px;font-style:italic;">🎙️ ' + escapeHtml(t) + '</div>';
-    }
-
-    var epNum = Math.floor(Math.random() * 90) + 10;
-    var cards = [];
-    sections.news_cards.forEach(function (card, i) {
-      cards.push(topicCardHtml(card, i));
-      if (i < sections.news_cards.length - 1 && sections.transitions && sections.transitions[i]) {
-        cards.push(hostTransHtml(sections.transitions[i]));
-      }
-    });
-
-    return '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0">\n<title>Ep.' + epNum + ' — ' + escapeHtml(episode.title) + '</title>\n' + getSharedCss(st) + '</head>\n<body>\n' +
-      '<div style="background:' + st.heroBg + ';padding:40px;text-align:center;border-bottom:1px solid ' + st.heroBorder + ';">' +
-      '<div style="display:inline-block;background:' + st.badgeBg + ';color:' + st.badgeColor + ';padding:4px 16px;border-radius:20px;font-size:11px;font-weight:700;margin-bottom:16px;">🎙️ EPISODE ' + epNum + '</div>' +
-      '<h1 style="color:#f9fafb;font-size:26px;font-weight:800;margin-bottom:8px;line-height:1.3;">' + escapeHtml(episode.title) + '</h1>' +
-      '<div style="color:' + st.accentText + ';font-size:14px;margin-bottom:16px;">' + escapeHtml(episode.subtitle) + '</div>' +
-      '<div style="display:flex;justify-content:center;gap:24px;font-size:12px;color:' + st.metaText + ';">' +
-      '<span>📰 ' + sections.news_cards.length + ' topics</span>' +
-      '<span>⏱ ' + totalTimeStr + '</span>' +
-      '<span>◆ ' + episode.lead_count + ' featured</span></div></div>\n' +
-      '<div class="tl-rail" style="padding:8px 40px;border-bottom:1px solid ' + st.heroBorder + ';"><div class="tl-track">' + renderSharedTimelineMarkersHtml(timeline, st) + '</div></div>\n' +
-      '<div style="background:' + st.bodyBg + ';padding:12px 40px;border-bottom:1px solid ' + st.heroBorder + ';"><div style="display:flex;gap:20px;overflow-x:auto;padding:4px 0;">' +
-      '<span style="color:' + st.metaText + ';font-size:11px;font-weight:700;white-space:nowrap;padding:4px 0;">📑 CHAPTERS:</span>' +
-      '<span style="color:' + st.accentText + ';font-size:11px;white-space:nowrap;padding:4px 8px;background:' + st.cardBadgeBg + ';border-radius:10px;">🎙️ 开场</span>' +
-      sections.news_cards.map(function (c, i) {
-        return '<span style="color:' + st.metaText + ';font-size:11px;white-space:nowrap;padding:4px 8px;">#' + (i + 1) + ' ' + escapeHtml(c.headline).substring(0, 15) + '...</span>';
-      }).join('') +
-      '<span style="color:' + st.accentText + ';font-size:11px;white-space:nowrap;padding:4px 8px;background:' + st.cardBadgeBg + ';border-radius:10px;">📍 结尾</span></div></div>\n' +
-      '<div class="content" style="max-width:700px;margin:0 auto;">' +
-      '<div style="text-align:center;padding:20px;color:' + st.metaText + ';font-size:13px;font-style:italic;border-bottom:1px solid ' + st.sectionDivider + ';margin-bottom:16px;">' +
-      '🎙️ ' + escapeHtml(sections.opening.title) + ' — ' + escapeHtml(sections.opening.subtitle) + '</div>\n' +
-      cards.join("") +
-      '<div style="background:' + st.closingBg + ';border-radius:16px;padding:24px;text-align:center;margin-top:16px;">' +
-      '<div style="color:' + st.accentText + ';font-size:11px;font-weight:700;letter-spacing:1px;margin-bottom:8px;">📍 本期回顾</div>' +
-      '<div style="color:#f9fafb;font-size:15px;font-weight:600;margin-bottom:8px;">' + escapeHtml(sections.closing.title) + '</div>' +
-      (sections.closing.focus_news_id ? '<div style="color:' + st.metaText + ';font-size:11px;">📋 主线新闻 ID: ' + escapeHtml(sections.closing.focus_news_id) + '</div>' : '') +
-      '<div style="margin-top:12px;color:' + st.metaText + ';font-size:11px;">— End of Episode ' + epNum + ' —</div></div>\n' +
-      '</div>\n<div class="footer-bar"><span>🎙️ Podcast Preview · ' + escapeHtml(themeName) + ' · no real render</span><span>' + escapeHtml(episode.title) + '</span></div>\n</body>\n</html>';
-  }
-
-  // CP34: Thin wrapper — buildMockEpisodeHtml delegates to contract pipeline
-  function buildMockEpisodeHtml(renderIr) {
-    var contract = buildEpisodeTemplateContract(renderIr);
-    if (!contract) return "";
-    return renderEpisodeTemplateHtml(contract);
-  }
-
-  // CP28: Validate mock episode HTML
-  function validateMockEpisodeHtml(html) {
-    var warnings = [];
-    var errors = [];
-
-    if (!html || html.length === 0) {
-      errors.push("HTML 为空");
-      return { ok: false, warnings: warnings, errors: errors };
-    }
-
-    if (html.indexOf("<!DOCTYPE html>") === -1 && html.indexOf("<html") === -1) {
-      errors.push("HTML 必须包含 <!DOCTYPE html> 或 <html>");
-    }
-
-    // CP31: Must contain mock-news-card
-    if (html.indexOf("mock-news-card") === -1) {
-      errors.push("HTML 必须包含 mock-news-card");
-    }
-
-    // CP31.1: Must have opening section (strict)
-    if (html.indexOf("section-title") === -1 && html.indexOf("开场") === -1) {
-      errors.push("HTML 必须包含开场");
-    }
-
-    // CP31.1: Must have closing section (strict)
-    if (html.indexOf("结尾") === -1 && html.indexOf("closing") === -1) {
-      errors.push("HTML 必须包含结尾");
-    }
-
-    // No API key / voice_id
-    if (/api[_-]?key/i.test(html) || /voice[_-]?id/i.test(html)) {
-      errors.push("HTML 中不允许出现 API key 或 voice_id");
-    }
-
-    // No external http links
-    if (/https?:\/\//.test(html) && !/https?:\/\/localhost/.test(html)) {
-      errors.push("HTML 中不允许出现外部 http 链接");
-    }
-
-    // CP33.1: Must contain data-section-type="news_segment"
-    if (html.indexOf('data-section-type="news_segment"') === -1) {
-      errors.push('HTML 必须包含 data-section-type="news_segment"');
-    }
-
-    // CP33.1: Must contain timeline rail
-    if (html.indexOf("tl-rail") === -1 && html.indexOf("tl-track") === -1) {
-      errors.push("HTML 必须包含 timeline rail (tl-rail 或 tl-track)");
-    }
-
-    // CP33.1: Must contain pseudo timecode
-    if (html.indexOf("tl-time") === -1) {
-      errors.push("HTML 必须包含伪时间码 (tl-time)");
-    }
-
-    // CP33.1: Explicitly reject script tags
-    if (/<script\b/i.test(html)) {
-      errors.push("HTML 不允许包含 script 标签");
-    }
-
-    // CP33.1: Reject img with remote links
-    if (/<img[^>]*src=["']?https?:\/\//i.test(html)) {
-      errors.push("HTML 不允许 img 标签包含外部链接");
-    }
-
-    return {
-      ok: errors.length === 0,
-      warnings: warnings,
-      errors: errors,
-    };
-  }
-
-  // CP28: Preview mock episode HTML in iframe
-  function previewMockEpisodeHtml() {
+  // CP59: save the current selection's HTML using the SAME server renderer as export.
+  async function saveMockEpisodeHtml() {
     if (episodeItemList.length === 0) {
-      setStatus("请先加入新闻，再预览合集画面", "error");
+      setStatus("请先选择新闻，再保存 HTML", "error");
       return;
     }
-
-    var plan = buildEpisodePlan();
-    var planResult = validateEpisodePlan(plan);
-    if (!planResult.ok) {
-      setStatus("栏目计划有误：" + planResult.errors.join("；"), "error");
+    var contract = buildCurrentEpisodeContractFromSelection();
+    if (!contract) {
+      setStatus("无法生成契约，请检查所选新闻", "error");
       return;
     }
+    var styleId = getCurrentEpisodeExportStyleId();
+    setStatus("正在渲染并保存 HTML...", "info");
+    try {
+      var data = await loadStyledPreview(contract, styleId, { persist: true });
 
-    var script = buildEpisodeScriptFromPlan(plan);
-    var scriptResult = validateEpisodeScript(script);
-    if (!scriptResult.ok) {
-      setStatus("栏目脚本有误：" + scriptResult.errors.join("；"), "error");
-      return;
-    }
+      latestEpisodeHtmlArtifact = {
+        path: data.path,
+        file_path: data.file_path,
+        created_at: data.created_at,
+      };
 
-    var manifest = buildEpisodeAudioManifestFromScript(script);
-    var manifestResult = validateEpisodeAudioManifest(manifest);
-    if (!manifestResult.ok) {
-      setStatus("音频计划有误：" + manifestResult.errors.join("；"), "error");
-      return;
-    }
-
-    var renderIr = buildEpisodeRenderIrFromContracts(plan, script, manifest);
-    var renderIrResult = validateEpisodeRenderIr(renderIr);
-    if (!renderIrResult.ok) {
-      setStatus("视觉计划有误：" + renderIrResult.errors.join("；"), "error");
-      return;
-    }
-
-    // CP34: Build and validate template contract
-    var contract = buildEpisodeTemplateContract(renderIr);
-    var contractResult = validateEpisodeTemplateContract(contract);
-    if (!contractResult.ok) {
-      setStatus("模板契约有误：" + contractResult.errors.join("；"), "error");
-      return;
-    }
-    latestEpisodeTemplateContract = contract;
-
-    var html = buildMockEpisodeHtml(renderIr);
-    var htmlResult = validateMockEpisodeHtml(html);
-    if (!htmlResult.ok) {
-      setStatus("Mock HTML 有误：" + htmlResult.errors.join("；"), "error");
-      return;
-    }
-
-    // Revoke previous Blob URL to avoid memory leak
-    if (latestEpisodePreviewUrl) {
-      URL.revokeObjectURL(latestEpisodePreviewUrl);
-      latestEpisodePreviewUrl = null;
-    }
-
-    // Create Blob and set iframe src
-    var blob = new Blob([html], { type: "text/html" });
-    latestEpisodePreviewUrl = URL.createObjectURL(blob);
-    previewHtml.src = latestEpisodePreviewUrl;
-
-    // Show preview tab
-    switchToPreviewTab();
-    setPreviewMode("html");
-
-    // Show banner
-    autoPreviewBanner.style.display = "block";
-    autoPreviewBanner.textContent = "多新闻合集 Mock 预览";
-
-    setStatus("Mock 预览已生成", "success");
-  }
-
-  // CP31: Save mock episode HTML to server artifact
-  function saveMockEpisodeHtml() {
-    if (episodeItemList.length === 0) {
-      setStatus("请先加入新闻，再保存合集 HTML", "error");
-      return;
-    }
-
-    var plan = buildEpisodePlan();
-    var planResult = validateEpisodePlan(plan);
-    if (!planResult.ok) {
-      setStatus("栏目计划有误：" + planResult.errors.join("；"), "error");
-      return;
-    }
-
-    var script = buildEpisodeScriptFromPlan(plan);
-    var scriptResult = validateEpisodeScript(script);
-    if (!scriptResult.ok) {
-      setStatus("栏目脚本有误：" + scriptResult.errors.join("；"), "error");
-      return;
-    }
-
-    var manifest = buildEpisodeAudioManifestFromScript(script);
-    var manifestResult = validateEpisodeAudioManifest(manifest);
-    if (!manifestResult.ok) {
-      setStatus("音频计划有误：" + manifestResult.errors.join("；"), "error");
-      return;
-    }
-
-    var renderIr = buildEpisodeRenderIrFromContracts(plan, script, manifest);
-    var renderIrResult = validateEpisodeRenderIr(renderIr);
-    if (!renderIrResult.ok) {
-      setStatus("视觉计划有误：" + renderIrResult.errors.join("；"), "error");
-      return;
-    }
-
-    // CP34: Build and validate template contract
-    var contract = buildEpisodeTemplateContract(renderIr);
-    var contractResult = validateEpisodeTemplateContract(contract);
-    if (!contractResult.ok) {
-      setStatus("模板契约有误：" + contractResult.errors.join("；"), "error");
-      return;
-    }
-    latestEpisodeTemplateContract = contract;
-
-    var html = buildMockEpisodeHtml(renderIr);
-    var htmlResult = validateMockEpisodeHtml(html);
-    if (!htmlResult.ok) {
-      setStatus("Mock HTML 校验失败：" + htmlResult.errors.join("；"), "error");
-      return;
-    }
-
-    setStatus("正在保存合集 HTML...", "info");
-
-    fetch("/api/episode/mock-html", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        html: html,
-        episode_title: plan.title || "今日 AI 前沿速览",
-      }),
-    })
-      .then(function (resp) { return resp.json(); })
-      .then(function (data) {
-        if (!data.ok) {
-          setStatus("保存失败：" + (data.error || "未知错误"), "error");
-          return;
-        }
-
-        latestEpisodeHtmlArtifact = {
-          path: data.path,
-          file_path: data.file_path,
-          created_at: data.created_at,
-        };
-
-        // Revoke previous Blob URL
-        if (latestEpisodePreviewUrl) {
-          URL.revokeObjectURL(latestEpisodePreviewUrl);
-          latestEpisodePreviewUrl = null;
-        }
-
-        // Load saved file in preview iframe
-        previewHtml.src = data.path;
-
-        switchToPreviewTab();
-        setPreviewMode("html");
-
+      if (autoPreviewBanner) {
         autoPreviewBanner.style.display = "block";
-        autoPreviewBanner.textContent = "已保存的合集 HTML 预览";
+        autoPreviewBanner.textContent = "已保存的 HTML 预览（" + styleId + "）";
+      }
 
-        // CP31.1: Show open and download links (no absolute paths)
-        downloadLinks.innerHTML = "";
-        var openLink = document.createElement("a");
-        openLink.href = data.path;
-        openLink.target = "_blank";
-        openLink.rel = "noopener";
-        openLink.className = "download-link";
-        openLink.textContent = "🔗 打开已保存 HTML";
-        downloadLinks.appendChild(openLink);
+      // Show open and download links (no absolute paths)
+      downloadLinks.innerHTML = "";
+      var openLink = document.createElement("a");
+      openLink.href = data.path;
+      openLink.target = "_blank";
+      openLink.rel = "noopener";
+      openLink.className = "download-link";
+      openLink.textContent = "🔗 打开已保存 HTML";
+      downloadLinks.appendChild(openLink);
 
-        var downloadLink = document.createElement("a");
-        downloadLink.href = data.path;
-        downloadLink.download = "";
-        downloadLink.className = "download-link";
-        downloadLink.textContent = "💾 下载 HTML";
-        downloadLinks.appendChild(downloadLink);
+      var downloadLink = document.createElement("a");
+      downloadLink.href = data.path;
+      downloadLink.download = "";
+      downloadLink.className = "download-link";
+      downloadLink.textContent = "💾 下载 HTML";
+      downloadLinks.appendChild(downloadLink);
 
-        // CP32: Refresh history so the new artifact appears immediately
-        loadEpisodeHtmlHistory();
+      // Refresh history so the new artifact appears immediately
+      loadEpisodeHtmlHistory();
 
-        setStatus("合集 HTML 已保存至 artifact", "success");
-      })
-      .catch(function (err) {
-        setStatus("保存失败：" + err.message, "error");
-      });
+      setStatus("HTML 已保存到历史", "success");
+    } catch (e) {
+      setStatus("保存失败：" + e.message, "error");
+    }
   }
 
   // CP32: Load episode HTML artifact history from server
@@ -4234,11 +3097,12 @@
     });
   }
 
-  // CP28: Preview mock episode HTML button
+  // CP59: "预览画面" now renders the selected style via the same Python renderer
+  // as MP4 export, so preview == export (single style picker).
   var btnPreviewEpisode = document.getElementById("btn-preview-episode");
   if (btnPreviewEpisode) {
     btnPreviewEpisode.addEventListener("click", function () {
-      previewMockEpisodeHtml();
+      previewExportStyle();
     });
   }
 
@@ -4987,25 +3851,15 @@
     sourceContractStatus.className = "source-contract-status " + (type || "");
   }
 
-  // Show a source-generated contract in the preview iframe using the existing renderEpisodeTemplateHtml
+  // CP59: show a source-generated contract via the server renderer (same as export).
   function showSourceContractPreview(contract) {
     if (!contract) return;
     // Store as the current episode template contract so export can use it
     latestEpisodeTemplateContract = contract;
-    // Render HTML and load in preview iframe
-    var html = renderEpisodeTemplateHtml(contract);
-    var blob = new Blob([html], { type: "text/html" });
-    var url = URL.createObjectURL(blob);
-    // Revoke old URL if any
-    if (latestEpisodePreviewUrl) {
-      URL.revokeObjectURL(latestEpisodePreviewUrl);
-    }
-    latestEpisodePreviewUrl = url;
-    previewHtml.src = url;
-    // Switch to preview tab and hide empty state
-    setPreviewMode("html");
-    switchToPreviewTab();
-    setTabEmptyState("preview", false);
+    latestEpisodeTtsAudioUrl = null;  // CP56: invalidate stale narration on new preview
+    loadStyledPreview(contract, getCurrentEpisodeExportStyleId()).catch(function (e) {
+      setStatus("预览失败：" + e.message, "error");
+    });
   }
 
   // CP43.1: Render the source contract result inspector

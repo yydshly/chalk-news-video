@@ -13,6 +13,36 @@
     <p class="subtitle">CP41 — Local Web Studio V1</p>
   </header>
 
+  <!-- CP57: Clean 4-step flow spine -->
+  <nav class="studio-stepbar" aria-label="制作流程">
+    <a class="studio-step" href="#stage-pick">
+      <span class="studio-step-num">1</span>
+      <span class="studio-step-text"><strong>选题</strong><span>选 1 条=单条 · 选 N 条=合集</span></span>
+    </a>
+    <span class="studio-step-arrow">→</span>
+    <a class="studio-step" href="#theme-showcase-section">
+      <span class="studio-step-num">2</span>
+      <span class="studio-step-text"><strong>风格</strong><span>选视觉样式</span></span>
+    </a>
+    <span class="studio-step-arrow">→</span>
+    <a class="studio-step" href="#fieldset-generation-mode">
+      <span class="studio-step-num">3</span>
+      <span class="studio-step-text"><strong>生成</strong><span>文稿 · 口播 · 画面</span></span>
+    </a>
+    <span class="studio-step-arrow">→</span>
+    <a class="studio-step" href="#stage-export">
+      <span class="studio-step-num is-export">4</span>
+      <span class="studio-step-text"><strong>导出</strong><span>MP4 · 发布包</span></span>
+    </a>
+  </nav>
+
+  <!-- CP57: Secondary guidance/checklist/publish collapsed into one drawer -->
+  <details class="studio-guide-drawer">
+    <summary>
+      <span class="studio-guide-summary-main">📘 指南 · 能力总览 · 生产检查清单 · 发布素材包</span>
+      <span class="studio-guide-summary-hint">点击展开 / 收起</span>
+    </summary>
+
   <!-- CP41: Studio Capability Dashboard -->
   <section id="studio-capability-dashboard" class="studio-capability-dashboard">
     <div class="capability-header">
@@ -322,10 +352,11 @@
       </div>
     </div>
   </section>
+  </details>
 
   <main class="layout">
     <!-- Left: Input Panel -->
-    <section class="panel input-panel">
+    <section id="stage-pick" class="panel input-panel">
       <h2>输入配置</h2>
 
       <!-- News Mode -->
@@ -496,12 +527,12 @@
       <!-- CP23: Episode Planner -->
       <div id="episode-planner" class="episode-planner">
         <div class="episode-planner-header">
-          <span class="episode-planner-title">📺 今日 AI 新闻合集</span>
-          <span id="episode-count" class="episode-count">0 条</span>
+          <span class="episode-planner-title">🎬 已选新闻</span>
+          <span id="episode-count" class="episode-count">未选</span>
         </div>
         <div id="episode-items" class="episode-items"></div>
         <div id="episode-empty" class="episode-empty">
-          从左侧热门新闻中加入 2-4 条，组成今日 AI 新闻合集
+          在上方候选中点选新闻：选 1 条 = 单条视频，选多条 = 合成一期完整视频
         </div>
         <div id="episode-structure" class="episode-structure"></div>
 
@@ -522,53 +553,44 @@
             </div>
           </div>
 
-          <!-- Group 2: Preview -->
-          <div class="episode-action-group">
+          <!-- Group 2: Style · Preview · Export (merged — single style picker, CP59) -->
+          <div id="stage-export" class="episode-action-group is-export">
             <div class="episode-action-group-head">
-              <span class="episode-action-group-title">2. 预览</span>
-              <span class="episode-action-group-desc">查看 HTML 视觉效果并保存当前合集</span>
-            </div>
-            <div class="episode-action-grid">
-              <div class="episode-preview-style-row">
-                <label for="select-episode-preview-style" class="episode-preview-style-label">合集视觉样式</label>
-                <select id="select-episode-preview-style" class="episode-preview-style-select">
-                  <option value="timeline_daily_v1">时间线日报风</option>
-                  <option value="breaking_news_v1">快讯大屏风</option>
-                  <option value="data_dashboard_v1">数据仪表盘风</option>
-                  <option value="research_briefing_v1">研究室简报风</option>
-                  <option value="podcast_cards_v1">播客卡片风</option>
-                </select>
-              </div>
-              <button id="btn-preview-episode" class="btn-small" type="button">预览合集画面</button>
-              <button id="btn-save-episode-html" class="btn-small btn-save" type="button">保存合集 HTML</button>
-            </div>
-          </div>
-
-          <!-- Group 3: Export -->
-          <div class="episode-action-group is-export">
-            <div class="episode-action-group-head">
-              <span class="episode-action-group-title">3. 导出 MP4</span>
-              <span class="episode-action-group-desc">选择支持的导出样式，异步生成 9:16 MP4</span>
+              <span class="episode-action-group-title">2. 风格 · 预览 · 导出</span>
+              <span class="episode-action-group-desc">选一种视频风格，预览即所得，再导出 9:16 MP4（选 1 条=单条，选多条=合集）</span>
             </div>
             <div class="episode-export-style-row">
-              <label class="episode-export-style-label" for="select-episode-export-style">导出样式</label>
+              <label class="episode-export-style-label" for="select-episode-export-style">视频风格</label>
               <select id="select-episode-export-style" class="episode-export-style-select"></select>
             </div>
             <div id="episode-export-style-hint" class="episode-export-style-hint"></div>
-            <button id="btn-export-episode-mp4" class="btn-small btn-export" type="button">导出 MP4</button>
+            <div class="episode-style-actions">
+              <button id="btn-preview-episode" class="btn-small btn-preview-style" type="button">👁 预览画面</button>
+              <button id="btn-export-episode-mp4" class="btn-small btn-export" type="button">导出 MP4</button>
+            </div>
+            <div class="episode-tts-row">
+              <button id="btn-generate-episode-tts" class="btn-small btn-tts" type="button">🎙️ 生成真实口播 (MiniMax)</button>
+              <div id="episode-tts-status" class="episode-tts-status"></div>
+              <audio id="episode-tts-audio" class="episode-tts-audio" controls preload="none" style="display:none"></audio>
+              <details id="episode-tts-script-wrap" class="episode-tts-script-wrap" style="display:none">
+                <summary>口播文稿</summary>
+                <div id="episode-tts-script" class="episode-tts-script"></div>
+              </details>
+            </div>
             <label class="episode-export-audio-option" id="episode-audio-option">
               <input type="checkbox" id="check-episode-export-audio">
-              使用当前预览音频一起导出
+              使用真实口播音频一起导出
             </label>
             <div id="episode-export-audio-hint" class="episode-export-audio-hint">
-              默认不启用；仅当预览音频来自 /outputs/ 时会随 MP4 导出
+              点击上方「生成真实口播」后会自动勾选；音频比画面长时画面会自动定格补足
             </div>
+            <button id="btn-save-episode-html" class="btn-small btn-save" type="button">保存当前 HTML 到历史</button>
           </div>
 
-          <!-- Group 4: Management -->
+          <!-- Group 3: Management -->
           <div class="episode-action-group is-management">
             <div class="episode-action-group-head">
-              <span class="episode-action-group-title">4. 管理</span>
+              <span class="episode-action-group-title">3. 管理</span>
               <span class="episode-action-group-desc">导出完成后在历史里打开、删除或清理</span>
             </div>
             <div class="episode-management-hint">

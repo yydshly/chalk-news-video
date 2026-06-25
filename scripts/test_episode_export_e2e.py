@@ -229,14 +229,15 @@ def test_capabilities() -> None:
     assert data["default_style_id"] == "breaking_news_v1"
 
     supported_ids = [s["id"] for s in data["supported_styles"]]
-    assert supported_ids == ["breaking_news_v1"], \
-        f"Expected only breaking_news_v1 supported, got {supported_ids}"
+    # CP58: all five episode styles now have real renderers and are exportable.
+    for sid in (
+        "breaking_news_v1", "timeline_daily_v1", "data_dashboard_v1",
+        "podcast_cards_v1", "research_briefing_v1",
+    ):
+        assert sid in supported_ids, f"{sid} should be supported"
 
     unsupported_ids = [s["id"] for s in data["unsupported_styles"]]
-    assert "timeline_daily_v1" in unsupported_ids
-    assert "data_dashboard_v1" in unsupported_ids
-    assert "research_briefing_v1" in unsupported_ids
-    assert "podcast_cards_v1" in unsupported_ids
+    assert unsupported_ids == [], f"Expected no unsupported styles, got {unsupported_ids}"
 
     assert data["audio"]["supports_audio_mux"] is True
     assert data["limits"]["width"]["default"] == 720
@@ -250,7 +251,7 @@ def test_invalid_style_rejected() -> None:
     """Test that non-supported style_id is rejected by the backend."""
     resp = client.post("/api/episode/export", json={
         "contract": build_mock_episode_contract(),
-        "style_id": "research_briefing_v1",
+        "style_id": "nonexistent_style_v1",
         "width": 720,
         "height": 1280,
         "fps": 30,

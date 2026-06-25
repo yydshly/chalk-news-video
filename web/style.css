@@ -36,6 +36,84 @@ header h1 {
   font-size: 0.875rem;
 }
 
+/* CP57: 4-step flow spine */
+.studio-stepbar {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #0f1117;
+  padding: 12px 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #1f2937;
+}
+.studio-step {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #161a23;
+  border: 1px solid #2d3748;
+  border-radius: 10px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color .15s, background .15s;
+}
+.studio-step:hover {
+  border-color: #3b82f6;
+  background: #1a2030;
+}
+.studio-step-num {
+  flex: 0 0 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #1e3a5c;
+  color: #93c5fd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.studio-step-num.is-export {
+  background: #3a2a5c;
+  color: #d8b4fe;
+}
+.studio-step-text { display: flex; flex-direction: column; line-height: 1.25; }
+.studio-step-text strong { font-size: 0.95rem; color: #f1f5f9; }
+.studio-step-text span { font-size: 0.72rem; color: #64748b; }
+.studio-step-arrow { align-self: center; color: #475569; font-size: 1.1rem; }
+
+/* CP57: Collapsed guidance drawer */
+.studio-guide-drawer {
+  margin-bottom: 20px;
+  border: 1px solid #2d3748;
+  border-radius: 10px;
+  background: #12151d;
+}
+.studio-guide-drawer > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+}
+.studio-guide-drawer > summary::-webkit-details-marker { display: none; }
+.studio-guide-summary-main { font-weight: 600; color: #cbd5e1; }
+.studio-guide-summary-hint { font-size: 0.78rem; color: #64748b; }
+.studio-guide-drawer[open] > summary { border-bottom: 1px solid #2d3748; }
+.studio-guide-drawer > section { margin: 0 !important; }
+
+@media (max-width: 720px) {
+  .studio-step-text span { display: none; }
+  .studio-step-arrow { display: none; }
+}
+
 /* Layout */
 .layout {
   display: grid;
@@ -785,6 +863,31 @@ footer {
   color: #0f172a;
 }
 
+/* CP57: unified single-toggle pick button */
+.hot-news-item-pick-btn {
+  background: #1e3a5c;
+  color: #93c5fd;
+  border: 1px solid #2d4a6c;
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-size: 0.72rem;
+  cursor: pointer;
+  margin-top: 6px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.hot-news-item-pick-btn:hover {
+  background: #2563eb;
+  color: #fff;
+}
+.hot-news-item-pick-btn.is-picked {
+  background: #166534;
+  color: #bbf7d0;
+  border-color: #22c55e;
+}
+.hot-news-item-pick-btn.is-picked:hover {
+  background: #15803d;
+}
+
 .hot-news-selected {
   margin-top: 8px;
   font-size: 0.75rem;
@@ -1414,6 +1517,71 @@ footer {
   background: #1a3a5c !important;
   color: #475569 !important;
   cursor: not-allowed;
+}
+
+/* CP59: style preview + export actions */
+.episode-style-actions {
+  display: flex;
+  gap: 8px;
+}
+.episode-style-actions .btn-small {
+  flex: 1;
+}
+.btn-preview-style {
+  background: #1a3a2c !important;
+  color: #6ee7b7 !important;
+}
+.btn-preview-style:hover {
+  background: #1e4636 !important;
+}
+
+/* CP56: Real TTS narration controls */
+.episode-tts-row {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.btn-tts {
+  background: #3a2a5c !important;
+  color: #d8b4fe !important;
+}
+.btn-tts:hover {
+  background: #46337a !important;
+}
+.btn-tts:disabled {
+  background: #2a2440 !important;
+  color: #6b6480 !important;
+  cursor: not-allowed;
+}
+.episode-tts-status {
+  font-size: 12px;
+  color: #94a3b8;
+  min-height: 14px;
+}
+.episode-tts-status.is-pending { color: #fbbf24; }
+.episode-tts-status.is-ok { color: #4ade80; }
+.episode-tts-status.is-error { color: #f87171; }
+.episode-tts-audio {
+  width: 100%;
+  height: 32px;
+}
+.episode-tts-script-wrap {
+  font-size: 12px;
+  color: #cbd5e1;
+}
+.episode-tts-script-wrap summary {
+  cursor: pointer;
+  color: #94a3b8;
+}
+.episode-tts-script {
+  margin-top: 6px;
+  padding: 8px;
+  background: #0f1117;
+  border: 1px solid #2d3748;
+  border-radius: 6px;
+  line-height: 1.6;
+  white-space: pre-wrap;
 }
 
 /* CP40.5: Episode export history panel */

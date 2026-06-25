@@ -33,8 +33,15 @@ ALLOWED_EXPORT_FILENAMES = frozenset([
     "status.json",
 ])
 
-# Style IDs allowed in this checkpoint
-ALLOWED_STYLE_IDS = frozenset(["breaking_news_v1"])
+# Style IDs allowed for MP4 export (each must have a renderer in
+# render_episode_html.EPISODE_STYLE_RENDERERS).
+ALLOWED_STYLE_IDS = frozenset([
+    "breaking_news_v1",
+    "timeline_daily_v1",
+    "data_dashboard_v1",
+    "podcast_cards_v1",
+    "research_briefing_v1",
+])
 
 # Allowed audio file extensions for episode export muxing
 ALLOWED_AUDIO_EXTENSIONS = frozenset([".wav", ".mp3", ".m4a", ".aac"])
