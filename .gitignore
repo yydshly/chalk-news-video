@@ -32,6 +32,10 @@ outputs/episode_previews/*.html
 outputs/episode_exports/*
 !outputs/episode_exports/.gitkeep
 
+# Test audio artifacts (CP40.6.2)
+outputs/test_audio/*
+!outputs/test_audio/.gitkeep
+
 # Prototype / temp export artifacts (CP40.1)
 .tmp/
 

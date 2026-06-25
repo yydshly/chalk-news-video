@@ -148,6 +148,59 @@ resolve_safe_audio_url("/outputs/episode_exports/.../audio.mp3")   # → Path
 - No audio-only preview
 - No audio format conversion (relies on ffmpeg)
 
+## CP40.6.2: ffprobe Audio Track Verification Test
+
+### What was added
+
+- `scripts/test_episode_export_audio_mux.py` — automated integration test for CP40.6 audio mux.
+
+### Test behavior
+
+The test generates a controlled 1-second silence WAV under `/outputs/test_audio/` at runtime.
+
+It runs three test phases:
+
+1. **Security validation (invalid URLs)**: confirms `resolve_safe_audio_url()` rejects external URLs, Windows paths, traversal sequences, wrong extensions, and directories.
+
+2. **Security validation (valid URL)**: confirms `resolve_safe_audio_url()` accepts `/outputs/test_audio/cp40_6_silence.wav` after the test WAV is created.
+
+3. **Async export with audio**: POSTs to `/api/episode/export` with `audio_url`, polls until `completed`, then verifies:
+   - `export_meta.json.has_audio == true`
+   - `export_meta.json.audio_url == /outputs/test_audio/cp40_6_silence.wav`
+   - `export_meta.json.audio_ext == .wav`
+   - `export_meta.json.audio_size_bytes > 0`
+   - `status.json result.has_audio == true`
+   - `output.mp4` is served as `video/mp4`
+   - If `ffprobe` is installed: asserts the output MP4 contains an audio stream
+   - If `ffprobe` is not installed: reports SKIP for stream-level verification but still checks all metadata
+
+4. **Async export without audio (backward compat)**: confirms no-audio export still works and metadata correctly reports `has_audio: false`.
+
+### ffprobe handling
+
+```python
+ffprobe = shutil.which("ffprobe")
+if ffprobe:
+    assert has_audio_stream(mp4_path)  # raises on missing audio
+else:
+    print("SKIP ffprobe audio stream assertion: ffprobe not found")
+```
+
+If ffprobe is not present the test does **not** fail — it reports a SKIP and continues verifying metadata and mux path only.
+
+### Cleanup
+
+After all phases, the script removes `outputs/test_audio/` (the generated silence WAV).
+
+### What is not done by this test
+
+- No real TTS
+- No real LLM
+- No `/api/jobs`
+- No Remotion
+- No audio upload
+- No submission of real WAV or MP4 artifacts
+
 ## CP40.6.1: Audio Metadata & UI Availability Fix
 
 ### Problem 1: Local Audio Path Leakage
