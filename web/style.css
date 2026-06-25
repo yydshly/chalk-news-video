@@ -1292,3 +1292,67 @@ footer {
   background: #1a3a1a !important;
   color: #4ade80 !important;
 }
+
+/* CP40.4: Episode export panel */
+.episode-export-panel {
+  margin-top: 10px;
+  padding: 10px;
+  background: #0f1117;
+  border: 1px solid #2d3748;
+  border-radius: 8px;
+}
+
+.episode-export-status {
+  font-size: 0.8125rem;
+  color: #94a3b8;
+  margin-bottom: 8px;
+  min-height: 18px;
+}
+
+.episode-export-status.is-pending {
+  color: #f59e0b;
+}
+
+.episode-export-status.is-running {
+  color: #60a5fa;
+}
+
+.episode-export-status.is-completed {
+  color: #4ade80;
+}
+
+.episode-export-status.is-failed {
+  color: #f87171;
+}
+
+.episode-export-download {
+  display: inline-block;
+  padding: 6px 14px;
+  background: #dc2626;
+  color: #fff;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.episode-export-download:hover {
+  background: #b91c1c;
+}
+
+/* CP40.4: Export button in episode planner */
+.btn-export {
+  background: #1a3a5c !important;
+  color: #93c5fd !important;
+}
+
+.btn-export:hover {
+  background: #1e3a6c !important;
+}
+
+.btn-export:disabled {
+  background: #1a3a5c !important;
+  color: #475569 !important;
+  cursor: not-allowed;
+}
+

@@ -80,6 +80,12 @@
   // CP35: Episode preview style selector DOM ref
   const selectEpisodePreviewStyle = document.getElementById("select-episode-preview-style");
 
+  // CP40.4: Episode export DOM refs
+  const btnExportEpisodeMp4 = document.getElementById("btn-export-episode-mp4");
+  const episodeExportPanel = document.getElementById("episode-export-panel");
+  const episodeExportStatus = document.getElementById("episode-export-status");
+  const episodeExportDownload = document.getElementById("episode-export-download");
+
   // ---------- state ----------
   let lastResult = null;
   let currentEventSource = null;
@@ -99,6 +105,11 @@
   let latestEpisodeTemplateContract = null;  // CP34: most recent episode template contract
   let currentEpisodePreviewStyle = "timeline_daily_v1";  // CP35: current episode visual style
   let currentStyleRecommendations = [];    // CP30: current style recommendations
+
+  // CP40.4: Episode export polling state
+  let currentEpisodeExportId = null;
+  let currentEpisodeExportPollTimer = null;
+  let currentEpisodeExportMp4Url = null;   // set from POST response for use in completed state
 
   // CP20/CG29: Expanded theme showcase data — video style gallery
   const THEME_SHOWCASES = {
@@ -247,6 +258,163 @@
       sample_url: "/examples/theme_samples/opinion_column_v1.html",
     },
   };
+
+  // ---------- CP40.4: Episode export functions ----------
+
+  function getCurrentEpisodeExportStyleId() {
+    // Use the style from selectEpisodePreviewStyle if available and supported
+    var style = selectEpisodePreviewStyle ? selectEpisodePreviewStyle.value : null;
+    // Only breaking_news_v1 is supported for MP4 export in CP40.4
+    if (style && style !== "breaking_news_v1") {
+      // Fall back to breaking_news_v1 for export
+      return "breaking_news_v1";
+    }
+    return style || "breaking_news_v1";
+  }
+
+  function renderEpisodeExportStatus(statusData) {
+    if (!statusData || !statusData.status) return;
+
+    var status = statusData.status;
+    var progress = statusData.progress != null ? statusData.progress : 0;
+    var message = statusData.message || "";
+    var errorMsg = statusData.error_message || "";
+
+    episodeExportStatus.className = "episode-export-status";
+
+    if (status === "pending") {
+      episodeExportStatus.classList.add("is-pending");
+      episodeExportStatus.textContent = "已加入导出队列...";
+    } else if (status === "running") {
+      episodeExportStatus.classList.add("is-running");
+      episodeExportStatus.textContent = "正在导出 · " + progress + "% · " + message;
+    } else if (status === "completed") {
+      episodeExportStatus.classList.add("is-completed");
+      episodeExportStatus.textContent = "导出完成";
+    } else if (status === "failed") {
+      episodeExportStatus.classList.add("is-failed");
+      episodeExportStatus.textContent = "导出失败" + (errorMsg ? " · " + errorMsg : "");
+    } else {
+      episodeExportStatus.textContent = message || status;
+    }
+  }
+
+  function stopEpisodeExportPolling() {
+    if (currentEpisodeExportPollTimer !== null) {
+      clearInterval(currentEpisodeExportPollTimer);
+      currentEpisodeExportPollTimer = null;
+    }
+  }
+
+  async function pollEpisodeExportStatus(statusUrl) {
+    try {
+      var resp = await fetch(statusUrl);
+      if (!resp.ok) {
+        renderEpisodeExportStatus({ status: "failed", error_message: "状态查询失败" });
+        stopEpisodeExportPolling();
+        return;
+      }
+      var statusData = await resp.json();
+      renderEpisodeExportStatus(statusData);
+
+      if (statusData.status === "completed") {
+        stopEpisodeExportPolling();
+        // Show download link
+        var mp4Url = null;
+        if (statusData.result && statusData.result.mp4_url) {
+          mp4Url = statusData.result.mp4_url;
+        } else if (currentEpisodeExportMp4Url) {
+          mp4Url = currentEpisodeExportMp4Url;
+        }
+        if (mp4Url) {
+          episodeExportDownload.href = mp4Url;
+          episodeExportDownload.style.display = "inline-block";
+        }
+      } else if (statusData.status === "failed") {
+        stopEpisodeExportPolling();
+      }
+      // else: keep polling
+    } catch (e) {
+      renderEpisodeExportStatus({ status: "failed", error_message: "网络错误" });
+      stopEpisodeExportPolling();
+    }
+  }
+
+  function startEpisodeExportPolling(statusUrl) {
+    stopEpisodeExportPolling();
+    currentEpisodeExportPollTimer = setInterval(function () {
+      pollEpisodeExportStatus(statusUrl);
+    }, 1000);
+  }
+
+  async function startEpisodeMp4Export() {
+    // Guard: need a contract
+    if (!latestEpisodeTemplateContract) {
+      setStatus("请先生成合集预览，再导出 MP4", "error");
+      return;
+    }
+
+    var styleId = getCurrentEpisodeExportStyleId();
+    if (styleId !== "breaking_news_v1") {
+      setStatus("MP4 导出当前仅支持「快讯大屏风」", "info");
+    }
+
+    // Stop any existing polling
+    stopEpisodeExportPolling();
+
+    // Update UI: disable button, clear old state
+    if (btnExportEpisodeMp4) btnExportEpisodeMp4.disabled = true;
+    episodeExportPanel.style.display = "block";
+    episodeExportStatus.className = "episode-export-status is-pending";
+    episodeExportStatus.textContent = "已加入导出队列...";
+    episodeExportDownload.style.display = "none";
+    episodeExportDownload.href = "#";
+
+    setStatus("正在提交导出任务...", "info");
+
+    try {
+      var resp = await fetch("/api/episode/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contract: latestEpisodeTemplateContract,
+          style_id: "breaking_news_v1",
+          width: 720,
+          height: 1280,
+          fps: 30,
+        }),
+      });
+
+      var data = await resp.json();
+
+      if (!resp.ok || data.status === "failed") {
+        throw new Error(data.message || "导出任务创建失败");
+      }
+
+      // resp.status should be 202
+      var exportId = data.export_id;
+      var statusUrl = data.status_url;
+      currentEpisodeExportId = exportId;
+      currentEpisodeExportMp4Url = data.mp4_url || null;
+
+      setStatus("导出任务已创建，正在生成 MP4...", "info");
+
+      // Start polling
+      startEpisodeExportPolling(statusUrl);
+
+    } catch (e) {
+      renderEpisodeExportStatus({ status: "failed", error_message: e.message });
+      if (btnExportEpisodeMp4) btnExportEpisodeMp4.disabled = false;
+      setStatus("导出失败：" + e.message, "error");
+    }
+  }
+
+  // Wire up the export button
+  if (btnExportEpisodeMp4) {
+    btnExportEpisodeMp4.addEventListener("click", function () {
+      startEpisodeMp4Export();
+    });
+  }
 
   // ---------- init ----------
   async function init() {

@@ -94,6 +94,7 @@
         <button id="btn-view-visual-plan" class="btn-small" type="button" style="margin-top:4px;width:100%">生成视觉计划</button>
         <button id="btn-preview-episode" class="btn-small" type="button" style="margin-top:4px;width:100%">预览合集画面</button>
         <button id="btn-save-episode-html" class="btn-small btn-save" type="button" style="margin-top:4px;width:100%">保存合集 HTML</button>
+        <button id="btn-export-episode-mp4" class="btn-small btn-export" type="button" style="margin-top:4px;width:100%">导出 MP4</button>
       </div>
 
       <!-- CP32: Episode HTML Artifact History -->
@@ -260,6 +261,11 @@
           <button id="btn-play-audio" class="btn-play-audio">▶ 播放音频</button>
         </div>
         <div id="download-links"></div>
+        <!-- CP40.4: Episode export panel -->
+        <div id="episode-export-panel" class="episode-export-panel" style="display:none">
+          <div id="episode-export-status" class="episode-export-status"></div>
+          <a id="episode-export-download" class="episode-export-download" href="#" target="_blank" rel="noopener" style="display:none">下载 MP4</a>
+        </div>
         <div id="export-hint" class="hint"></div>
       </div>
 
