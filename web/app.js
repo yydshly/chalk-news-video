@@ -129,6 +129,7 @@
   const sourceUrlTitle = document.getElementById("source-url-title");
   const sourceUrlSummary = document.getElementById("source-url-summary");
   const btnBuildContractFromUrl = document.getElementById("btn-build-contract-from-url");
+  const btnFetchArticleFromUrl = document.getElementById("btn-fetch-article-from-url");
 
   // ---------- state ----------
   let lastResult = null;
@@ -5117,6 +5118,42 @@
     );
   }
 
+  // CP45: Fetch article from URL and auto-fill title/summary
+  async function fetchArticleIntoUrlForm() {
+    var url = sourceUrlInput.value.trim();
+    if (!url) {
+      setSourceContractStatus("请先输入 URL", "error");
+      return;
+    }
+
+    setSourceContractStatus("正在抽取 URL 内容...", "info");
+
+    try {
+      var resp = await fetch("/api/article/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: url }),
+      });
+      var data = await resp.json();
+      if (!data.ok) {
+        setSourceContractStatus("抽取失败：" + (data.error || "未知错误") + "。可以手动填写标题和摘要。", "error");
+        return;
+      }
+
+      var article = data.article || {};
+      if (sourceUrlTitle && article.title) {
+        sourceUrlTitle.value = article.title;
+      }
+      if (sourceUrlSummary && article.description) {
+        sourceUrlSummary.value = article.description;
+      }
+
+      setSourceContractStatus('已抽取标题和摘要，请确认后点击"从 URL 生成栏目"。', "success");
+    } catch (e) {
+      setSourceContractStatus("抽取失败：" + e.message + "。可以手动填写标题和摘要。", "error");
+    }
+  }
+
   // CP44: Load reliable sources from API and populate the select dropdown
   async function loadReliableSources() {
     try {
@@ -5166,6 +5203,7 @@
         if (payload.source_type === "sample_pack") return "样例新闻包";
         if (payload.source_type === "inline_text") return "粘贴文本";
         if (payload.source_type === "url_input") return "可靠 URL";
+        if (payload.source_type === "url_fetch") return "URL 抽取";
         if (payload.source_type === "manual_items") return "手动新闻项";
         return payload.source_type || "新闻源";
       })();
@@ -5250,6 +5288,11 @@
         episode_subtitle: "URL 输入生成",
       });
     });
+  }
+
+  // CP45: Wire article fetch button
+  if (btnFetchArticleFromUrl) {
+    btnFetchArticleFromUrl.addEventListener("click", fetchArticleIntoUrlForm);
   }
 
   // Load reliable sources for the URL input dropdown

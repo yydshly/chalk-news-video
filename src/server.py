@@ -1220,9 +1220,55 @@ def api_reliable_sources():
     })
 
 
+# ---------- article extraction API (CP45) ----------
+
+
+@app.post("/api/article/extract")
+def api_article_extract(body: dict):
+    """Fetch a URL and extract article title/description/body_text.
+
+    Security restrictions:
+      - Only http/https URLs
+      - No private IP / localhost URLs
+      - Max 512 KB response
+      - 6-second timeout
+      - text/html content-type only
+
+    No JS rendering, no crawler, no real LLM/TTS.
+    """
+    from src.article_extractor import fetch_and_extract_article
+
+    url = body.get("url", "")
+    if not url or not str(url).strip():
+        return JSONResponse({
+            "ok": False,
+            "error": "url is required",
+        }, status_code=400)
+
+    article = fetch_and_extract_article(str(url).strip())
+    if article.error:
+        return JSONResponse({
+            "ok": False,
+            "error": article.error,
+        }, status_code=400)
+
+    return JSONResponse({
+        "ok": True,
+        "article": {
+            "url": article.url,
+            "title": article.title,
+            "description": article.description,
+            "body_text": article.body_text,
+            "source_domain": article.source_domain,
+            "content_type": article.content_type,
+            "fetched": article.fetched,
+        },
+    })
+
+
 # ---------- source contract API (CP43) ----------
 
-ALLOWED_SOURCE_TYPES = {"sample_pack", "inline_text", "manual_items", "url_input"}
+ALLOWED_SOURCE_TYPES = {"sample_pack", "inline_text", "manual_items", "url_input", "url_fetch"}
 MAX_INLINE_TEXT_CHARS = 20_000
 MAX_MANUAL_ITEMS = 10
 
@@ -1231,7 +1277,7 @@ MAX_MANUAL_ITEMS = 10
 def api_episode_source_contract(body: dict):
     """Build an episode_template_v1 contract from a news source.
 
-    Supported source types: sample_pack, inline_text, manual_items, url_input.
+    Supported source types: sample_pack, inline_text, manual_items, url_input, url_fetch.
     No real LLM, no real TTS, no web crawler, no real news API.
 
     Security restrictions:
@@ -1347,6 +1393,43 @@ def api_episode_source_contract(body: dict):
                 url=str(url).strip(),
                 title=str(news_title).strip(),
                 summary=str(news_summary).strip(),
+                source_id=source_id,
+                source=None,
+                tags=tags if isinstance(tags, list) else [],
+                published_at=None,
+            )
+            news_items = [item]
+
+        elif source_type == "url_fetch":
+            from src.article_extractor import fetch_and_extract_article
+
+            url = body.get("url", "")
+            if not url or not str(url).strip():
+                return JSONResponse({
+                    "ok": False,
+                    "error": "url is required for url_fetch source_type",
+                }, status_code=400)
+
+            source_id = body.get("source_id") or None
+            tags = body.get("tags") or []
+
+            article = fetch_and_extract_article(str(url).strip())
+            if article.error:
+                return JSONResponse({
+                    "ok": False,
+                    "error": "URL extraction failed: " + (article.error or "unknown error") + ". You can fall back to manual URL input.",
+                }, status_code=400)
+
+            if not article.title or not article.title.strip():
+                return JSONResponse({
+                    "ok": False,
+                    "error": "Could not extract a title from the URL. Please use manual URL input instead.",
+                }, status_code=400)
+
+            item = normalize_url_item(
+                url=str(url).strip(),
+                title=article.title.strip(),
+                summary=article.description.strip() or article.body_text[:180].strip(),
                 source_id=source_id,
                 source=None,
                 tags=tags if isinstance(tags, list) else [],
