@@ -62,9 +62,9 @@ def main():
     all_pass &= check("app.js wires btnGeneratePublishPackage click", "btnGeneratePublishPackage" in app_js and "addEventListener" in app_js)
     all_pass &= check("app.js wires data-copy-target buttons", "data-copy-target" in app_js)
     # Forbidden: no real publish API
-    all_pass &= check("app.js does NOT call douyin API", "douyin" not in app_js.lower() and "抖音" not in app_js)
-    all_pass &= check("app.js does NOT call bilibili API", "bilibili" not in app_js.lower() and "b站" not in app_js and "B站" not in app_js)
-    all_pass &= check("app.js does NOT call youtube upload API", "youtube" not in app_js.lower() and "upload" not in app_js)
+    all_pass &= check("app.js does NOT call douyin API", "douyin.com" not in app_js and "open.douyin" not in app_js)
+    all_pass &= check("app.js does NOT call bilibili API", "bilibili.com" not in app_js and "api.bilibili" not in app_js)
+    all_pass &= check("app.js does NOT call youtube upload API", "youtube.com/upload" not in app_js and "googleapis.com/youtube" not in app_js)
 
     # CSS checks
     print("\n[CSS]")

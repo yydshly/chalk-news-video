@@ -2733,6 +2733,13 @@ footer {
   gap: 16px;
 }
 
+.publish-package-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .publish-package-kicker {
   font-size: 0.65rem;
   text-transform: uppercase;
@@ -2830,5 +2837,16 @@ footer {
 .btn-mini:hover {
   background: #334155;
   color: #e2e8f0;
+}
+
+/* CP50: Responsive layout */
+@media (max-width: 720px) {
+  .publish-package-head {
+    flex-direction: column;
+  }
+
+  .publish-package-actions {
+    justify-content: flex-start;
+  }
 }
 
