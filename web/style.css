@@ -2487,3 +2487,90 @@ footer {
   font-size: 0.75rem;
 }
 
+/* CP47: Source Collection Panel */
+.source-collection-panel {
+  background: #0f1a1a;
+  border: 1px solid #1e3a3a;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 10px;
+}
+
+.source-collection-head {
+  margin-bottom: 10px;
+}
+
+.source-collection-save-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.source-collection-save-row .source-url-input {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.source-collection-actions {
+  margin-bottom: 8px;
+}
+
+.source-collection-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.source-collection-card {
+  background: #0f1117;
+  border: 1px solid #2d3748;
+  border-radius: 8px;
+  padding: 10px;
+  transition: border-color 0.2s;
+}
+
+.source-collection-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.source-collection-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  margin-bottom: 2px;
+}
+
+.source-collection-meta {
+  font-size: 0.68rem;
+  color: #64748b;
+}
+
+.source-collection-first-url {
+  font-size: 0.65rem;
+  color: #38bdf8;
+  word-break: break-all;
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.source-collection-card-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.source-collection-empty {
+  text-align: center;
+  padding: 12px;
+  color: #64748b;
+  font-size: 0.72rem;
+}
+

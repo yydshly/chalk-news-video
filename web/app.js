@@ -138,6 +138,12 @@
   const urlDraftList = document.getElementById("url-draft-list");
   const btnBuildContractFromUrlDrafts = document.getElementById("btn-build-contract-from-url-drafts");
 
+  // CP47: Source Collection DOM refs
+  const sourceCollectionName = document.getElementById("source-collection-name");
+  const btnSaveSourceCollection = document.getElementById("btn-save-source-collection");
+  const btnClearSourceCollections = document.getElementById("btn-clear-source-collections");
+  const sourceCollectionList = document.getElementById("source-collection-list");
+
   // ---------- state ----------
   let lastResult = null;
   let currentEventSource = null;
@@ -175,6 +181,11 @@
   // CP46: URL Draft Basket state
   let urlDraftItems = [];               // URL draft basket items
   const MAX_URL_DRAFT_ITEMS = 5;        // maximum number of URL drafts
+
+  // CP47: Source Collection state
+  const SOURCE_COLLECTION_STORAGE_KEY = "chalk_source_collections_v1";
+  const MAX_SOURCE_COLLECTIONS = 20;
+  let sourceCollections = [];           // saved source collections
 
   // CP20/CG29: Expanded theme showcase data — video style gallery
   const THEME_SHOWCASES = {
@@ -5411,6 +5422,151 @@
     });
   }
 
+  // ---------- CP47: Source Collection functions ----------
+
+  function createSourceCollectionId() {
+    return "source_collection_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7);
+  }
+
+  function cloneUrlDraftItem(item) {
+    return {
+      id: item.id || createUrlDraftId(),
+      url: item.url || "",
+      title: item.title || "",
+      summary: item.summary || "",
+      source_id: item.source_id || "",
+      source: item.source || "",
+      final_score: Number(item.final_score || 0),
+      tags: Array.isArray(item.tags) ? item.tags.slice(0, 10) : [],
+      status: item.status || "draft",
+      error: item.error || ""
+    };
+  }
+
+  function loadSourceCollections() {
+    try {
+      var raw = localStorage.getItem(SOURCE_COLLECTION_STORAGE_KEY);
+      if (!raw) {
+        sourceCollections = [];
+        return;
+      }
+      var parsed = JSON.parse(raw);
+      sourceCollections = Array.isArray(parsed) ? parsed.slice(0, MAX_SOURCE_COLLECTIONS) : [];
+    } catch (e) {
+      sourceCollections = [];
+    }
+  }
+
+  function persistSourceCollections() {
+    try {
+      localStorage.setItem(
+        SOURCE_COLLECTION_STORAGE_KEY,
+        JSON.stringify(sourceCollections.slice(0, MAX_SOURCE_COLLECTIONS))
+      );
+    } catch (e) {
+      setSourceContractStatus("保存来源集合失败：" + e.message, "error");
+    }
+  }
+
+  function saveCurrentSourceCollection() {
+    if (!urlDraftItems.length) {
+      setSourceContractStatus("当前 URL 草稿篮为空，无法保存集合", "error");
+      return;
+    }
+
+    var name = sourceCollectionName && sourceCollectionName.value.trim()
+      ? sourceCollectionName.value.trim()
+      : "未命名来源集合";
+
+    var now = new Date().toISOString();
+    var collection = {
+      id: createSourceCollectionId(),
+      name: name.slice(0, 80),
+      created_at: now,
+      updated_at: now,
+      item_count: urlDraftItems.length,
+      items: urlDraftItems.map(cloneUrlDraftItem)
+    };
+
+    sourceCollections.unshift(collection);
+    sourceCollections = sourceCollections.slice(0, MAX_SOURCE_COLLECTIONS);
+    persistSourceCollections();
+
+    if (sourceCollectionName) sourceCollectionName.value = "";
+    renderSourceCollections();
+
+    setSourceContractStatus("已保存来源集合：" + collection.name, "success");
+  }
+
+  function restoreSourceCollection(id) {
+    var collection = sourceCollections.find(function (x) { return x.id === id; });
+    if (!collection) {
+      setSourceContractStatus("未找到来源集合", "error");
+      return;
+    }
+
+    urlDraftItems = (collection.items || []).slice(0, MAX_URL_DRAFT_ITEMS).map(cloneUrlDraftItem);
+    renderUrlDraftBasket();
+    setSourceContractStatus("已恢复来源集合：" + collection.name, "success");
+  }
+
+  function deleteSourceCollection(id) {
+    sourceCollections = sourceCollections.filter(function (x) { return x.id !== id; });
+    persistSourceCollections();
+    renderSourceCollections();
+    setSourceContractStatus("已删除来源集合", "info");
+  }
+
+  function clearSourceCollections() {
+    sourceCollections = [];
+    persistSourceCollections();
+    renderSourceCollections();
+    setSourceContractStatus("已清空已保存来源集合", "info");
+  }
+
+  function renderSourceCollections() {
+    if (!sourceCollectionList) return;
+
+    if (!sourceCollections.length) {
+      sourceCollectionList.innerHTML = '<div class="source-contract-empty">暂无已保存来源集合</div>';
+      return;
+    }
+
+    sourceCollectionList.innerHTML = "";
+
+    sourceCollections.forEach(function (collection) {
+      var card = document.createElement("div");
+      card.className = "source-collection-card";
+      card.setAttribute("data-id", collection.id);
+
+      var firstUrl = collection.items && collection.items[0] ? collection.items[0].url : "";
+      var created = collection.created_at ? new Date(collection.created_at).toLocaleString() : "";
+
+      card.innerHTML =
+        '<div class="source-collection-card-head">' +
+          '<div>' +
+            '<div class="source-collection-name">' + escapeHtml(collection.name || "未命名来源集合") + '</div>' +
+            '<div class="source-collection-meta">' + escapeHtml(String(collection.item_count || 0)) + ' 条 · ' + escapeHtml(created) + '</div>' +
+          '</div>' +
+        '</div>' +
+        (firstUrl ? '<div class="source-collection-first-url">' + escapeHtml(firstUrl) + '</div>' : '') +
+        '<div class="source-collection-card-actions">' +
+          '<button class="btn-small source-collection-restore-btn" type="button">恢复到草稿篮</button>' +
+          '<button class="btn-small source-collection-delete-btn" type="button">删除</button>' +
+        '</div>';
+
+      card.querySelector(".source-collection-restore-btn").addEventListener("click", function () {
+        restoreSourceCollection(collection.id);
+      });
+
+      card.querySelector(".source-collection-delete-btn").addEventListener("click", function () {
+        deleteSourceCollection(collection.id);
+      });
+
+      sourceCollectionList.appendChild(card);
+    });
+  }
+
   // Wire up source contract buttons
   if (btnBuildContractFromSample) {
     btnBuildContractFromSample.addEventListener("click", function () {
@@ -5506,6 +5662,19 @@
 
   // CP46: Initialize URL draft basket render
   renderUrlDraftBasket();
+
+  // CP47: Wire up Source Collection buttons
+  if (btnSaveSourceCollection) {
+    btnSaveSourceCollection.addEventListener("click", saveCurrentSourceCollection);
+  }
+
+  if (btnClearSourceCollections) {
+    btnClearSourceCollections.addEventListener("click", clearSourceCollections);
+  }
+
+  // CP47: Initialize Source Collections
+  loadSourceCollections();
+  renderSourceCollections();
 
   // ---------- start ----------
   init();

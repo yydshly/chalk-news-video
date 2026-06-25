@@ -344,6 +344,26 @@
           </div>
         </div>
 
+        <!-- CP47: Source Collection Panel -->
+        <div class="source-collection-panel">
+          <div class="source-collection-head">
+            <div>
+              <div class="source-contract-title-sub">来源集合</div>
+              <div class="source-contract-help">
+                将当前 URL 草稿篮保存为集合，后续可恢复继续编辑。
+              </div>
+            </div>
+          </div>
+          <div class="source-collection-save-row">
+            <input id="source-collection-name" class="source-url-input" type="text" placeholder="集合名称，例如：今日 AI 官方来源" />
+            <button id="btn-save-source-collection" class="btn-small" type="button">保存集合</button>
+          </div>
+          <div class="source-collection-actions">
+            <button id="btn-clear-source-collections" class="btn-small" type="button">清空已保存集合</button>
+          </div>
+          <div id="source-collection-list" class="source-collection-list"></div>
+        </div>
+
         <div id="source-contract-inspector" class="source-contract-inspector" style="display:none">
           <div class="source-contract-inspector-head">
             <div>
