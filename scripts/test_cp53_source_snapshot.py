@@ -181,6 +181,20 @@ def main():
     all_pass &= check("no openai LLM API", "openai.ChatCompletion" not in src and "anthropic messages" not in src.lower())
     all_pass &= check("no MP4 export modifications", "episode_export" not in src)
 
+    # --- Redirect Safety Static Checks ---
+    print("\n[REDIRECT SAFETY]")
+    all_pass &= check("REDIRECT_STATUS_CODES exists", "REDIRECT_STATUS_CODES" in src)
+    all_pass &= check("MAX_REDIRECTS = 1", "MAX_REDIRECTS = 1" in src)
+    all_pass &= check("fetch_text_url reads max_bytes plus one", "max_bytes + 1" in src)
+    all_pass &= check("redirect uses Location header", "Location" in src)
+    all_pass &= check("redirect uses urljoin", "urljoin(current_url" in src)
+    all_pass &= check("redirect target is revalidated", "validate_snapshot_url(next_url)" in src)
+    all_pass &= check("redirect URL rejected error exists", "Redirect URL rejected" in src)
+    all_pass &= check("too many redirects error exists", "Too many redirects" in src)
+    all_pass &= check("redirect without location error exists", "Redirect without Location" in src)
+    all_pass &= check("urllib.error imported", "import urllib.error" in src)
+    all_pass &= check("redirect loop present", "for redirect_count in range" in src)
+
     # --- CLI script exists ---
     cli_file = os.path.join(os.path.dirname(__file__), "snapshot_sources.py")
     all_pass &= check("CLI script exists", os.path.exists(cli_file))

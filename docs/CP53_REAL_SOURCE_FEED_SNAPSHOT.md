@@ -137,6 +137,15 @@ python scripts/snapshot_sources.py --sources openai_blog anthropic_news --pretty
 | 静态 HTML 无 JS 渲染 | 部分 SPA 无法抓取 | 不承诺 JS 渲染，支持 RSS 则优先 RSS |
 | arXiv 可能限流 | 抓取失败 | 可配置降级为 HTML fallback |
 
+## CP53.1 Redirect Safety Alignment
+
+- Source snapshot fetch now allows at most one HTTP redirect.
+- Redirect target is normalized with `urljoin()` (supports relative Location).
+- Redirect target is re-validated with the same URL safety rules.
+- Redirects to localhost/private IPs/non-http schemes are rejected.
+- Missing Location and too many redirects are explicit errors.
+- `fetch_text_url()` now uses a redirect loop with `redirect_count` counter.
+
 ## 与 CP54 的关系
 
 CP53 只生成 snapshot。
@@ -151,3 +160,11 @@ CP54 再做候选审查 UI，把 snapshot items 可视化，支持人工筛选�
 | scripts/snapshot_sources.py | 新增 — CLI 工具 |
 | scripts/test_cp53_source_snapshot.py | 新增 — 测试 |
 | docs/CP53_REAL_SOURCE_FEED_SNAPSHOT.md | 新增 — 本文档 |
+
+## CP53.1 变更
+
+| 文件 | 变更 |
+|------|------|
+| src/source_snapshot.py | 修改 — `fetch_text_url()` 支持 1 次 redirect 重新校验 |
+| scripts/test_cp53_source_snapshot.py | 修改 — 新增 redirect 静态检查 |
+| docs/CP53_REAL_SOURCE_FEED_SNAPSHOT.md | 修改 — 新增 CP53.1 记录 |

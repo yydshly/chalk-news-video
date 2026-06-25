@@ -20,6 +20,7 @@ import hashlib
 import ipaddress
 import re
 import ssl
+import urllib.error
 import urllib.request
 import uuid
 import xml.etree.ElementTree as ET
@@ -37,6 +38,7 @@ from urllib.parse import urljoin, urlparse
 MAX_BYTES = 1024 * 1024          # 1 MB
 DEFAULT_TIMEOUT = 8.0             # seconds
 MAX_REDIRECTS = 1
+REDIRECT_STATUS_CODES = frozenset({301, 302, 303, 307, 308})
 USER_AGENT = "chalk-news-video-source-snapshot/0.1"
 
 # ---------------------------------------------------------------------------
@@ -242,37 +244,68 @@ def fetch_text_url(
 ) -> tuple[str, str]:
     """Fetch a URL and return (content, content_type).
 
+    Allows at most one HTTP redirect, re-validating the redirect target.
     Raises urllib.error.URLError on failure.
 
     Security:
       - URL must pass validate_snapshot_url first
+      - At most one redirect, re-validated after redirect
       - Timeout enforced
       - Max response size enforced
       - User-Agent set
     """
-    valid, err = validate_snapshot_url(url)
-    if not valid:
-        raise urllib.error.URLError(err or "Invalid URL")
-
-    headers = {
-        "User-Agent": USER_AGENT,
-        "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, text/html, */*",
-    }
-    req = urllib.request.Request(url, headers=headers, method="GET")
-
+    current_url = url.strip()
     opener = _build_opener()
-    try:
-        response = opener.open(req, timeout=timeout_sec)
-    except Exception:
-        raise
 
-    content_type = response.headers.get("Content-Type", "")
-    raw_data = response.read(max_bytes)
-    if len(raw_data) >= max_bytes:
-        raise urllib.error.URLError(
-            f"Response exceeds {max_bytes} bytes limit"
-        )
-    return raw_data.decode("utf-8", errors="replace"), content_type
+    for redirect_count in range(MAX_REDIRECTS + 1):
+        valid, err = validate_snapshot_url(current_url)
+        if not valid:
+            raise urllib.error.URLError(err or "Invalid URL")
+
+        headers = {
+            "User-Agent": USER_AGENT,
+            "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, text/html, */*",
+        }
+        req = urllib.request.Request(current_url, headers=headers, method="GET")
+
+        try:
+            response = opener.open(req, timeout=timeout_sec)
+        except urllib.error.HTTPError as e:
+            if e.code in REDIRECT_STATUS_CODES:
+                location = e.headers.get("Location")
+                if not location:
+                    raise urllib.error.URLError("Redirect without Location header")
+                if redirect_count >= MAX_REDIRECTS:
+                    raise urllib.error.URLError(f"Too many redirects (max {MAX_REDIRECTS} allowed)")
+                next_url = urljoin(current_url, location)
+                valid, err = validate_snapshot_url(next_url)
+                if not valid:
+                    raise urllib.error.URLError(f"Redirect URL rejected: {err}")
+                current_url = next_url
+                continue
+            raise
+
+        code = getattr(response, "status", None) or getattr(response, "code", None)
+        if code in REDIRECT_STATUS_CODES:
+            location = response.headers.get("Location")
+            if not location:
+                raise urllib.error.URLError("Redirect without Location header")
+            if redirect_count >= MAX_REDIRECTS:
+                raise urllib.error.URLError(f"Too many redirects (max {MAX_REDIRECTS} allowed)")
+            next_url = urljoin(current_url, location)
+            valid, err = validate_snapshot_url(next_url)
+            if not valid:
+                raise urllib.error.URLError(f"Redirect URL rejected: {err}")
+            current_url = next_url
+            continue
+
+        content_type = response.headers.get("Content-Type", "")
+        raw_data = response.read(max_bytes + 1)
+        if len(raw_data) > max_bytes:
+            raise urllib.error.URLError(f"Response exceeds {max_bytes} bytes limit")
+        return raw_data.decode("utf-8", errors="replace"), content_type
+
+    raise urllib.error.URLError(f"Too many redirects (max {MAX_REDIRECTS} allowed)")
 
 
 # ---------------------------------------------------------------------------
