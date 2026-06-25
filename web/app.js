@@ -795,6 +795,9 @@
 
     // CP40.7.1: Load episode export capabilities for style picker
     loadEpisodeExportCapabilities();
+
+    // CP41.2.1: Ensure initial active preview tab shows an empty state
+    updateTabEmptyState("preview");
   }
 
   // ---------- load providers (CP15) ----------
@@ -4621,6 +4624,8 @@
 
   function showPreviewForJob(job) {
     autoPreviewBanner.style.display = "none";
+    // CP41.2.1: Hide preview empty state when content is shown from history
+    setTabEmptyState("preview", false);
     const ts = "?t=" + Date.now();
 
     // CP18.3.1: Set preview mode first — video takes priority over animation
