@@ -117,6 +117,12 @@
   const btnBuildContractFromInline = document.getElementById("btn-build-contract-from-inline");
   const sourceInlineText = document.getElementById("source-inline-text");
   const sourceContractStatus = document.getElementById("source-contract-status");
+  // CP43.1: Source contract inspector DOM refs
+  const sourceContractInspector = document.getElementById("source-contract-inspector");
+  const sourceContractInspectorSummary = document.getElementById("source-contract-inspector-summary");
+  const sourceEpisodeItemsList = document.getElementById("source-episode-items-list");
+  const sourceNewsItemsList = document.getElementById("source-news-items-list");
+  const btnApplySourceContractToPlanner = document.getElementById("btn-apply-source-contract-to-planner");
 
   // ---------- state ----------
   let lastResult = null;
@@ -4947,6 +4953,141 @@
     setTabEmptyState("preview", false);
   }
 
+  // CP43.1: Render the source contract result inspector
+  function renderSourceContractInspector(data) {
+    if (!sourceContractInspector) return;
+
+    var newsItems = data.news_items || [];
+    var episodeItems = data.episode_items || [];
+    var contract = data.contract || {};
+    var episode = contract.episode || {};
+
+    sourceContractInspector.style.display = "block";
+
+    if (sourceContractInspectorSummary) {
+      sourceContractInspectorSummary.textContent =
+        "source_type: " + (data.source_type || "-") +
+        " · news_items: " + newsItems.length +
+        " · episode_items: " + episodeItems.length +
+        " · schema: " + (contract.schema_version || "-") +
+        " · title: " + (episode.title || "-");
+    }
+
+    renderSourceEpisodeItems(episodeItems);
+    renderSourceNewsItems(newsItems);
+  }
+
+  // CP43.1: Render episode_items (selected news for the episode)
+  function renderSourceEpisodeItems(items) {
+    if (!sourceEpisodeItemsList) return;
+
+    if (!items || items.length === 0) {
+      sourceEpisodeItemsList.innerHTML = '<div class="source-contract-empty">暂无入选新闻</div>';
+      return;
+    }
+
+    sourceEpisodeItemsList.innerHTML = "";
+
+    items.forEach(function (item) {
+      var div = document.createElement("div");
+      div.className = "source-episode-item" + (item.role === "lead" ? " is-lead" : "");
+
+      var roleLabel = item.role === "lead" ? "主线" : "补充";
+      var tags = (item.tags || []).slice(0, 4).map(function (tag) {
+        return '<span class="source-tag">#' + escapeHtml(String(tag)) + '</span>';
+      }).join("");
+
+      div.innerHTML =
+        '<div class="source-item-topline">' +
+          '<span class="source-role-badge">' + roleLabel + '</span>' +
+          '<span class="source-score">score ' + escapeHtml(String(item.final_score || 0)) + '</span>' +
+        '</div>' +
+        '<div class="source-item-title">' + escapeHtml(item.title || "") + '</div>' +
+        '<div class="source-item-summary">' + escapeHtml(item.summary || "") + '</div>' +
+        '<div class="source-item-meta">' +
+          escapeHtml(item.source || "Manual") +
+          ' · ' + escapeHtml(String(item.points || 0)) + ' points' +
+          ' · ' + escapeHtml(String(item.comments || 0)) + ' comments' +
+        '</div>' +
+        '<div class="source-tags">' + tags + '</div>';
+
+      sourceEpisodeItemsList.appendChild(div);
+    });
+  }
+
+  // CP43.1: Render news_items (raw news from source pipeline)
+  function renderSourceNewsItems(items) {
+    if (!sourceNewsItemsList) return;
+
+    if (!items || items.length === 0) {
+      sourceNewsItemsList.innerHTML = '<div class="source-contract-empty">暂无原始新闻项</div>';
+      return;
+    }
+
+    sourceNewsItemsList.innerHTML = "";
+
+    items.forEach(function (item) {
+      var div = document.createElement("div");
+      div.className = "source-news-item";
+
+      var tags = (item.tags || []).slice(0, 4).map(function (tag) {
+        return '<span class="source-tag">#' + escapeHtml(String(tag)) + '</span>';
+      }).join("");
+
+      div.innerHTML =
+        '<div class="source-item-title">' + escapeHtml(item.title || "") + '</div>' +
+        '<div class="source-item-meta">' +
+          escapeHtml(item.source || "Manual") +
+          ' · score ' + escapeHtml(String(item.final_score || 0)) +
+          ' · ' + escapeHtml(item.source_type || "-") +
+        '</div>' +
+        '<div class="source-tags">' + tags + '</div>';
+
+      sourceNewsItemsList.appendChild(div);
+    });
+  }
+
+  // CP43.1: Apply source contract episode_items to the Episode Planner
+  function applySourceContractToPlanner() {
+    if (!latestSourceEpisodeItems || latestSourceEpisodeItems.length === 0) {
+      setSourceContractStatus("没有可应用到合集的栏目新闻", "error");
+      return;
+    }
+
+    // Map CP42 source pipeline items into the existing episodeItemList shape.
+    episodeItemList = latestSourceEpisodeItems.map(function (item) {
+      return {
+        id: item.id || ("source_" + String(item.order || "")),
+        title: item.title || item.headline || "",
+        summary: item.summary || item.description || "",
+        source: item.source || "Source Pipeline",
+        url: item.url || "",
+        points: item.points || 0,
+        comments: item.comments || 0,
+        final_score: item.final_score || 0,
+        rank_reason: item.role === "lead" ? "CP42 source pipeline lead item" : "CP42 source pipeline supporting item",
+        role: item.role || "supporting",
+        tags: item.tags || [],
+      };
+    });
+
+    // Reset derived planner outputs so they are rebuilt from the applied items.
+    latestEpisodePlan = null;
+    latestEpisodeScript = null;
+    latestEpisodeAudioManifest = null;
+    latestEpisodeRenderIr = null;
+
+    // Refresh the Episode Planner UI
+    if (typeof renderEpisodePlanner === "function") {
+      renderEpisodePlanner();
+    }
+
+    setSourceContractStatus(
+      "已应用 " + episodeItemList.length + " 条新闻到当前合集。现在可以继续使用左侧「规划 / 预览 / 导出」。",
+      "success"
+    );
+  }
+
   async function buildSourceContract(payload) {
     setSourceContractStatus("正在生成...", "info");
     try {
@@ -4972,6 +5113,8 @@
       );
       // Show preview
       showSourceContractPreview(data.contract);
+      // CP43.1: Also show the result inspector
+      renderSourceContractInspector(data);
     } catch (e) {
       setSourceContractStatus("生成失败：" + e.message, "error");
     }
@@ -5008,6 +5151,11 @@
         subtitle: "粘贴文本生成",
       });
     });
+  }
+
+  // CP43.1: Wire apply-to-planner button
+  if (btnApplySourceContractToPlanner) {
+    btnApplySourceContractToPlanner.addEventListener("click", applySourceContractToPlanner);
   }
 
   // ---------- start ----------

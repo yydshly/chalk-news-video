@@ -52,7 +52,21 @@ Source contract panel above the episode planner in the input panel:
 On success, the contract is rendered in the preview iframe and stored as `latestEpisodeTemplateContract`, making it available for MP4 export.
 
 ## Export Behavior
-`latestEpisodeTemplateContract` is shared between the episode planner and the source contract panel. Export MP4 uses it if present. Priority: episode planner contract > latest source contract.
+`latestEpisodeTemplateContract` is shared between the episode planner and the source contract panel. Both paths write to this same variable. The most recently generated preview/contract is the export source — clicking "预览合集画面" in the Episode Planner overwrites the source contract, and vice versa.
+
+## CP43.1: Source Contract Result Inspector
+After a successful source contract generation, an inspector panel appears below the status line showing:
+- **入选栏目新闻** — the `episode_items` selected for the episode, with role badge (主线/补充), final_score, source, points, comments, and tags; lead item is highlighted in green
+- **原始新闻项** — all `news_items` from the source pipeline, with score, source, and tags
+- **Summary line** — source_type, news_items count, episode_items count, schema version, episode title
+
+The inspector provides an **"应用到当前合集"** button that:
+1. Maps `latestSourceEpisodeItems` into `episodeItemList` (the Episode Planner's internal list)
+2. Resets derived planner outputs (`latestEpisodePlan`, `latestEpisodeScript`, `latestEpisodeAudioManifest`, `latestEpisodeRenderIr`)
+3. Calls `renderEpisodePlanner()` to refresh the Episode Planner UI
+4. Displays a success message telling the user to continue with the left-side "规划 / 预览 / 导出" buttons
+
+This bridges the source pipeline output to the existing Episode Planner flow without disrupting the planner's own generation path.
 
 ## Not Done
 - No crawler, no real LLM, no real TTS, no Remotion
