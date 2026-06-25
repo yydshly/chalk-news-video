@@ -209,20 +209,13 @@ def resolve_safe_audio_url(audio_url: Optional[str]) -> Optional[Path]:
     local_path = (PROJECT_ROOT / rel).resolve()
     outputs_root = (PROJECT_ROOT / "outputs").resolve()
 
-    # Ensure path is under outputs/
-    if not str(local_path).startswith(str(outputs_root) + str(local_path.anchor)):
-        # More precise: check relative to outputs root using separator
-        sep = local_path.anchor
-        local_str = str(local_path)
-        outputs_str = str(outputs_root)
-        if not (local_str == outputs_str or local_str.startswith(outputs_str + sep)):
-            raise ValueError("audio_url is outside outputs directory")
-
-    # Alternative simpler check: ensure the resolved path starts with outputs root
+    # Ensure path is under outputs/ (cross-platform: handles both / and \ separators)
     try:
         local_path_str = str(local_path)
         outputs_str = str(outputs_root)
-        if not (local_path_str == outputs_str or local_path_str.startswith(outputs_str + "/") or local_path_str.startswith(outputs_str + "\\")):
+        if not (local_path_str == outputs_str
+                or local_path_str.startswith(outputs_str + "/")
+                or local_path_str.startswith(outputs_str + "\\")):
             # Check if it's exactly equal to outputs root (a directory, not allowed)
             if local_path == outputs_root:
                 raise ValueError("audio_url must be a file, not a directory")

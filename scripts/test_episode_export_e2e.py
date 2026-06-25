@@ -312,7 +312,11 @@ def test_pending_delete_protected(created_export_ids: list[str]) -> None:
     )
 
     resp = client.delete(f"/api/episode/exports/{export_id}")
-    assert resp.status_code == 200, f"Expected 200 from delete, got {resp.status_code}"
+
+    # Pending/running exports must be rejected. The API returns HTTP 400 for this guard.
+    assert resp.status_code == 400, \
+        f"Expected 400 from pending delete guard, got {resp.status_code}: {resp.text}"
+
     data = resp.json()
     assert data["ok"] is False, \
         f"Expected deletion of pending export to be rejected, but got ok={data.get('ok')}"
@@ -350,6 +354,9 @@ def test_audio_export(created_export_ids: list[str]) -> str:
     """Test async export with audio — completed, metadata, ffprobe verification."""
     write_silence_wav(TEST_AUDIO_WAV)
     assert TEST_AUDIO_WAV.exists(), f"Test WAV not created: {TEST_AUDIO_WAV}"
+
+    # Give the filesystem a moment to flush and become visible to the background thread
+    time.sleep(0.5)
 
     export_id = start_export(build_mock_episode_contract(), audio_url=TEST_AUDIO_URL)
     created_export_ids.append(export_id)

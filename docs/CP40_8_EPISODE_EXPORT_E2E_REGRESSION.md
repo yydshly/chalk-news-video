@@ -70,8 +70,8 @@ The script uses `fastapi.testclient.TestClient` against the real `server.app` �
 
 ### Phase 3: Pending Delete Protection
 - A pending export is created via `write_episode_export_status()`
-- `DELETE /api/episode/exports/{id}` returns `{ok: False, error: "...pending..."}`
-- Confirms running/pending exports cannot be deleted
+- `DELETE /api/episode/exports/{id}` returns HTTP 400 with `{ok: False, error: "...pending..."}`
+- This is expected — running/pending exports cannot be deleted, the guard is enforced at the API layer
 
 ### Phase 4: Async Export Without Audio
 - POST with no `audio_url` → 202
