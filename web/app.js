@@ -92,6 +92,10 @@
   const btnRefreshEpisodeExports = document.getElementById("btn-refresh-episode-exports");
   const btnCleanupEpisodeExports = document.getElementById("btn-cleanup-episode-exports");
 
+  // CP40.6: Audio mux DOM refs
+  const checkEpisodeExportAudio = document.getElementById("check-episode-export-audio");
+  const episodeExportAudioHint = document.getElementById("episode-export-audio-hint");
+
   // ---------- state ----------
   let lastResult = null;
   let currentEventSource = null;
@@ -376,6 +380,27 @@
     }, 1000);
   }
 
+  // CP40.6: Get current preview audio URL for episode export
+  function getCurrentEpisodeAudioUrlForExport() {
+    if (!checkEpisodeExportAudio || !checkEpisodeExportAudio.checked) return null;
+
+    // Prefer currently loaded preview audio if it is a server-relative /outputs/ URL
+    var audioEl = document.getElementById("preview-audio");
+    if (!audioEl) return null;
+    var src = audioEl.getAttribute("src");
+    if (!src) return null;
+
+    // Strip origin if browser expanded it
+    try {
+      var url = new URL(src, window.location.origin);
+      if (url.origin !== window.location.origin) return null;
+      if (!url.pathname.startsWith("/outputs/")) return null;
+      return url.pathname;
+    } catch (e) {
+      return null;
+    }
+  }
+
   async function startEpisodeMp4Export() {
     // Guard: need a contract
     if (!latestEpisodeTemplateContract) {
@@ -392,6 +417,9 @@
     // Stop any existing polling
     stopEpisodeExportPolling();
 
+    // Get audio URL if checkbox is checked
+    var audioUrl = getCurrentEpisodeAudioUrlForExport();
+
     // Update UI: set button to running, clear old state
     setEpisodeExportButtonState("running");
     episodeExportPanel.style.display = "block";
@@ -400,7 +428,7 @@
     episodeExportDownload.style.display = "none";
     episodeExportDownload.href = "#";
 
-    setStatus("正在提交导出任务...", "info");
+    setStatus(audioUrl ? "正在提交导出任务（含音频）..." : "正在提交导出任务...", "info");
 
     try {
       var resp = await fetch("/api/episode/export", {
@@ -412,6 +440,7 @@
           width: 720,
           height: 1280,
           fps: 30,
+          audio_url: audioUrl,
         }),
       });
 
@@ -427,7 +456,7 @@
       currentEpisodeExportId = exportId;
       currentEpisodeExportMp4Url = data.mp4_url || null;
 
-      setStatus("导出任务已创建，正在生成 MP4...", "info");
+      setStatus(audioUrl ? "导出任务已创建，正在生成 MP4（含音频）..." : "导出任务已创建，正在生成 MP4...", "info");
 
       // Start polling
       startEpisodeExportPolling(statusUrl);

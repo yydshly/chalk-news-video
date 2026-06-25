@@ -1134,6 +1134,7 @@ class EpisodeExportRequest(BaseModel):
     width: int = 720
     height: int = 1280
     fps: int = 30
+    audio_url: Optional[str] = None  # CP40.6: server-relative /outputs/ audio URL
 
 
 # ---------- episode export history (CP40.5) ----------
@@ -1208,11 +1209,13 @@ def api_episode_export(body: EpisodeExportRequest):
     """Start an async episode export job.
 
     Returns immediately with 202 Accepted. Poll GET /api/episode/exports/{export_id} for status.
-    No real LLM, no real TTS, no audio mux.
+    No real LLM, no real TTS.
+    CP40.6: supports optional audio_url for muxing an existing local audio file.
     """
     from src.episode_export import (
         start_episode_export_background,
         ALLOWED_STYLE_IDS,
+        resolve_safe_audio_url,
     )
 
     # Validate style_id
@@ -1231,6 +1234,16 @@ def api_episode_export(body: EpisodeExportRequest):
             "message": "contract must be an object",
         }, status_code=400)
 
+    # Validate audio_url if provided (raises ValueError on invalid)
+    try:
+        resolve_safe_audio_url(body.audio_url)
+    except ValueError as ve:
+        return JSONResponse({
+            "status": "failed",
+            "error_type": "invalid_audio_url",
+            "message": str(ve),
+        }, status_code=400)
+
     try:
         result = start_episode_export_background(
             contract=body.contract,
@@ -1238,6 +1251,7 @@ def api_episode_export(body: EpisodeExportRequest):
             width=body.width,
             height=body.height,
             fps=body.fps,
+            audio_url=body.audio_url,
         )
         return JSONResponse(result, status_code=202)
     except ValueError as ve:

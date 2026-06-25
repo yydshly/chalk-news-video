@@ -1,9 +1,10 @@
-"""Episode Export Service Layer (CP40.2-CP40.3).
+"""Episode Export Service Layer (CP40.2-CP40.6).
 
 CP40.2: export_episode_contract_to_mp4() — synchronous export.
 CP40.3: async job status via status.json + background thread.
+CP40.6: optional audio mux from safe local /outputs/ artifact URLs.
 
-No real LLM, no real TTS, no audio mux.
+No real LLM, no real TTS.
 """
 
 from __future__ import annotations
@@ -34,6 +35,9 @@ ALLOWED_EXPORT_FILENAMES = frozenset([
 
 # Style IDs allowed in this checkpoint
 ALLOWED_STYLE_IDS = frozenset(["breaking_news_v1"])
+
+# Allowed audio file extensions for episode export muxing
+ALLOWED_AUDIO_EXTENSIONS = frozenset([".wav", ".mp3", ".m4a", ".aac"])
 
 # Dimension constraints
 MIN_WIDTH = 360
@@ -94,6 +98,85 @@ def validate_filename(filename: str) -> bool:
     return filename in ALLOWED_EXPORT_FILENAMES
 
 
+def resolve_safe_audio_url(audio_url: Optional[str]) -> Optional[Path]:
+    """Resolve a server-relative audio URL to a safe local Path.
+
+    Security rules:
+    - None or empty string → None
+    - Must start with /outputs/
+    - No http://, https://, file://
+    - No backslash paths (Windows absolute paths)
+    - No path traversal (..)
+    - No query string or hash fragment
+    - Extension must be in ALLOWED_AUDIO_EXTENSIONS
+    - Resolved path must stay within PROJECT_ROOT/outputs/
+    - Must be an existing file (not directory)
+
+    Returns None if audio_url is None/empty.
+    Raises ValueError on any security violation.
+    """
+    if not audio_url:
+        return None
+
+    # Reject external/protocol URLs
+    if "://" in audio_url:
+        raise ValueError("External audio URLs are not allowed")
+
+    # Reject Windows absolute paths
+    if "\\" in audio_url:
+        raise ValueError("Backslash paths are not allowed")
+
+    # Strip query string and hash fragment
+    clean = audio_url.split("?", 1)[0].split("#", 1)[0]
+
+    if not clean.startswith("/outputs/"):
+        raise ValueError("audio_url must start with /outputs/")
+
+    # Reject path traversal
+    parts = Path(clean).parts
+    if ".." in parts:
+        raise ValueError("Path traversal is not allowed")
+
+    # Check extension
+    ext = Path(clean).suffix.lower()
+    if ext not in ALLOWED_AUDIO_EXTENSIONS:
+        raise ValueError(f"Unsupported audio format: {ext}. Allowed: {', '.join(sorted(ALLOWED_AUDIO_EXTENSIONS))}")
+
+    # Resolve to local path
+    rel = clean.lstrip("/")
+    local_path = (PROJECT_ROOT / rel).resolve()
+    outputs_root = (PROJECT_ROOT / "outputs").resolve()
+
+    # Ensure path is under outputs/
+    if not str(local_path).startswith(str(outputs_root) + str(local_path.anchor)):
+        # More precise: check relative to outputs root using separator
+        sep = local_path.anchor
+        local_str = str(local_path)
+        outputs_str = str(outputs_root)
+        if not (local_str == outputs_str or local_str.startswith(outputs_str + sep)):
+            raise ValueError("audio_url is outside outputs directory")
+
+    # Alternative simpler check: ensure the resolved path starts with outputs root
+    try:
+        local_path_str = str(local_path)
+        outputs_str = str(outputs_root)
+        if not (local_path_str == outputs_str or local_path_str.startswith(outputs_str + "/") or local_path_str.startswith(outputs_str + "\\")):
+            # Check if it's exactly equal to outputs root (a directory, not allowed)
+            if local_path == outputs_root:
+                raise ValueError("audio_url must be a file, not a directory")
+            if not local_path_str.startswith(outputs_str):
+                raise ValueError("audio_url is outside outputs directory")
+    except ValueError:
+        raise
+    except Exception:
+        raise ValueError("audio_url is outside outputs directory")
+
+    if not local_path.is_file():
+        raise ValueError("audio file not found")
+
+    return local_path
+
+
 def get_episode_export_dir(export_id: str) -> Path:
     """Return the export directory path for a given export_id."""
     return EPISODE_EXPORT_DIR / export_id
@@ -140,6 +223,8 @@ def write_episode_export_status(
     width: Optional[int] = None,
     height: Optional[int] = None,
     fps: Optional[int] = None,
+    has_audio: Optional[bool] = None,
+    audio_url: Optional[str] = None,
 ) -> dict:
     """Write a status.json file for the given export_id.
 
@@ -173,6 +258,8 @@ def write_episode_export_status(
         "result": result,
         "error_type": error_type,
         "error_message": error_message,
+        "has_audio": has_audio if has_audio is not None else existing.get("has_audio"),
+        "audio_url": audio_url if audio_url is not None else existing.get("audio_url"),
     }
 
     # Remove None values so they don't clutter the JSON
@@ -207,12 +294,24 @@ def _run_episode_export_worker(
     width: int,
     height: int,
     fps: int,
+    safe_audio_path: Optional[Path] = None,
 ) -> None:
     """Background worker: renders HTML and exports MP4.
 
     Updates status.json at each step.
     All errors are caught and redacted before writing to status.json.
+
+    Args:
+        safe_audio_path: resolved local Path to audio file, or None for no audio mux.
     """
+    has_audio = safe_audio_path is not None
+    audio_size = 0
+    if safe_audio_path and safe_audio_path.exists():
+        try:
+            audio_size = safe_audio_path.stat().st_size
+        except Exception:
+            pass
+
     try:
         # Import heavy deps inside worker (defer module load)
         from render_episode_html import render_episode_stage_html_to_file
@@ -228,6 +327,7 @@ def _run_episode_export_worker(
             width=width,
             height=height,
             fps=fps,
+            has_audio=has_audio,
         )
 
         export_dir = EPISODE_EXPORT_DIR / export_id
@@ -252,6 +352,7 @@ def _run_episode_export_worker(
             width=width,
             height=height,
             fps=fps,
+            has_audio=has_audio,
         )
 
         # Export MP4
@@ -263,7 +364,7 @@ def _run_episode_export_worker(
             width=width,
             height=height,
             headless=True,
-            audio_path=None,
+            audio_path=str(safe_audio_path) if safe_audio_path else None,
         )
 
         write_episode_export_status(
@@ -275,6 +376,7 @@ def _run_episode_export_worker(
             width=width,
             height=height,
             fps=fps,
+            has_audio=has_audio,
         )
 
         # Write export_meta.json
@@ -293,7 +395,9 @@ def _run_episode_export_worker(
             "meta_url": f"/outputs/episode_exports/{export_id}/export_meta.json",
             "contract_url": f"/outputs/episode_exports/{export_id}/contract.json",
             "mp4_size_bytes": mp4_size,
-            "audio_path": None,
+            "has_audio": has_audio,
+            "audio_url": str(safe_audio_path) if safe_audio_path else None,
+            "audio_size_bytes": audio_size if has_audio else None,
             "created_at": datetime.now().isoformat(),
         }
         meta_path = export_dir / "export_meta.json"
@@ -311,11 +415,13 @@ def _run_episode_export_worker(
                 "meta_url": meta["meta_url"],
                 "contract_url": meta["contract_url"],
                 "mp4_size_bytes": mp4_size,
+                "has_audio": has_audio,
             },
             style_id=style_id,
             width=width,
             height=height,
             fps=fps,
+            has_audio=has_audio,
         )
 
     except Exception as exc:
@@ -331,6 +437,7 @@ def _run_episode_export_worker(
             width=width,
             height=height,
             fps=fps,
+            has_audio=has_audio,
         )
 
 
@@ -341,14 +448,16 @@ def start_episode_export_background(
     width: int = 720,
     height: int = 1280,
     fps: int = 30,
+    audio_url: Optional[str] = None,
 ) -> dict[str, Any]:
     """Start an async episode export in a background thread.
 
     Writes initial status.json and launches a daemon thread.
     Returns immediately with export_id and URLs.
 
-    Returns:
-        dict with export_id, status, status_url, mp4_url, etc.
+    Args:
+        audio_url: optional server-relative URL to a local audio file (e.g. /outputs/jobs/.../dialogue.wav).
+                   Must pass resolve_safe_audio_url() validation. None means no audio mux.
     """
     # Validate contract
     valid, error = _validate_contract(contract)
@@ -362,6 +471,9 @@ def start_episode_export_background(
             f"Allowed: {', '.join(sorted(ALLOWED_STYLE_IDS))}"
         )
 
+    # Resolve audio_url to safe local path (raises ValueError on invalid)
+    safe_audio_path = resolve_safe_audio_url(audio_url)
+
     # Clamp dimensions
     width, height, fps = clamp_export_options(width, height, fps)
 
@@ -371,6 +483,15 @@ def start_episode_export_background(
     export_dir.mkdir(parents=True, exist_ok=True)
 
     now = datetime.now().isoformat()
+
+    # Determine audio info for status/meta
+    has_audio = safe_audio_path is not None
+    audio_size = 0
+    if safe_audio_path and safe_audio_path.exists():
+        try:
+            audio_size = safe_audio_path.stat().st_size
+        except Exception:
+            pass
 
     # Write initial pending status
     write_episode_export_status(
@@ -382,12 +503,14 @@ def start_episode_export_background(
         width=width,
         height=height,
         fps=fps,
+        has_audio=has_audio,
+        audio_url=audio_url,
     )
 
     # Launch background thread
     thread = threading.Thread(
         target=_run_episode_export_worker,
-        args=(export_id, contract, style_id, width, height, fps),
+        args=(export_id, contract, style_id, width, height, fps, safe_audio_path),
         daemon=True,
     )
     thread.start()
@@ -403,6 +526,8 @@ def start_episode_export_background(
         "width": width,
         "height": height,
         "fps": fps,
+        "has_audio": has_audio,
+        "audio_url": audio_url,
         "created_at": now,
     }
 
@@ -640,17 +765,18 @@ def export_episode_contract_to_mp4(
     width: int = 720,
     height: int = 1280,
     fps: int = 30,
-    audio_path: Optional[str] = None,
+    audio_url: Optional[str] = None,
     export_id: Optional[str] = None,
 ) -> dict[str, Any]:
     """Export an episode contract to MP4 (synchronous).
 
     Kept for backward compatibility with CP40.2 scripts.
     Prefer start_episode_export_background() for async use.
-    """
-    # Enforce audio_path=None for CP40.2/CP40.3
-    audio_path = None
 
+    Args:
+        audio_url: optional server-relative URL to a local audio file.
+                    Must pass resolve_safe_audio_url() validation. None means no audio mux.
+    """
     # Validate contract
     valid, error = _validate_contract(contract)
     if not valid:
@@ -662,6 +788,10 @@ def export_episode_contract_to_mp4(
             f"Unsupported style_id {style_id!r}. "
             f"Allowed: {', '.join(sorted(ALLOWED_STYLE_IDS))}"
         )
+
+    # Resolve audio_url to safe local path (raises ValueError on invalid)
+    safe_audio_path = resolve_safe_audio_url(audio_url)
+    has_audio = safe_audio_path is not None
 
     # Clamp dimensions
     width, height, fps = clamp_export_options(width, height, fps)
@@ -702,11 +832,18 @@ def export_episode_contract_to_mp4(
         width=width,
         height=height,
         headless=True,
-        audio_path=None,
+        audio_path=str(safe_audio_path) if safe_audio_path else None,
     )
 
     # Write export_meta.json
     mp4_size = mp4_path.stat().st_size if mp4_path.exists() else 0
+    audio_size = 0
+    if safe_audio_path and safe_audio_path.exists():
+        try:
+            audio_size = safe_audio_path.stat().st_size
+        except Exception:
+            pass
+
     meta = {
         "export_id": export_id,
         "status": "completed",
@@ -721,7 +858,9 @@ def export_episode_contract_to_mp4(
         "meta_url": f"/outputs/episode_exports/{export_id}/export_meta.json",
         "contract_url": f"/outputs/episode_exports/{export_id}/contract.json",
         "mp4_size_bytes": mp4_size,
-        "audio_path": None,
+        "has_audio": has_audio,
+        "audio_url": audio_url,
+        "audio_size_bytes": audio_size if has_audio else None,
         "created_at": datetime.now().isoformat(),
     }
     meta_path = export_dir / "export_meta.json"
@@ -740,11 +879,14 @@ def export_episode_contract_to_mp4(
             "meta_url": meta["meta_url"],
             "contract_url": meta["contract_url"],
             "mp4_size_bytes": mp4_size,
+            "has_audio": has_audio,
         },
         style_id=style_id,
         width=width,
         height=height,
         fps=fps,
+        has_audio=has_audio,
+        audio_url=audio_url,
     )
 
     return meta
