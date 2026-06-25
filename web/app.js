@@ -131,6 +131,13 @@
   const btnBuildContractFromUrl = document.getElementById("btn-build-contract-from-url");
   const btnFetchArticleFromUrl = document.getElementById("btn-fetch-article-from-url");
 
+  // CP46: URL Draft Basket DOM refs
+  const urlDraftNewUrl = document.getElementById("url-draft-new-url");
+  const btnAddUrlDraft = document.getElementById("btn-add-url-draft");
+  const btnClearUrlDrafts = document.getElementById("btn-clear-url-drafts");
+  const urlDraftList = document.getElementById("url-draft-list");
+  const btnBuildContractFromUrlDrafts = document.getElementById("btn-build-contract-from-url-drafts");
+
   // ---------- state ----------
   let lastResult = null;
   let currentEventSource = null;
@@ -164,6 +171,10 @@
   let latestSourceNewsItems = [];       // news items from source pipeline
   let latestSourceEpisodeItems = [];     // episode items from source pipeline
   let reliableSources = [];              // CP44: reliable source registry
+
+  // CP46: URL Draft Basket state
+  let urlDraftItems = [];               // URL draft basket items
+  const MAX_URL_DRAFT_ITEMS = 5;        // maximum number of URL drafts
 
   // CP20/CG29: Expanded theme showcase data — video style gallery
   const THEME_SHOWCASES = {
@@ -5220,6 +5231,186 @@
     }
   }
 
+  // ---------- CP46: URL Draft Basket functions ----------
+
+  function createUrlDraftId() {
+    return "url_draft_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7);
+  }
+
+  function addUrlDraft(url) {
+    url = (url || "").trim();
+    if (!url) {
+      setSourceContractStatus("请先输入要加入草稿篮的 URL", "error");
+      return;
+    }
+    if (urlDraftItems.length >= MAX_URL_DRAFT_ITEMS) {
+      setSourceContractStatus("URL 草稿篮最多支持 " + MAX_URL_DRAFT_ITEMS + " 条", "error");
+      return;
+    }
+    if (urlDraftItems.some(function (item) { return item.url === url; })) {
+      setSourceContractStatus("该 URL 已在草稿篮中", "error");
+      return;
+    }
+
+    urlDraftItems.push({
+      id: createUrlDraftId(),
+      url: url,
+      title: "",
+      summary: "",
+      source_id: sourceUrlSourceSelect ? (sourceUrlSourceSelect.value || "") : "",
+      source: "",
+      final_score: 0,
+      tags: [],
+      status: "draft",
+      error: ""
+    });
+
+    if (urlDraftNewUrl) urlDraftNewUrl.value = "";
+    renderUrlDraftBasket();
+    setSourceContractStatus("已加入 URL 草稿，可逐条抽取或手动填写标题摘要", "success");
+  }
+
+  function removeUrlDraft(id) {
+    urlDraftItems = urlDraftItems.filter(function (item) { return item.id !== id; });
+    renderUrlDraftBasket();
+  }
+
+  function clearUrlDrafts() {
+    urlDraftItems = [];
+    renderUrlDraftBasket();
+    setSourceContractStatus("已清空 URL 草稿篮", "info");
+  }
+
+  function renderUrlDraftBasket() {
+    if (!urlDraftList) return;
+
+    if (!urlDraftItems.length) {
+      urlDraftList.innerHTML = '<div class="source-contract-empty">暂无 URL 草稿</div>';
+      return;
+    }
+
+    urlDraftList.innerHTML = "";
+
+    urlDraftItems.forEach(function (item) {
+      var card = document.createElement("div");
+      card.className = "url-draft-card url-draft-status-" + item.status;
+      card.setAttribute("data-id", item.id);
+
+      card.innerHTML =
+        '<div class="url-draft-card-head">' +
+          '<div class="url-draft-url">' + escapeHtml(item.url) + '</div>' +
+          '<span class="url-draft-status">' + escapeHtml(item.status) + '</span>' +
+        '</div>' +
+        '<label class="source-contract-label">标题</label>' +
+        '<input class="source-url-input url-draft-title-input" type="text" value="' + escapeHtml(item.title || "") + '" placeholder="新闻标题" />' +
+        '<label class="source-contract-label">摘要</label>' +
+        '<textarea class="source-inline-text url-draft-summary-input" rows="2" placeholder="新闻摘要">' + escapeHtml(item.summary || "") + '</textarea>' +
+        (item.error ? '<div class="url-draft-error">' + escapeHtml(item.error) + '</div>' : '') +
+        '<div class="url-draft-actions">' +
+          '<button class="btn-small url-draft-extract-btn" type="button">抽取</button>' +
+          '<button class="btn-small url-draft-remove-btn" type="button">移除</button>' +
+        '</div>';
+
+      var titleInput = card.querySelector(".url-draft-title-input");
+      var summaryInput = card.querySelector(".url-draft-summary-input");
+
+      titleInput.addEventListener("input", function () {
+        item.title = titleInput.value;
+        if (item.title.trim()) item.status = "ready";
+      });
+
+      summaryInput.addEventListener("input", function () {
+        item.summary = summaryInput.value;
+      });
+
+      card.querySelector(".url-draft-extract-btn").addEventListener("click", function () {
+        extractUrlDraft(item.id);
+      });
+
+      card.querySelector(".url-draft-remove-btn").addEventListener("click", function () {
+        removeUrlDraft(item.id);
+      });
+
+      urlDraftList.appendChild(card);
+    });
+  }
+
+  async function extractUrlDraft(id) {
+    var item = urlDraftItems.find(function (x) { return x.id === id; });
+    if (!item) return;
+
+    item.status = "extracting";
+    item.error = "";
+    renderUrlDraftBasket();
+
+    try {
+      var resp = await fetch("/api/article/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: item.url })
+      });
+      var data = await resp.json();
+
+      if (!data.ok) {
+        item.status = "failed";
+        item.error = data.error || "抽取失败";
+        renderUrlDraftBasket();
+        return;
+      }
+
+      var article = data.article || {};
+      item.title = article.title || item.title || "";
+      item.summary = article.description || item.summary || article.body_text || "";
+      if (item.summary.length > 500) item.summary = item.summary.slice(0, 500);
+      item.status = item.title ? "ready" : "failed";
+      item.error = item.title ? "" : "未抽取到标题，请手动填写";
+      renderUrlDraftBasket();
+    } catch (e) {
+      item.status = "failed";
+      item.error = e.message;
+      renderUrlDraftBasket();
+    }
+  }
+
+  function buildContractFromUrlDrafts() {
+    if (!urlDraftItems.length) {
+      setSourceContractStatus("请先添加 URL 草稿", "error");
+      return;
+    }
+
+    var readyItems = urlDraftItems.filter(function (item) {
+      return item.title && item.title.trim();
+    });
+
+    if (!readyItems.length) {
+      setSourceContractStatus("至少需要 1 条带标题的 URL 草稿", "error");
+      return;
+    }
+
+    var manualItems = readyItems.slice(0, MAX_URL_DRAFT_ITEMS).map(function (item, index) {
+      return {
+        id: item.id,
+        title: item.title.trim(),
+        summary: (item.summary || "").trim(),
+        source: "URL Draft",
+        url: item.url,
+        final_score: 7.0 + Math.max(0, 4 - index) * 0.2,
+        points: 0,
+        comments: 0,
+        tags: ["url", "draft"]
+      };
+    });
+
+    buildSourceContract({
+      source_type: "manual_items",
+      items: manualItems,
+      limit: Math.min(manualItems.length, MAX_URL_DRAFT_ITEMS),
+      template_id: "breaking_news_v1",
+      episode_title: "URL 草稿快讯",
+      episode_subtitle: "多来源 URL 汇总生成"
+    });
+  }
+
   // Wire up source contract buttons
   if (btnBuildContractFromSample) {
     btnBuildContractFromSample.addEventListener("click", function () {
@@ -5297,6 +5488,24 @@
 
   // Load reliable sources for the URL input dropdown
   loadReliableSources();
+
+  // CP46: Wire up URL draft basket buttons
+  if (btnAddUrlDraft) {
+    btnAddUrlDraft.addEventListener("click", function () {
+      addUrlDraft(urlDraftNewUrl.value);
+    });
+  }
+
+  if (btnClearUrlDrafts) {
+    btnClearUrlDrafts.addEventListener("click", clearUrlDrafts);
+  }
+
+  if (btnBuildContractFromUrlDrafts) {
+    btnBuildContractFromUrlDrafts.addEventListener("click", buildContractFromUrlDrafts);
+  }
+
+  // CP46: Initialize URL draft basket render
+  renderUrlDraftBasket();
 
   // ---------- start ----------
   init();

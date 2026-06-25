@@ -320,6 +320,30 @@
           </button>
         </div>
 
+        <!-- CP46: URL Draft Basket -->
+        <div class="source-contract-divider"></div>
+        <div class="url-draft-basket">
+          <div class="url-draft-basket-head">
+            <div>
+              <div class="source-contract-title-sub">URL 草稿篮</div>
+              <div class="source-contract-help">
+                最多添加 5 条 URL，逐条抽取或手动编辑后生成一期栏目。
+              </div>
+            </div>
+            <button id="btn-clear-url-drafts" class="btn-small" type="button">清空草稿</button>
+          </div>
+          <div class="url-draft-add-row">
+            <input id="url-draft-new-url" class="source-url-input" type="url" placeholder="添加一个 URL 到草稿篮" />
+            <button id="btn-add-url-draft" class="btn-small" type="button">加入草稿篮</button>
+          </div>
+          <div id="url-draft-list" class="url-draft-list"></div>
+          <div class="source-contract-actions">
+            <button id="btn-build-contract-from-url-drafts" class="btn-small" type="button">
+              从草稿篮生成栏目
+            </button>
+          </div>
+        </div>
+
         <div id="source-contract-inspector" class="source-contract-inspector" style="display:none">
           <div class="source-contract-inspector-head">
             <div>
