@@ -1201,9 +1201,28 @@ def api_delete_episode_export(export_id: str):
         return JSONResponse({"ok": False, "error": redacted}, status_code=500)
 
 
+# ---------- reliable sources registry (CP44) ----------
+
+
+@app.get("/api/reliable-sources")
+def api_reliable_sources():
+    """Return the list of registered reliable news sources (CP44).
+
+    No real LLM, no real TTS, no web crawler.
+    """
+    from src.reliable_sources import list_reliable_sources
+
+    items = list_reliable_sources()
+    return JSONResponse({
+        "ok": True,
+        "items": items,
+        "count": len(items),
+    })
+
+
 # ---------- source contract API (CP43) ----------
 
-ALLOWED_SOURCE_TYPES = {"sample_pack", "inline_text", "manual_items"}
+ALLOWED_SOURCE_TYPES = {"sample_pack", "inline_text", "manual_items", "url_input"}
 MAX_INLINE_TEXT_CHARS = 20_000
 MAX_MANUAL_ITEMS = 10
 
@@ -1212,7 +1231,7 @@ MAX_MANUAL_ITEMS = 10
 def api_episode_source_contract(body: dict):
     """Build an episode_template_v1 contract from a news source.
 
-    Supported source types: sample_pack, inline_text, manual_items.
+    Supported source types: sample_pack, inline_text, manual_items, url_input.
     No real LLM, no real TTS, no web crawler, no real news API.
 
     Security restrictions:
@@ -1226,6 +1245,7 @@ def api_episode_source_contract(body: dict):
     from src.news_source_pipeline import (
         normalize_inline_text,
         normalize_manual_items,
+        normalize_url_item,
         load_sample_news_pack,
         build_episode_items_from_news,
         build_episode_contract_from_news_items,
@@ -1257,8 +1277,9 @@ def api_episode_source_contract(body: dict):
             "error": f"Unsupported template_id {template_id!r}. Only {DEFAULT_TEMPLATE_ID!r} is allowed.",
         }, status_code=400)
 
-    title = str(body.get("title") or "今日 AI 前沿速览")
-    subtitle = str(body.get("subtitle") or "多条热门 AI 新闻合集")
+    # Support both episode_title/episode_subtitle (CP44) and legacy title/subtitle
+    title = str(body.get("episode_title") or body.get("title") or "今日 AI 前沿速览")
+    subtitle = str(body.get("episode_subtitle") or body.get("subtitle") or "多条热门 AI 新闻合集")
 
     # Process by source_type
     try:
@@ -1303,6 +1324,35 @@ def api_episode_source_contract(body: dict):
                     "error": "manual_items cannot be empty",
                 }, status_code=400)
             news_items = normalize_manual_items(items)
+
+        elif source_type == "url_input":
+            url = body.get("url", "")
+            news_title = body.get("news_title", "")
+            news_summary = body.get("news_summary", "") or ""
+            source_id = body.get("source_id") or None
+            tags = body.get("tags") or []
+
+            if not url or not str(url).strip():
+                return JSONResponse({
+                    "ok": False,
+                    "error": "url is required for url_input source_type",
+                }, status_code=400)
+            if not news_title or not str(news_title).strip():
+                return JSONResponse({
+                    "ok": False,
+                    "error": "news_title is required for url_input source_type",
+                }, status_code=400)
+
+            item = normalize_url_item(
+                url=str(url).strip(),
+                title=str(news_title).strip(),
+                summary=str(news_summary).strip(),
+                source_id=source_id,
+                source=None,
+                tags=tags if isinstance(tags, list) else [],
+                published_at=None,
+            )
+            news_items = [item]
 
         else:
             # Should not reach here due to earlier check

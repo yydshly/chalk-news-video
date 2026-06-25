@@ -123,6 +123,12 @@
   const sourceEpisodeItemsList = document.getElementById("source-episode-items-list");
   const sourceNewsItemsList = document.getElementById("source-news-items-list");
   const btnApplySourceContractToPlanner = document.getElementById("btn-apply-source-contract-to-planner");
+  // CP44: URL input DOM refs
+  const sourceUrlSourceSelect = document.getElementById("source-url-source-select");
+  const sourceUrlInput = document.getElementById("source-url-input");
+  const sourceUrlTitle = document.getElementById("source-url-title");
+  const sourceUrlSummary = document.getElementById("source-url-summary");
+  const btnBuildContractFromUrl = document.getElementById("btn-build-contract-from-url");
 
   // ---------- state ----------
   let lastResult = null;
@@ -156,6 +162,7 @@
   let latestSourceContract = null;      // most recent source-generated contract
   let latestSourceNewsItems = [];       // news items from source pipeline
   let latestSourceEpisodeItems = [];     // episode items from source pipeline
+  let reliableSources = [];              // CP44: reliable source registry
 
   // CP20/CG29: Expanded theme showcase data — video style gallery
   const THEME_SHOWCASES = {
@@ -4997,11 +5004,22 @@
         return '<span class="source-tag">#' + escapeHtml(String(tag)) + '</span>';
       }).join("");
 
+      // CP44: URL and trust level
+      var urlHtml = "";
+      if (item.url) {
+        urlHtml = '<div class="source-item-url"><a href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener">来源链接</a></div>';
+      }
+      var trustLevel = item.trust_level || "unknown";
+      var trustBadgeClass = "source-trust-badge " + trustLevel;
+      var trustLabel = trustLevel === "official" ? "官方" : trustLevel === "research" ? "研究" : trustLevel === "manual" ? "手动" : "未知";
+
       div.innerHTML =
         '<div class="source-item-topline">' +
           '<span class="source-role-badge">' + roleLabel + '</span>' +
+          '<span class="' + trustBadgeClass + '">' + trustLabel + '</span>' +
           '<span class="source-score">score ' + escapeHtml(String(item.final_score || 0)) + '</span>' +
         '</div>' +
+        urlHtml +
         '<div class="source-item-title">' + escapeHtml(item.title || "") + '</div>' +
         '<div class="source-item-summary">' + escapeHtml(item.summary || "") + '</div>' +
         '<div class="source-item-meta">' +
@@ -5034,10 +5052,21 @@
         return '<span class="source-tag">#' + escapeHtml(String(tag)) + '</span>';
       }).join("");
 
+      // CP44: URL and trust level
+      var urlHtml = "";
+      if (item.url) {
+        urlHtml = '<div class="source-item-url"><a href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener">来源链接</a></div>';
+      }
+      var trustLevel = item.trust_level || "unknown";
+      var trustBadgeClass = "source-trust-badge " + trustLevel;
+      var trustLabel = trustLevel === "official" ? "官方" : trustLevel === "research" ? "研究" : trustLevel === "manual" ? "手动" : "未知";
+
       div.innerHTML =
+        urlHtml +
         '<div class="source-item-title">' + escapeHtml(item.title || "") + '</div>' +
         '<div class="source-item-meta">' +
-          escapeHtml(item.source || "Manual") +
+          '<span class="' + trustBadgeClass + '">' + trustLabel + '</span>' +
+          ' ' + escapeHtml(item.source || "Manual") +
           ' · score ' + escapeHtml(String(item.final_score || 0)) +
           ' · ' + escapeHtml(item.source_type || "-") +
         '</div>' +
@@ -5086,6 +5115,32 @@
       "已应用 " + episodeItemList.length + " 条新闻到当前合集。现在可以继续使用左侧「规划 / 预览 / 导出」。",
       "success"
     );
+  }
+
+  // CP44: Load reliable sources from API and populate the select dropdown
+  async function loadReliableSources() {
+    try {
+      var resp = await fetch("/api/reliable-sources");
+      var data = await resp.json();
+      if (data.ok && data.items) {
+        reliableSources = data.items;
+        renderReliableSourceOptions(reliableSources);
+      }
+    } catch (e) {
+      // Silently fail — the select will just show the default option
+    }
+  }
+
+  function renderReliableSourceOptions(items) {
+    if (!sourceUrlSourceSelect) return;
+    // Keep the first default option
+    sourceUrlSourceSelect.innerHTML = '<option value="">自动识别 / 手动来源</option>';
+    items.forEach(function (source) {
+      var opt = document.createElement("option");
+      opt.value = source.id;
+      opt.textContent = source.name + " (" + source.trust_level + ")";
+      sourceUrlSourceSelect.appendChild(opt);
+    });
   }
 
   async function buildSourceContract(payload) {
@@ -5157,6 +5212,41 @@
   if (btnApplySourceContractToPlanner) {
     btnApplySourceContractToPlanner.addEventListener("click", applySourceContractToPlanner);
   }
+
+  // CP44: Wire URL input button and load reliable sources
+  if (btnBuildContractFromUrl) {
+    btnBuildContractFromUrl.addEventListener("click", function () {
+      var url = sourceUrlInput.value.trim();
+      var newsTitle = sourceUrlTitle.value.trim();
+      var newsSummary = sourceUrlSummary.value.trim();
+      var sourceId = sourceUrlSourceSelect.value || "";
+
+      if (!url) {
+        setSourceContractStatus("请先输入 URL", "error");
+        return;
+      }
+      if (!newsTitle) {
+        setSourceContractStatus("请先输入新闻标题", "error");
+        return;
+      }
+
+      buildSourceContract({
+        source_type: "url_input",
+        url: url,
+        news_title: newsTitle,
+        news_summary: newsSummary,
+        source_id: sourceId || null,
+        tags: [],
+        limit: 1,
+        template_id: "breaking_news_v1",
+        episode_title: "官方来源快讯",
+        episode_subtitle: "URL 输入生成",
+      });
+    });
+  }
+
+  // Load reliable sources for the URL input dropdown
+  loadReliableSources();
 
   // ---------- start ----------
   init();

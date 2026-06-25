@@ -2248,3 +2248,109 @@ footer {
   font-size: 0.72rem;
 }
 
+/* CP44: URL Input Section */
+.source-contract-divider {
+  height: 1px;
+  background: #1e3a5f;
+  margin: 12px 0;
+}
+
+.source-contract-title-sub {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #38bdf8;
+  margin-bottom: 6px;
+}
+
+.source-contract-label {
+  display: block;
+  font-size: 0.72rem;
+  color: #93c5fd;
+  font-weight: 600;
+  margin-bottom: 4px;
+  margin-top: 8px;
+}
+
+.source-url-select {
+  width: 100%;
+  background: #0f1117;
+  border: 1px solid #2d3748;
+  border-radius: 6px;
+  color: #e2e8f0;
+  font-size: 0.78rem;
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  font-family: inherit;
+  appearance: auto;
+}
+
+.source-url-select:focus {
+  border-color: #38bdf8;
+  outline: none;
+}
+
+.source-url-input {
+  width: 100%;
+  background: #0f1117;
+  border: 1px solid #2d3748;
+  border-radius: 6px;
+  color: #e2e8f0;
+  font-size: 0.78rem;
+  padding: 6px 10px;
+  margin-bottom: 4px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.source-url-input:focus {
+  border-color: #38bdf8;
+  outline: none;
+}
+
+.source-url-input::placeholder {
+  color: #475569;
+}
+
+/* CP44: Inspector URL/trust enhancements */
+.source-item-url {
+  font-size: 0.65rem;
+  color: #38bdf8;
+  margin-bottom: 4px;
+  word-break: break-all;
+}
+
+.source-item-url a {
+  color: #38bdf8;
+  text-decoration: none;
+}
+
+.source-item-url a:hover {
+  text-decoration: underline;
+}
+
+.source-trust-badge {
+  font-size: 0.62rem;
+  border-radius: 999px;
+  padding: 1px 5px;
+  font-weight: 600;
+}
+
+.source-trust-badge.official {
+  color: #bbf7d0;
+  background: #166534;
+  border: 1px solid #16a34a;
+}
+
+.source-trust-badge.research {
+  color: #bfdbfe;
+  background: #1e3a5f;
+  border: 1px solid #38bdf8;
+}
+
+.source-trust-badge.unknown,
+.source-trust-badge.manual {
+  color: #94a3b8;
+  background: #1e293b;
+  border: 1px solid #334155;
+}
+

@@ -289,6 +289,34 @@
           </button>
         </div>
         <div id="source-contract-status" class="source-contract-status"></div>
+
+        <!-- CP44: URL Input Section -->
+        <div class="source-contract-divider"></div>
+        <div class="source-contract-title-sub">从可靠 URL 生成</div>
+        <div class="source-contract-help">
+          选择官方来源并填写 URL 与标题，系统生成标准新闻项并组装栏目 contract。不自动抓取正文。
+        </div>
+
+        <label for="source-url-source-select" class="source-contract-label">可靠来源</label>
+        <select id="source-url-source-select" class="source-url-select">
+          <option value="">自动识别 / 手动来源</option>
+        </select>
+
+        <label for="source-url-input" class="source-contract-label">URL</label>
+        <input id="source-url-input" class="source-url-input" type="url" placeholder="https://openai.com/blog/..." />
+
+        <label for="source-url-title" class="source-contract-label">新闻标题</label>
+        <input id="source-url-title" class="source-url-input" type="text" placeholder="输入新闻标题（必填）" />
+
+        <label for="source-url-summary" class="source-contract-label">摘要</label>
+        <textarea id="source-url-summary" class="source-inline-text" rows="3" placeholder="手动填写摘要，可为空"></textarea>
+
+        <div class="source-contract-actions">
+          <button id="btn-build-contract-from-url" class="btn-small" type="button">
+            从 URL 生成栏目
+          </button>
+        </div>
+
         <div id="source-contract-inspector" class="source-contract-inspector" style="display:none">
           <div class="source-contract-inspector-head">
             <div>

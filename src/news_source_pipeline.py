@@ -173,6 +173,111 @@ def normalize_manual_items(items: list[dict]) -> list[dict]:
     return normalized
 
 
+def normalize_url_item(
+    *,
+    url: str,
+    title: str,
+    summary: str = "",
+    source_id: str | None = None,
+    source: str | None = None,
+    tags: list[str] | None = None,
+    published_at: str | None = None,
+) -> dict:
+    """Normalize a URL-based news item into the standard news_item schema.
+
+    This does NOT fetch or crawl the URL. URL is stored as provenance metadata.
+    title and summary are provided by the user.
+
+    Rules:
+      - title: required, max 200 chars
+      - summary: optional; if empty, derived from title
+      - source_id: if provided and valid, use registry source name/tags/trust_level
+      - source_id not provided: attempt domain inference via infer_source_from_url()
+      - tags: merged from registry defaults + user tags + rule-based extraction
+      - final_score: scored via score_news_item() with a small official/research bonus
+
+    Returns a standard news_item dict.
+    """
+    # Import here to avoid circular imports; reliable_sources is pure logic
+    from src.reliable_sources import (
+        get_reliable_source, infer_source_from_url, validate_source_url,
+    )
+
+    if not title or not title.strip():
+        raise ValueError("news title cannot be empty")
+
+    # Validate URL
+    url_valid, url_error = validate_source_url(url)
+    if not url_valid:
+        raise ValueError(f"Invalid URL: {url_error}")
+
+    # Resolve source metadata
+    registry_source = None
+    final_source_name = source or "Manual"
+    trust_level = "unknown"
+    registry_tags: list[str] = []
+
+    if source_id:
+        reg = get_reliable_source(source_id)
+        if reg:
+            registry_source = reg
+            final_source_name = reg["name"]
+            trust_level = reg["trust_level"]
+            registry_tags = list(reg.get("default_tags") or [])
+
+    if not registry_source:
+        # Try to infer from domain
+        inferred = infer_source_from_url(url)
+        if inferred:
+            registry_source = inferred
+            final_source_name = inferred["name"]
+            trust_level = inferred["trust_level"]
+            registry_tags = list(inferred.get("default_tags") or [])
+
+    # Build tags: registry defaults + user tags + rule-based
+    user_tags = [str(t).strip() for t in (tags or []) if t]
+    extracted_tags = _extract_tags(title + " " + summary)
+    merged_tags = registry_tags + user_tags + extracted_tags
+    # Deduplicate while preserving order
+    seen = set()
+    deduped_tags = []
+    for t in merged_tags:
+        if t not in seen:
+            seen.add(t)
+            deduped_tags.append(t)
+    final_tags = deduped_tags[:10]
+
+    # Derive summary from title if not provided
+    final_summary = summary.strip() if summary else title[:120]
+
+    # Build base item
+    item: dict[str, object] = {
+        "id": _item_id("url", {"title": title, "source": final_source_name, "url": url}),
+        "title": title[:200],
+        "summary": final_summary[:500],
+        "source": final_source_name,
+        "url": url,
+        "published_at": published_at,
+        "final_score": 0.0,
+        "points": 0,
+        "comments": 0,
+        "tags": final_tags,
+        "source_type": "url_input",
+        "source_id": source_id or "",
+        "matched_source_id": registry_source["id"] if registry_source else "",
+        "trust_level": trust_level,
+    }
+
+    # Compute score with small official/research bonus
+    item["final_score"] = score_news_item(item)
+    if trust_level == "official":
+        item["final_score"] = min(10.0, round(item["final_score"] + 0.3, 1))
+    elif trust_level == "research":
+        item["final_score"] = min(10.0, round(item["final_score"] + 0.2, 1))
+
+    return item
+
+
 def load_sample_news_pack() -> list[dict]:
     """Return the built-in sample news pack (mock only — not real news).
 
