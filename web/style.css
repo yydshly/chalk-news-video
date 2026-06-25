@@ -1757,3 +1757,90 @@ footer {
   color: #e2e8f0;
 }
 
+/* CP41.1: Episode Planner Action Groups */
+.episode-action-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.episode-action-group {
+  background: #0f172a;
+  border: 1px solid #2d3748;
+  border-radius: 10px;
+  padding: 11px 12px;
+}
+
+.episode-action-group.is-export {
+  border-color: #14532d;
+  background: #052e16;
+}
+
+.episode-action-group.is-management {
+  border-color: #1e3a5f;
+}
+
+.episode-action-group-head {
+  margin-bottom: 9px;
+}
+
+.episode-action-group-title {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  margin-bottom: 2px;
+}
+
+.episode-action-group-desc {
+  display: block;
+  font-size: 0.68rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.episode-action-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.episode-action-grid .btn-small {
+  width: 100%;
+  margin-top: 0;
+}
+
+/* Preview style row inside action group */
+.episode-preview-style-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.episode-preview-style-label {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.episode-preview-style-select {
+  flex: 1;
+  font-size: 11px;
+  background: #1e293b;
+  color: #f9fafb;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 3px 6px;
+  min-width: 0;
+}
+
+/* Management hint */
+.episode-management-hint {
+  font-size: 0.7rem;
+  color: #64748b;
+  line-height: 1.5;
+  padding: 4px 0 2px;
+}
+

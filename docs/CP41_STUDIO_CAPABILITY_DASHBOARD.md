@@ -100,4 +100,39 @@ Called from `loadEpisodeExportCapabilities()` after the API response is received
 
 ## 10. Next Checkpoint
 
+---
+
+## CP41.1: Episode Planner Action Grouping
+
+### What was added
+
+The episode planner's action buttons were reorganized into four clearly-labeled groups:
+
+| Group | Title | Contents |
+|---|---|---|
+| 1 | 规划 | 查看栏目计划, 生成栏目脚本草案, 生成音频计划, 生成视觉计划 |
+| 2 | 预览 | 合集视觉样式 selector, 预览合集画面, 保存合集 HTML |
+| 3 | 导出 MP4 | 导出样式 selector, 导出提示, 导出 MP4 按钮, 音频混流 checkbox |
+| 4 | 管理 | 提示用户去导出历史查看记录 |
+
+### Design principles
+
+- All original button IDs are preserved — no JS event bindings were changed
+- The export group (`is-export`) has a green border to reinforce it as the active capability
+- The management group has a blue border and points users to the export history panel
+- Buttons remain full-width in their natural column layout
+- Preview style selector was moved into the Preview group alongside its related buttons
+
+### Files changed
+
+- `web/index.html` — restructured button DOM into `.episode-action-groups`
+- `web/style.css` — new action group styles
+
+### What was not changed
+
+- No JS logic was modified
+- No backend logic was modified
+- No renderer was modified
+- Export style selector, MP4 export button, audio checkbox, export status panel, and export history panel remain fully functional
+
 CP42: Episode Export Concurrent Job Limit — limit the number of concurrent running exports per session.

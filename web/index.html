@@ -215,36 +215,78 @@
           从左侧热门新闻中加入 2-4 条，组成今日 AI 新闻合集
         </div>
         <div id="episode-structure" class="episode-structure"></div>
-        <button id="btn-view-episode-plan" class="btn-small" type="button" style="margin-top:8px;width:100%">查看栏目计划</button>
-        <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
-          <span style="font-size:11px;color:#64748b;white-space:nowrap;">合集视觉风格</span>
-          <select id="select-episode-preview-style" style="flex:1;font-size:12px;background:#1e293b;color:#f9fafb;border:1px solid #334155;border-radius:6px;padding:3px 6px;">
-            <option value="timeline_daily_v1">时间线日报风</option>
-            <option value="breaking_news_v1">快讯大屏风</option>
-            <option value="data_dashboard_v1">数据仪表盘风</option>
-            <option value="research_briefing_v1">研究室简报风</option>
-            <option value="podcast_cards_v1">播客卡片风</option>
-          </select>
-        </div>
-        <button id="btn-view-episode-script" class="btn-small" type="button" style="margin-top:4px;width:100%">生成栏目脚本草案</button>
-        <button id="btn-view-audio-manifest" class="btn-small" type="button" style="margin-top:4px;width:100%">生成音频计划</button>
-        <button id="btn-view-visual-plan" class="btn-small" type="button" style="margin-top:4px;width:100%">生成视觉计划</button>
-        <button id="btn-preview-episode" class="btn-small" type="button" style="margin-top:4px;width:100%">预览合集画面</button>
-        <button id="btn-save-episode-html" class="btn-small btn-save" type="button" style="margin-top:4px;width:100%">保存合集 HTML</button>
-        <!-- CP40.7: Episode export style picker -->
-        <div class="episode-export-style-row">
-          <label class="episode-export-style-label" for="select-episode-export-style">导出样式</label>
-          <select id="select-episode-export-style" class="episode-export-style-select"></select>
-        </div>
-        <div id="episode-export-style-hint" class="episode-export-style-hint"></div>
-        <button id="btn-export-episode-mp4" class="btn-small btn-export" type="button" style="margin-top:4px;width:100%">导出 MP4</button>
-        <!-- CP40.6.1: Audio mux option — visible before first export -->
-        <label class="episode-export-audio-option" id="episode-audio-option">
-          <input type="checkbox" id="check-episode-export-audio">
-          使用当前预览音频一起导出
-        </label>
-        <div id="episode-export-audio-hint" class="episode-export-audio-hint">
-          默认不启用；仅当预览音频来自 /outputs/ 时会随 MP4 导出
+
+        <!-- CP41.1: Action groups -->
+        <div class="episode-action-groups">
+
+          <!-- Group 1: Planning -->
+          <div class="episode-action-group">
+            <div class="episode-action-group-head">
+              <span class="episode-action-group-title">1. 规划</span>
+              <span class="episode-action-group-desc">生成栏目结构、脚本和执行计划</span>
+            </div>
+            <div class="episode-action-grid">
+              <button id="btn-view-episode-plan" class="btn-small" type="button">查看栏目计划</button>
+              <button id="btn-view-episode-script" class="btn-small" type="button">生成栏目脚本草案</button>
+              <button id="btn-view-audio-manifest" class="btn-small" type="button">生成音频计划</button>
+              <button id="btn-view-visual-plan" class="btn-small" type="button">生成视觉计划</button>
+            </div>
+          </div>
+
+          <!-- Group 2: Preview -->
+          <div class="episode-action-group">
+            <div class="episode-action-group-head">
+              <span class="episode-action-group-title">2. 预览</span>
+              <span class="episode-action-group-desc">查看 HTML 视觉效果并保存当前合集</span>
+            </div>
+            <div class="episode-action-grid">
+              <div class="episode-preview-style-row">
+                <label for="select-episode-preview-style" class="episode-preview-style-label">合集视觉样式</label>
+                <select id="select-episode-preview-style" class="episode-preview-style-select">
+                  <option value="timeline_daily_v1">时间线日报风</option>
+                  <option value="breaking_news_v1">快讯大屏风</option>
+                  <option value="data_dashboard_v1">数据仪表盘风</option>
+                  <option value="research_briefing_v1">研究室简报风</option>
+                  <option value="podcast_cards_v1">播客卡片风</option>
+                </select>
+              </div>
+              <button id="btn-preview-episode" class="btn-small" type="button">预览合集画面</button>
+              <button id="btn-save-episode-html" class="btn-small btn-save" type="button">保存合集 HTML</button>
+            </div>
+          </div>
+
+          <!-- Group 3: Export -->
+          <div class="episode-action-group is-export">
+            <div class="episode-action-group-head">
+              <span class="episode-action-group-title">3. 导出 MP4</span>
+              <span class="episode-action-group-desc">选择支持的导出样式，异步生成 9:16 MP4</span>
+            </div>
+            <div class="episode-export-style-row">
+              <label class="episode-export-style-label" for="select-episode-export-style">导出样式</label>
+              <select id="select-episode-export-style" class="episode-export-style-select"></select>
+            </div>
+            <div id="episode-export-style-hint" class="episode-export-style-hint"></div>
+            <button id="btn-export-episode-mp4" class="btn-small btn-export" type="button">导出 MP4</button>
+            <label class="episode-export-audio-option" id="episode-audio-option">
+              <input type="checkbox" id="check-episode-export-audio">
+              使用当前预览音频一起导出
+            </label>
+            <div id="episode-export-audio-hint" class="episode-export-audio-hint">
+              默认不启用；仅当预览音频来自 /outputs/ 时会随 MP4 导出
+            </div>
+          </div>
+
+          <!-- Group 4: Management -->
+          <div class="episode-action-group is-management">
+            <div class="episode-action-group-head">
+              <span class="episode-action-group-title">4. 管理</span>
+              <span class="episode-action-group-desc">导出完成后在历史里打开、删除或清理</span>
+            </div>
+            <div class="episode-management-hint">
+              导出记录会自动出现在下方「导出历史」中。
+            </div>
+          </div>
+
         </div>
       </div>
 
