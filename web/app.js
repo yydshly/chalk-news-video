@@ -754,6 +754,9 @@
 
     // CP40.5: Load episode export history
     loadEpisodeExportHistory();
+
+    // CP40.7.1: Load episode export capabilities for style picker
+    loadEpisodeExportCapabilities();
   }
 
   // ---------- load providers (CP15) ----------
@@ -4103,6 +4106,13 @@
   if (selectEpisodePreviewStyle) {
     selectEpisodePreviewStyle.addEventListener("change", function () {
       currentEpisodePreviewStyle = selectEpisodePreviewStyle.value || "timeline_daily_v1";
+      updateEpisodeExportStyleHint();
+    });
+  }
+
+  // CP40.7.1: Episode export style selector change — update hint when user picks a different export style
+  if (selectEpisodeExportStyle) {
+    selectEpisodeExportStyle.addEventListener("change", function () {
       updateEpisodeExportStyleHint();
     });
   }
