@@ -306,12 +306,30 @@
     }
   }
 
+  function setEpisodeExportButtonState(state) {
+    if (!btnExportEpisodeMp4) return;
+    if (state === "idle") {
+      btnExportEpisodeMp4.disabled = false;
+      btnExportEpisodeMp4.textContent = "导出 MP4";
+    } else if (state === "running") {
+      btnExportEpisodeMp4.disabled = true;
+      btnExportEpisodeMp4.textContent = "导出中...";
+    } else if (state === "done") {
+      btnExportEpisodeMp4.disabled = false;
+      btnExportEpisodeMp4.textContent = "重新导出 MP4";
+    } else if (state === "failed") {
+      btnExportEpisodeMp4.disabled = false;
+      btnExportEpisodeMp4.textContent = "重新导出 MP4";
+    }
+  }
+
   async function pollEpisodeExportStatus(statusUrl) {
     try {
       var resp = await fetch(statusUrl);
       if (!resp.ok) {
         renderEpisodeExportStatus({ status: "failed", error_message: "状态查询失败" });
         stopEpisodeExportPolling();
+        setEpisodeExportButtonState("failed");
         return;
       }
       var statusData = await resp.json();
@@ -319,6 +337,7 @@
 
       if (statusData.status === "completed") {
         stopEpisodeExportPolling();
+        setEpisodeExportButtonState("done");
         // Show download link
         var mp4Url = null;
         if (statusData.result && statusData.result.mp4_url) {
@@ -332,11 +351,13 @@
         }
       } else if (statusData.status === "failed") {
         stopEpisodeExportPolling();
+        setEpisodeExportButtonState("failed");
       }
       // else: keep polling
     } catch (e) {
       renderEpisodeExportStatus({ status: "failed", error_message: "网络错误" });
       stopEpisodeExportPolling();
+      setEpisodeExportButtonState("failed");
     }
   }
 
@@ -351,6 +372,7 @@
     // Guard: need a contract
     if (!latestEpisodeTemplateContract) {
       setStatus("请先生成合集预览，再导出 MP4", "error");
+      setEpisodeExportButtonState("idle");
       return;
     }
 
@@ -362,8 +384,8 @@
     // Stop any existing polling
     stopEpisodeExportPolling();
 
-    // Update UI: disable button, clear old state
-    if (btnExportEpisodeMp4) btnExportEpisodeMp4.disabled = true;
+    // Update UI: set button to running, clear old state
+    setEpisodeExportButtonState("running");
     episodeExportPanel.style.display = "block";
     episodeExportStatus.className = "episode-export-status is-pending";
     episodeExportStatus.textContent = "已加入导出队列...";
@@ -404,7 +426,7 @@
 
     } catch (e) {
       renderEpisodeExportStatus({ status: "failed", error_message: e.message });
-      if (btnExportEpisodeMp4) btnExportEpisodeMp4.disabled = false;
+      setEpisodeExportButtonState("failed");
       setStatus("导出失败：" + e.message, "error");
     }
   }

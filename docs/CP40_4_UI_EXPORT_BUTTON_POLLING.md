@@ -127,6 +127,45 @@ Manual verification steps:
 - No export cancellation
 - Download link href is set from the POST response `mp4_url` field, which is correct but the link only appears after `completed`; if the browser auto-plays the MP4 on click, the user may see a blank page briefly
 
-## 13. Next Checkpoint
+## 13. CP40.4.1 Export Button Lifecycle Fix
+
+### Problem
+
+CP40.4 disabled the export button when starting an export, but never re-enabled it after `completed` or `failed` — the user could not re-trigger a new export.
+
+### Fix
+
+Added `setEpisodeExportButtonState(state)` helper that manages both `disabled` and `textContent` of `btn-export-episode-mp4`.
+
+### Button States
+
+| state | disabled | text |
+|-------|----------|------|
+| `idle` | false | "导出 MP4" |
+| `running` | true | "导出中..." |
+| `done` | false | "重新导出 MP4" |
+| `failed` | false | "重新导出 MP4" |
+
+### Call Sites
+
+- **Start export** → `setEpisodeExportButtonState("running")` — button disabled, text "导出中..."
+- **No contract guard** → `setEpisodeExportButtonState("idle")` — button stays idle
+- **POST catch** → `setEpisodeExportButtonState("failed")` — button re-enabled, text "重新导出 MP4"
+- **Poll completed** → `setEpisodeExportButtonState("done")` — button re-enabled, text "重新导出 MP4", download link shown
+- **Poll failed** → `setEpisodeExportButtonState("failed")` — button re-enabled, text "重新导出 MP4", error shown
+- **Poll non-ok** → `setEpisodeExportButtonState("failed")` — button re-enabled, text "重新导出 MP4"
+- **Poll network error** → `setEpisodeExportButtonState("failed")` — button re-enabled, text "重新导出 MP4"
+
+### What CP40.4.1 Does NOT Change
+
+- No backend changes
+- No `/api/episode/export` changes
+- No `/api/episode/exports/{export_id}` changes
+- No `/api/jobs` integration
+- No real LLM, TTS, or audio
+- No Remotion
+- No new outputs committed
+
+## 14. Next Checkpoint
 
 CP40.5: Add audio mux support — accept an optional `audio_path` in the export request and mux WAV/MP3 into the MP4 using ffmpeg.
