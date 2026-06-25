@@ -228,6 +228,70 @@ def test_validate_accepts_normal_url():
 
 
 # ---------------------------------------------------------------------------
+# Redirect safety tests (CP45.1)
+# ---------------------------------------------------------------------------
+
+def test_resolve_redirect_url_relative():
+    """20. _resolve_redirect_url() correctly resolves relative redirect URLs."""
+    from article_extractor import _resolve_redirect_url
+    # Absolute URL redirect
+    assert _resolve_redirect_url("https://example.com/a", "https://other.com/b") == "https://other.com/b"
+    # Root-relative redirect
+    assert _resolve_redirect_url("https://example.com/a/b", "/c") == "https://example.com/c"
+    # Query-relative redirect: urljoin('https://example.com/a?x=1', 'b') -> 'https://example.com/b'
+    assert _resolve_redirect_url("https://example.com/a?x=1", "b") == "https://example.com/b"
+    print("  [PASS] _resolve_redirect_url resolves relative URLs")
+
+
+def test_resolve_redirect_url_preserves_domain():
+    """21. _resolve_redirect_url() preserves the base domain for root-relative paths."""
+    from article_extractor import _resolve_redirect_url
+    result = _resolve_redirect_url("https://openai.com/blog/intro", "/research/paper")
+    assert result.startswith("https://openai.com")
+    assert "/research/paper" in result
+    print("  [PASS] _resolve_redirect_url preserves domain for root-relative paths")
+
+
+def test_validate_rejects_redirect_to_127():
+    """22. _validate_fetch_url() rejects redirect URL pointing to 127.0.0.1."""
+    # This is the core SSRF fix test: if a redirect resolves to a private IP it must be blocked
+    ok, err = _validate_fetch_url("http://127.0.0.1:8080/internal")
+    assert ok is False
+    assert "private" in err.lower() or "localhost" in err.lower()
+    print("  [PASS] rejects redirect URL to 127.0.0.1")
+
+
+def test_validate_rejects_redirect_to_10_private():
+    """23. _validate_fetch_url() rejects redirect URL pointing to 10.x.x.x private IP."""
+    ok, err = _validate_fetch_url("http://10.0.0.5/admin")
+    assert ok is False
+    assert "private" in err.lower()
+    print("  [PASS] rejects redirect URL to 10.x.x.x private IP")
+
+
+def test_validate_rejects_redirect_to_javascript():
+    """24. _validate_fetch_url() rejects redirect URL with javascript: scheme."""
+    ok, err = _validate_fetch_url("javascript:alert(1)")
+    assert ok is False
+    print("  [PASS] rejects redirect URL with javascript: scheme")
+
+
+def test_max_redirects_is_one():
+    """25. _MAX_REDIRECTS is set to 1 to prevent open redirect chains."""
+    from article_extractor import _MAX_REDIRECTS
+    assert _MAX_REDIRECTS == 1
+    print("  [PASS] _MAX_REDIRECTS is 1")
+
+
+def test_no_redirect_handler_exists():
+    """26. _NoRedirectHandler class exists and is usable."""
+    from article_extractor import _NoRedirectHandler
+    # Should be a subclass of HTTPRedirectHandler
+    assert hasattr(_NoRedirectHandler, "redirect_request")
+    print("  [PASS] _NoRedirectHandler exists and has redirect_request")
+
+
+# ---------------------------------------------------------------------------
 # API endpoint tests
 # ---------------------------------------------------------------------------
 
@@ -363,6 +427,14 @@ def run_all():
         test_validate_rejects_17216,
         test_validate_rejects_missing_hostname,
         test_validate_accepts_normal_url,
+        # Redirect safety (CP45.1)
+        test_resolve_redirect_url_relative,
+        test_resolve_redirect_url_preserves_domain,
+        test_validate_rejects_redirect_to_127,
+        test_validate_rejects_redirect_to_10_private,
+        test_validate_rejects_redirect_to_javascript,
+        test_max_redirects_is_one,
+        test_no_redirect_handler_exists,
         # API
         test_article_extract_missing_url,
         test_article_extract_localhost_rejected,

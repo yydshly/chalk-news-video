@@ -97,6 +97,15 @@ If extraction fails, returns `ok: false` with a message suggesting fallback to m
 - Content-Type must be `text/html` or `application/xhtml+xml`
 - User-Agent: `chalk-news-video/0.1` (identifies as article extractor bot)
 
+## CP45.1 Redirect Safety
+
+- urllib default redirect following is disabled.
+- At most one redirect is allowed.
+- Redirect target is resolved with `urljoin` (handles relative Location headers).
+- Redirect target is revalidated with the same URL safety policy (scheme, private IP, localhost).
+- Redirects to localhost / private IP / non-http schemes are rejected.
+- The final URL (after any redirects) is used for extraction and stored in `article.url`.
+
 ## Frontend
 
 In the URL input section of the Source Contract Panel:

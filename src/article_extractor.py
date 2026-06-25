@@ -24,7 +24,7 @@ import uuid
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from typing import Optional
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 # ---------------------------------------------------------------------------
 # Dataclass
@@ -283,6 +283,11 @@ def _validate_fetch_url(url: str) -> tuple[bool, Optional[str]]:
     return True, None
 
 
+def _resolve_redirect_url(current_url: str, location: str) -> str:
+    """Resolve a redirect Location header against the current URL (handles relative URLs)."""
+    return urljoin(current_url, location)
+
+
 # ---------------------------------------------------------------------------
 # Network fetch
 # ---------------------------------------------------------------------------
@@ -290,6 +295,20 @@ def _validate_fetch_url(url: str) -> tuple[bool, Optional[str]]:
 _USER_AGENT = "chalk-news-video/0.1 (article-extractor; +https://github.com/yydshly/chalk-news-video)"
 _ACCEPTED_CONTENT_TYPES = frozenset(["text/html", "application/xhtml+xml"])
 _MAX_BYTES = 512_000  # 512 KB
+_MAX_REDIRECTS = 1
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """URLOpener handler that suppresses all automatic redirects."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _build_no_redirect_opener(ctx: ssl.SSLContext):
+    """Build an opener that does not follow redirects automatically."""
+    https_handler = urllib.request.HTTPSHandler(context=ctx)
+    return urllib.request.build_opener(_NoRedirectHandler, https_handler)
 
 
 def fetch_and_extract_article(
@@ -305,7 +324,8 @@ def fetch_and_extract_article(
       - Timeout enforced
       - Max response size enforced
       - Content-Type checked (text/html or application/xhtml+xml)
-      - No redirects followed beyond 1 hop
+      - At most 1 redirect allowed; redirect target is re-validated
+      - No JS rendering, no crawler, no real LLM/TTS
 
     Returns ExtractedArticle on success, or ExtractedArticle with error on failure.
     """
@@ -323,73 +343,84 @@ def fetch_and_extract_article(
             error=err or "Invalid URL",
         )
 
-    try:
-        parsed = urlparse(url)
-        hostname = parsed.hostname or ""
-        scheme = parsed.scheme
+    ctx = ssl.create_default_context()
+    headers = {
+        "User-Agent": _USER_AGENT,
+        "Accept": "text/html,application/xhtml+xml,*/*",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
 
-        # Create context — no cert verification needed for a read-only fetcher
-        ctx = ssl.create_default_context()
-        # We'll handle redirect manually
+    current_url = url
+    redirect_count = 0
 
-        headers = {
-            "User-Agent": _USER_AGENT,
-            "Accept": "text/html,application/xhtml+xml,*/*",
-            "Accept-Language": "en-US,en;q=0.9",
-        }
-
-        req = urllib.request.Request(url, headers=headers)
-
-        # Use a controlled opener with timeout
-        try:
-            with urllib.request.urlopen(req, timeout=timeout_sec, context=ctx) as resp:
-                content_type = resp.headers.get("Content-Type", "").split(";")[0].strip()
-                if content_type.lower() not in _ACCEPTED_CONTENT_TYPES:
-                    return ExtractedArticle(
-                        url=url,
-                        title="",
-                        description="",
-                        body_text="",
-                        source_domain=hostname,
-                        content_type=content_type,
-                        fetched=False,
-                        error=f"Content-Type '{content_type}' is not supported. Only text/html is supported.",
-                    )
-
-                # Read with size limit
-                raw = resp.read(max_bytes + 1)
-                if len(raw) > max_bytes:
-                    return ExtractedArticle(
-                        url=url,
-                        title="",
-                        description="",
-                        body_text="",
-                        source_domain=hostname,
-                        content_type=content_type,
-                        fetched=False,
-                        error=f"Response exceeds maximum size of {max_bytes} bytes",
-                    )
-
-                # Detect encoding
-                charset = "utf-8"
-                ct_full = resp.headers.get("Content-Type", "")
-                if "charset=" in ct_full.lower():
-                    charset = ct_full.lower().split("charset=")[-1].strip().split(";")[0].strip()
-
-                try:
-                    html = raw.decode(charset, errors="replace")
-                except Exception:
-                    html = raw.decode("utf-8", errors="replace")
-
-                return extract_article_from_html(html, url=url, content_type=content_type)
-
-        except urllib.error.HTTPError as e:
+    while True:
+        # Revalidate URL on every iteration (initial + after redirect)
+        ok, err = _validate_fetch_url(current_url)
+        if not ok:
             return ExtractedArticle(
                 url=url,
                 title="",
                 description="",
                 body_text="",
-                source_domain=hostname,
+                source_domain="",
+                content_type="",
+                fetched=False,
+                error=err or "Invalid URL",
+            )
+
+        req = urllib.request.Request(current_url, headers=headers)
+        opener = _build_no_redirect_opener(ctx)
+
+        try:
+            resp = opener.open(req, timeout=timeout_sec)
+            break  # Success — proceed to extraction
+        except urllib.error.HTTPError as e:
+            if e.code in (301, 302, 303, 307, 308):
+                if redirect_count >= _MAX_REDIRECTS:
+                    return ExtractedArticle(
+                        url=url,
+                        title="",
+                        description="",
+                        body_text="",
+                        source_domain="",
+                        content_type="",
+                        fetched=False,
+                        error="Too many redirects (max 1 allowed)",
+                    )
+                location = e.headers.get("Location")
+                if not location:
+                    return ExtractedArticle(
+                        url=url,
+                        title="",
+                        description="",
+                        body_text="",
+                        source_domain="",
+                        content_type="",
+                        fetched=False,
+                        error="Redirect without Location header",
+                    )
+                next_url = _resolve_redirect_url(current_url, location)
+                ok2, err2 = _validate_fetch_url(next_url)
+                if not ok2:
+                    return ExtractedArticle(
+                        url=url,
+                        title="",
+                        description="",
+                        body_text="",
+                        source_domain="",
+                        content_type="",
+                        fetched=False,
+                        error="Redirect URL rejected: " + (err2 or "unsafe"),
+                    )
+                current_url = next_url
+                redirect_count += 1
+                continue
+            return ExtractedArticle(
+                url=url,
+                title="",
+                description="",
+                body_text="",
+                source_domain="",
                 content_type="",
                 fetched=False,
                 error=f"HTTP error {e.code}: {e.reason}",
@@ -400,20 +431,57 @@ def fetch_and_extract_article(
                 title="",
                 description="",
                 body_text="",
-                source_domain=hostname,
+                source_domain="",
                 content_type="",
                 fetched=False,
                 error=f"URL fetch failed: {e.reason}",
             )
 
-    except Exception as e:
+    # No redirect followed — current_url is the final URL (validated above)
+    final_url = current_url
+    try:
+        parsed_final = urlparse(final_url)
+        hostname = parsed_final.hostname or ""
+    except Exception:
+        hostname = ""
+
+    content_type = resp.headers.get("Content-Type", "").split(";")[0].strip()
+    if content_type.lower() not in _ACCEPTED_CONTENT_TYPES:
         return ExtractedArticle(
             url=url,
             title="",
             description="",
             body_text="",
-            source_domain="",
-            content_type="",
+            source_domain=hostname,
+            content_type=content_type,
             fetched=False,
-            error=f"Unexpected error: {e}",
+            error=f"Content-Type '{content_type}' is not supported. Only text/html is supported.",
         )
+
+    # Read with size limit
+    raw = resp.read(max_bytes + 1)
+    if len(raw) > max_bytes:
+        return ExtractedArticle(
+            url=url,
+            title="",
+            description="",
+            body_text="",
+            source_domain=hostname,
+            content_type=content_type,
+            fetched=False,
+            error=f"Response exceeds maximum size of {max_bytes} bytes",
+        )
+
+    # Detect encoding
+    charset = "utf-8"
+    ct_full = resp.headers.get("Content-Type", "")
+    if "charset=" in ct_full.lower():
+        charset = ct_full.lower().split("charset=")[-1].strip().split(";")[0].strip()
+
+    try:
+        html = raw.decode(charset, errors="replace")
+    except Exception:
+        html = raw.decode("utf-8", errors="replace")
+
+    # Use final_url (after any redirects) for extraction
+    return extract_article_from_html(html, url=final_url, content_type=content_type)
