@@ -237,6 +237,84 @@
     </div>
   </section>
 
+  <!-- CP49: Publish Package Copy Kit -->
+  <section id="publish-package-panel" class="publish-package-panel">
+    <div class="publish-package-head">
+      <div>
+        <div class="publish-package-kicker">Publish Package</div>
+        <h2>发布素材包</h2>
+        <p>生成标题、简介、平台文案、标签、封面提示词和 MP4 链接，方便手动发布。</p>
+      </div>
+      <button id="btn-generate-publish-package" class="btn-small" type="button">
+        生成发布素材包
+      </button>
+    </div>
+
+    <div id="publish-package-status" class="publish-package-status">
+      完成预览和 MP4 导出后，可生成发布素材包。
+    </div>
+
+    <div id="publish-package-content" class="publish-package-content" style="display:none">
+      <div class="publish-package-grid">
+        <div class="publish-package-field">
+          <div class="publish-package-field-head">
+            <span>视频标题</span>
+            <button class="btn-mini" data-copy-target="publish-title" type="button">复制</button>
+          </div>
+          <textarea id="publish-title" readonly></textarea>
+        </div>
+
+        <div class="publish-package-field">
+          <div class="publish-package-field-head">
+            <span>短简介</span>
+            <button class="btn-mini" data-copy-target="publish-description" type="button">复制</button>
+          </div>
+          <textarea id="publish-description" readonly></textarea>
+        </div>
+
+        <div class="publish-package-field publish-package-field-wide">
+          <div class="publish-package-field-head">
+            <span>平台文案</span>
+            <button class="btn-mini" data-copy-target="publish-platform-copy" type="button">复制</button>
+          </div>
+          <textarea id="publish-platform-copy" readonly></textarea>
+        </div>
+
+        <div class="publish-package-field">
+          <div class="publish-package-field-head">
+            <span>标签</span>
+            <button class="btn-mini" data-copy-target="publish-tags" type="button">复制</button>
+          </div>
+          <textarea id="publish-tags" readonly></textarea>
+        </div>
+
+        <div class="publish-package-field publish-package-field-wide">
+          <div class="publish-package-field-head">
+            <span>封面提示词</span>
+            <button class="btn-mini" data-copy-target="publish-cover-prompt" type="button">复制</button>
+          </div>
+          <textarea id="publish-cover-prompt" readonly></textarea>
+        </div>
+
+        <div class="publish-package-field publish-package-field-wide">
+          <div class="publish-package-field-head">
+            <span>MP4 / 素材链接</span>
+            <button class="btn-mini" data-copy-target="publish-asset-links" type="button">复制</button>
+          </div>
+          <textarea id="publish-asset-links" readonly></textarea>
+        </div>
+
+        <div class="publish-package-field publish-package-field-wide">
+          <div class="publish-package-field-head">
+            <span>来源摘要</span>
+            <button class="btn-mini" data-copy-target="publish-source-summary" type="button">复制</button>
+          </div>
+          <textarea id="publish-source-summary" readonly></textarea>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <main class="layout">
     <!-- Left: Input Panel -->
     <section class="panel input-panel">

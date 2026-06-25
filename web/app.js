@@ -150,6 +150,18 @@
   const productionWorkflowSummary = document.getElementById("production-workflow-summary");
   const productionReadinessBadge = document.getElementById("production-readiness-badge");
 
+  // CP49: Publish Package DOM refs
+  const btnGeneratePublishPackage = document.getElementById("btn-generate-publish-package");
+  const publishPackageStatus = document.getElementById("publish-package-status");
+  const publishPackageContent = document.getElementById("publish-package-content");
+  const publishTitle = document.getElementById("publish-title");
+  const publishDescription = document.getElementById("publish-description");
+  const publishPlatformCopy = document.getElementById("publish-platform-copy");
+  const publishTags = document.getElementById("publish-tags");
+  const publishCoverPrompt = document.getElementById("publish-cover-prompt");
+  const publishAssetLinks = document.getElementById("publish-asset-links");
+  const publishSourceSummary = document.getElementById("publish-source-summary");
+
   // ---------- state ----------
   let lastResult = null;
   let currentEventSource = null;
@@ -5694,6 +5706,152 @@
   // CP46: Initialize URL draft basket render
   renderUrlDraftBasket();
 
+  // ---------- CP49: Publish Package functions ----------
+  let latestPublishPackage = null;
+
+  function getCurrentPublishSourceItems() {
+    if (Array.isArray(latestSourceEpisodeItems) && latestSourceEpisodeItems.length) {
+      return latestSourceEpisodeItems;
+    }
+    if (Array.isArray(episodeItemList) && episodeItemList.length) {
+      return episodeItemList;
+    }
+    return [];
+  }
+
+  function collectPublishTags(items) {
+    var tagMap = {};
+    ["AI", "科技", "前沿", "新闻"].forEach(function (tag) {
+      tagMap[tag] = true;
+    });
+    items.forEach(function (item) {
+      (item.tags || []).forEach(function (tag) {
+        if (tag && String(tag).trim()) {
+          tagMap[String(tag).trim()] = true;
+        }
+      });
+    });
+    return Object.keys(tagMap).slice(0, 10);
+  }
+
+  function buildPublishPackage() {
+    var items = getCurrentPublishSourceItems();
+    var lead = items[0] || {};
+    var contractEpisode = latestSourceContract && latestSourceContract.episode ? latestSourceContract.episode : null;
+
+    var titleBase = contractEpisode && contractEpisode.title
+      ? contractEpisode.title
+      : lead.title || lead.headline || "今日 AI 前沿速览";
+
+    var title = titleBase;
+    if (title.length > 40) title = title.slice(0, 40) + "…";
+
+    var description = lead.summary || lead.description || "整理今日值得关注的 AI 前沿动态，用短视频快速看懂重点。";
+    if (description.length > 120) description = description.slice(0, 120) + "…";
+
+    var tags = collectPublishTags(items);
+
+    var platformCopy =
+      title + "\n\n" +
+      description + "\n\n" +
+      "本期看点：\n" +
+      items.slice(0, 4).map(function (item, idx) {
+        return (idx + 1) + ". " + (item.title || item.headline || "未命名新闻");
+      }).join("\n") +
+      "\n\n" +
+      tags.map(function (tag) { return "#" + tag; }).join(" ");
+
+    var coverPrompt =
+      "9:16 竖版新闻视频封面，主题：" + title +
+      "。卡通新闻主播，科技感演播室，AI 前沿新闻氛围，清晰大标题，低饱和蓝紫色，干净信息卡片布局。";
+
+    var mp4Url = currentEpisodeExportMp4Url || "";
+    var assetLinks = mp4Url
+      ? "MP4: " + mp4Url
+      : "MP4: 尚未检测到导出链接，请先完成 MP4 导出。";
+
+    var sourceSummary = items.length
+      ? items.slice(0, 6).map(function (item, idx) {
+          var src = item.source || item.source_id || item.url || "未知来源";
+          return (idx + 1) + ". " + (item.title || item.headline || "未命名新闻") + " — " + src;
+        }).join("\n")
+      : "暂无来源。请先生成栏目或应用到 Episode Planner。";
+
+    return {
+      title: title,
+      description: description,
+      platform_copy: platformCopy,
+      tags: tags,
+      cover_prompt: coverPrompt,
+      asset_links: assetLinks,
+      source_summary: sourceSummary,
+      generated_at: new Date().toISOString()
+    };
+  }
+
+  function renderPublishPackage(pkg) {
+    if (!pkg) return;
+    latestPublishPackage = pkg;
+
+    if (publishTitle) publishTitle.value = pkg.title || "";
+    if (publishDescription) publishDescription.value = pkg.description || "";
+    if (publishPlatformCopy) publishPlatformCopy.value = pkg.platform_copy || "";
+    if (publishTags) publishTags.value = (pkg.tags || []).map(function (tag) { return "#" + tag; }).join(" ");
+    if (publishCoverPrompt) publishCoverPrompt.value = pkg.cover_prompt || "";
+    if (publishAssetLinks) publishAssetLinks.value = pkg.asset_links || "";
+    if (publishSourceSummary) publishSourceSummary.value = pkg.source_summary || "";
+
+    if (publishPackageContent) publishPackageContent.style.display = "block";
+    if (publishPackageStatus) {
+      publishPackageStatus.textContent = "发布素材包已生成，可复制到目标平台手动发布。";
+      publishPackageStatus.className = "publish-package-status is-ready";
+    }
+  }
+
+  function generatePublishPackage() {
+    var pkg = buildPublishPackage();
+    renderPublishPackage(pkg);
+    if (typeof renderProductionWorkflowPanel === "function") {
+      renderProductionWorkflowPanel();
+    }
+  }
+
+  function copyTextFromElementId(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var text = el.value || el.textContent || "";
+    if (!text.trim()) {
+      setSourceContractStatus("没有可复制的内容", "error");
+      return;
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        setSourceContractStatus("已复制：" + id, "success");
+      }).catch(function () {
+        fallbackCopyText(text, id);
+      });
+    } else {
+      fallbackCopyText(text, id);
+    }
+  }
+
+  function fallbackCopyText(text, id) {
+    var textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "readonly");
+    textarea.style.position = "absolute";
+    textarea.style.left = "-9999px";
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+      document.execCommand("copy");
+      setSourceContractStatus("已复制：" + id, "success");
+    } catch (e) {
+      setSourceContractStatus("复制失败：" + e.message, "error");
+    }
+    document.body.removeChild(textarea);
+  }
+
   // ---------- CP48: Production Workflow functions ----------
 
   function getProductionWorkflowState() {
@@ -5821,6 +5979,17 @@
   // CP47: Initialize Source Collections
   loadSourceCollections();
   renderSourceCollections();
+
+  // CP49: Wire up Publish Package buttons
+  if (btnGeneratePublishPackage) {
+    btnGeneratePublishPackage.addEventListener("click", generatePublishPackage);
+  }
+
+  document.querySelectorAll("[data-copy-target]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      copyTextFromElementId(btn.getAttribute("data-copy-target"));
+    });
+  });
 
   // ---------- start ----------
   init();

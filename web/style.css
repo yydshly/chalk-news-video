@@ -2716,3 +2716,119 @@ footer {
   line-height: 1.5;
 }
 
+/* CP49: Publish Package Copy Kit */
+.publish-package-panel {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.publish-package-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  gap: 16px;
+}
+
+.publish-package-kicker {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #6366f1;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.publish-package-panel h2 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f1f5f9;
+  margin: 0 0 4px;
+}
+
+.publish-package-panel > .publish-package-head p {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.publish-package-status {
+  font-size: 0.75rem;
+  color: #64748b;
+  padding: 8px 12px;
+  background: #1e293b;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.publish-package-status.is-ready {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.08);
+}
+
+.publish-package-content {
+  margin-top: 12px;
+}
+
+.publish-package-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.publish-package-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.publish-package-field-wide {
+  grid-column: 1 / -1;
+}
+
+.publish-package-field-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.7rem;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.publish-package-field textarea {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #e2e8f0;
+  font-size: 0.75rem;
+  padding: 8px 10px;
+  resize: none;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+.publish-package-field textarea[readonly] {
+  cursor: text;
+}
+
+.btn-mini {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 0.65rem;
+  padding: 2px 8px;
+  transition: all 0.15s;
+}
+
+.btn-mini:hover {
+  background: #334155;
+  color: #e2e8f0;
+}
+
