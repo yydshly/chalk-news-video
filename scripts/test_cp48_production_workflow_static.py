@@ -54,6 +54,19 @@ def main():
     all_pass &= check("app.js calls renderProductionWorkflowPanel after addUrlDraft", "addUrlDraft" in app_js and "renderProductionWorkflowPanel" in app_js)
     all_pass &= check("app.js calls renderProductionWorkflowPanel in init", "renderProductionWorkflowPanel" in app_js.split("init()")[1].split("async function")[0] if "async function init()" in app_js else False)
 
+    # CP48.1: workflow refresh on draft manual edits
+    title_handler_region = app_js.split("titleInput.addEventListener(\"input\"")[1].split("summaryInput.addEventListener")[0] if "titleInput.addEventListener(\"input\"" in app_js else ""
+    all_pass &= check("title input handler calls renderProductionWorkflowPanel", "renderProductionWorkflowPanel();" in title_handler_region)
+    all_pass &= check("title input handler does NOT call renderUrlDraftBasket", "renderUrlDraftBasket(" not in title_handler_region)
+
+    summary_handler_region = app_js.split("summaryInput.addEventListener(\"input\"")[1].split("card.querySelector")[0] if "summaryInput.addEventListener(\"input\"" in app_js else ""
+    all_pass &= check("summary input handler calls renderProductionWorkflowPanel", "renderProductionWorkflowPanel();" in summary_handler_region)
+    all_pass &= check("summary input handler does NOT call renderUrlDraftBasket", "renderUrlDraftBasket(" not in summary_handler_region)
+
+    # CP48 workflow functions still exist
+    all_pass &= check("getProductionWorkflowState function exists", "function getProductionWorkflowState" in app_js)
+    all_pass &= check("renderProductionWorkflowPanel function exists", "function renderProductionWorkflowPanel" in app_js)
+
     # CSS checks
     print("\n[CSS]")
     all_pass &= check("style.css contains .production-workflow-panel", ".production-workflow-panel" in style_css)

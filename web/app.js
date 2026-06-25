@@ -5344,11 +5344,18 @@
 
       titleInput.addEventListener("input", function () {
         item.title = titleInput.value;
-        if (item.title.trim()) item.status = "ready";
+        if (item.title.trim()) {
+          item.status = "ready";
+          item.error = "";
+        } else if (item.status === "ready") {
+          item.status = "draft";
+        }
+        renderProductionWorkflowPanel();
       });
 
       summaryInput.addEventListener("input", function () {
         item.summary = summaryInput.value;
+        renderProductionWorkflowPanel();
       });
 
       card.querySelector(".url-draft-extract-btn").addEventListener("click", function () {
