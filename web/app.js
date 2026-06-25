@@ -112,6 +112,12 @@
   const firstRunGuide = document.getElementById("first-run-guide");
   const btnCollapseFirstRunGuide = document.getElementById("btn-collapse-first-run-guide");
 
+  // CP43: Source contract panel DOM refs
+  const btnBuildContractFromSample = document.getElementById("btn-build-contract-from-sample");
+  const btnBuildContractFromInline = document.getElementById("btn-build-contract-from-inline");
+  const sourceInlineText = document.getElementById("source-inline-text");
+  const sourceContractStatus = document.getElementById("source-contract-status");
+
   // ---------- state ----------
   let lastResult = null;
   let currentEventSource = null;
@@ -139,6 +145,11 @@
 
   // CP40.7: Episode export capabilities (loaded from backend)
   let episodeExportCapabilities = null;
+
+  // CP43: Source contract state
+  let latestSourceContract = null;      // most recent source-generated contract
+  let latestSourceNewsItems = [];       // news items from source pipeline
+  let latestSourceEpisodeItems = [];     // episode items from source pipeline
 
   // CP20/CG29: Expanded theme showcase data — video style gallery
   const THEME_SHOWCASES = {
@@ -4905,6 +4916,98 @@
   function escapeHtml(str) {
     if (!str) return "";
     return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  // ---------- CP43: Source contract functions ----------
+
+  function setSourceContractStatus(message, type) {
+    if (!sourceContractStatus) return;
+    sourceContractStatus.textContent = message || "";
+    sourceContractStatus.className = "source-contract-status " + (type || "");
+  }
+
+  // Show a source-generated contract in the preview iframe using the existing renderEpisodeTemplateHtml
+  function showSourceContractPreview(contract) {
+    if (!contract) return;
+    // Store as the current episode template contract so export can use it
+    latestEpisodeTemplateContract = contract;
+    // Render HTML and load in preview iframe
+    var html = renderEpisodeTemplateHtml(contract);
+    var blob = new Blob([html], { type: "text/html" });
+    var url = URL.createObjectURL(blob);
+    // Revoke old URL if any
+    if (latestEpisodePreviewUrl) {
+      URL.revokeObjectURL(latestEpisodePreviewUrl);
+    }
+    latestEpisodePreviewUrl = url;
+    previewHtml.src = url;
+    // Switch to preview tab and hide empty state
+    setPreviewMode("html");
+    switchToPreviewTab();
+    setTabEmptyState("preview", false);
+  }
+
+  async function buildSourceContract(payload) {
+    setSourceContractStatus("正在生成...", "info");
+    try {
+      var resp = await fetch("/api/episode/source-contract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      var data = await resp.json();
+      if (!data.ok) {
+        setSourceContractStatus("生成失败：" + (data.error || "未知错误"), "error");
+        return;
+      }
+      // Store results
+      latestSourceContract = data.contract;
+      latestSourceNewsItems = data.news_items || [];
+      latestSourceEpisodeItems = data.episode_items || [];
+      var newsCount = latestSourceNewsItems.length;
+      var itemCount = latestSourceEpisodeItems.length;
+      setSourceContractStatus(
+        "已从" + (payload.source_type === "sample_pack" ? "样例新闻包" : "粘贴文本") + "生成 " + newsCount + " 条新闻，并生成 episode_template_v1 contract。可在右侧预览，也可以导出 MP4。",
+        "success"
+      );
+      // Show preview
+      showSourceContractPreview(data.contract);
+    } catch (e) {
+      setSourceContractStatus("生成失败：" + e.message, "error");
+    }
+  }
+
+  // Wire up source contract buttons
+  if (btnBuildContractFromSample) {
+    btnBuildContractFromSample.addEventListener("click", function () {
+      buildSourceContract({
+        source_type: "sample_pack",
+        limit: 4,
+        template_id: "breaking_news_v1",
+        title: "今日 AI 前沿速览",
+        subtitle: "样例新闻栏目",
+      });
+    });
+  }
+
+  if (btnBuildContractFromInline) {
+    btnBuildContractFromInline.addEventListener("click", function () {
+      var text = sourceInlineText.value.trim();
+      if (!text) {
+        setSourceContractStatus("请先粘贴新闻文本", "error");
+        return;
+      }
+      buildSourceContract({
+        source_type: "inline_text",
+        text: text,
+        source: "Manual",
+        url: "",
+        limit: 1,
+        template_id: "breaking_news_v1",
+        title: "单条新闻快讯",
+        subtitle: "粘贴文本生成",
+      });
+    });
   }
 
   // ---------- start ----------

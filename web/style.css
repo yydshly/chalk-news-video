@@ -2061,3 +2061,63 @@ footer {
   display: none;
 }
 
+/* CP43: Source Contract Panel */
+.source-contract-panel {
+  background: #0f172a;
+  border: 1px solid #1e3a5f;
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+
+.source-contract-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #38bdf8;
+  margin-bottom: 6px;
+}
+
+.source-contract-help {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+
+.source-inline-text {
+  width: 100%;
+  background: #0f1117;
+  border: 1px solid #2d3748;
+  border-radius: 6px;
+  color: #e2e8f0;
+  font-size: 0.8rem;
+  padding: 8px 10px;
+  resize: vertical;
+  margin-bottom: 8px;
+  font-family: inherit;
+}
+
+.source-inline-text:focus {
+  border-color: #38bdf8;
+  outline: none;
+}
+
+.source-contract-actions {
+  margin-bottom: 8px;
+}
+
+.source-contract-status {
+  font-size: 0.75rem;
+  color: #64748b;
+  min-height: 16px;
+  margin-top: 4px;
+}
+
+.source-contract-status.success {
+  color: #4ade80;
+}
+
+.source-contract-status.error {
+  color: #f87171;
+}
+

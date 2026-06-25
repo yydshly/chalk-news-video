@@ -1201,6 +1201,149 @@ def api_delete_episode_export(export_id: str):
         return JSONResponse({"ok": False, "error": redacted}, status_code=500)
 
 
+# ---------- source contract API (CP43) ----------
+
+ALLOWED_SOURCE_TYPES = {"sample_pack", "inline_text", "manual_items"}
+MAX_INLINE_TEXT_CHARS = 20_000
+MAX_MANUAL_ITEMS = 10
+
+
+@app.post("/api/episode/source-contract")
+def api_episode_source_contract(body: dict):
+    """Build an episode_template_v1 contract from a news source.
+
+    Supported source types: sample_pack, inline_text, manual_items.
+    No real LLM, no real TTS, no web crawler, no real news API.
+
+    Security restrictions:
+      - template_id is clamped to "breaking_news_v1"
+      - limit is clamped to 1-5
+      - inline_text is limited to MAX_INLINE_TEXT_CHARS
+      - manual_items is limited to MAX_MANUAL_ITEMS
+      - API keys / voice IDs are rejected
+      - No outputs are written
+    """
+    from src.news_source_pipeline import (
+        normalize_inline_text,
+        normalize_manual_items,
+        load_sample_news_pack,
+        build_episode_items_from_news,
+        build_episode_contract_from_news_items,
+        contract_has_secrets,
+        DEFAULT_TEMPLATE_ID,
+        DEFAULT_EPISODE_ITEM_LIMIT,
+    )
+
+    source_type = body.get("source_type", "")
+    if source_type not in ALLOWED_SOURCE_TYPES:
+        return JSONResponse({
+            "ok": False,
+            "error": f"Unsupported source_type {source_type!r}. Allowed: {', '.join(sorted(ALLOWED_SOURCE_TYPES))}",
+        }, status_code=400)
+
+    # Validate and clamp limit
+    limit = body.get("limit", DEFAULT_EPISODE_ITEM_LIMIT)
+    try:
+        limit = int(limit)
+    except (TypeError, ValueError):
+        limit = DEFAULT_EPISODE_ITEM_LIMIT
+    limit = max(1, min(limit, 5))
+
+    # template_id: only breaking_news_v1 allowed
+    template_id = body.get("template_id", DEFAULT_TEMPLATE_ID)
+    if template_id != DEFAULT_TEMPLATE_ID:
+        return JSONResponse({
+            "ok": False,
+            "error": f"Unsupported template_id {template_id!r}. Only {DEFAULT_TEMPLATE_ID!r} is allowed.",
+        }, status_code=400)
+
+    title = str(body.get("title") or "今日 AI 前沿速览")
+    subtitle = str(body.get("subtitle") or "多条热门 AI 新闻合集")
+
+    # Process by source_type
+    try:
+        if source_type == "sample_pack":
+            news_items = load_sample_news_pack()
+
+        elif source_type == "inline_text":
+            text = body.get("text", "")
+            if not isinstance(text, str):
+                text = str(text or "")
+            text = text.strip()
+            if not text:
+                return JSONResponse({
+                    "ok": False,
+                    "error": "inline_text cannot be empty",
+                }, status_code=400)
+            if len(text) > MAX_INLINE_TEXT_CHARS:
+                return JSONResponse({
+                    "ok": False,
+                    "error": f"inline_text exceeds {MAX_INLINE_TEXT_CHARS} character limit",
+                }, status_code=400)
+            source = str(body.get("source") or "Manual")
+            url = str(body.get("url") or "") or None
+            item = normalize_inline_text(text, source=source, url=url)
+            news_items = [item]
+
+        elif source_type == "manual_items":
+            items = body.get("items", [])
+            if not isinstance(items, list):
+                return JSONResponse({
+                    "ok": False,
+                    "error": "items must be a list",
+                }, status_code=400)
+            if len(items) > MAX_MANUAL_ITEMS:
+                return JSONResponse({
+                    "ok": False,
+                    "error": f"manual_items exceeds {MAX_MANUAL_ITEMS} item limit",
+                }, status_code=400)
+            if len(items) == 0:
+                return JSONResponse({
+                    "ok": False,
+                    "error": "manual_items cannot be empty",
+                }, status_code=400)
+            news_items = normalize_manual_items(items)
+
+        else:
+            # Should not reach here due to earlier check
+            return JSONResponse({
+                "ok": False,
+                "error": f"Unknown source_type: {source_type}",
+            }, status_code=400)
+
+    except (ValueError, TypeError) as e:
+        return JSONResponse({
+            "ok": False,
+            "error": str(e),
+        }, status_code=400)
+
+    # Build episode items and contract
+    episode_items = build_episode_items_from_news(news_items, limit=limit)
+    contract = build_episode_contract_from_news_items(
+        episode_items,
+        template_id=template_id,
+        title=title,
+        subtitle=subtitle,
+    )
+
+    # Security: reject contracts containing API keys or voice IDs
+    if contract_has_secrets(contract):
+        return JSONResponse({
+            "ok": False,
+            "error": "Contract contains disallowed secrets (api_key/voice_id)",
+        }, status_code=400)
+
+    return JSONResponse({
+        "ok": True,
+        "source_type": source_type,
+        "news_items": news_items,
+        "episode_items": episode_items,
+        "contract": contract,
+        "contract_schema_version": "episode_template_v1",
+        "template_id": template_id,
+    })
+
+
 # ---------- episode export (CP40.2) ----------
 
 
