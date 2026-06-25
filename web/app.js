@@ -96,6 +96,10 @@
   const checkEpisodeExportAudio = document.getElementById("check-episode-export-audio");
   const episodeExportAudioHint = document.getElementById("episode-export-audio-hint");
 
+  // CP40.7: Episode export style picker DOM refs
+  const selectEpisodeExportStyle = document.getElementById("select-episode-export-style");
+  const episodeExportStyleHint = document.getElementById("episode-export-style-hint");
+
   // ---------- state ----------
   let lastResult = null;
   let currentEventSource = null;
@@ -120,6 +124,9 @@
   let currentEpisodeExportId = null;
   let currentEpisodeExportPollTimer = null;
   let currentEpisodeExportMp4Url = null;   // set from POST response for use in completed state
+
+  // CP40.7: Episode export capabilities (loaded from backend)
+  let episodeExportCapabilities = null;
 
   // CP20/CG29: Expanded theme showcase data — video style gallery
   const THEME_SHOWCASES = {
@@ -271,15 +278,79 @@
 
   // ---------- CP40.4: Episode export functions ----------
 
-  function getCurrentEpisodeExportStyleId() {
-    // Use the style from selectEpisodePreviewStyle if available and supported
-    var style = selectEpisodePreviewStyle ? selectEpisodePreviewStyle.value : null;
-    // Only breaking_news_v1 is supported for MP4 export in CP40.4
-    if (style && style !== "breaking_news_v1") {
-      // Fall back to breaking_news_v1 for export
-      return "breaking_news_v1";
+  // CP40.7: Load export capabilities from backend
+  async function loadEpisodeExportCapabilities() {
+    try {
+      var resp = await fetch("/api/episode/export/capabilities");
+      if (!resp.ok) throw new Error("Failed to load export capabilities");
+      var data = await resp.json();
+      episodeExportCapabilities = data;
+      renderEpisodeExportStyleOptions(data);
+    } catch (e) {
+      console.warn("Could not load export capabilities:", e.message);
+      // Fall back to a minimal default so the UI still works
+      episodeExportCapabilities = {
+        default_style_id: "breaking_news_v1",
+        supported_styles: [{ id: "breaking_news_v1", name: "快讯大屏风" }],
+        unsupported_styles: [],
+      };
+      renderEpisodeExportStyleOptions(episodeExportCapabilities);
     }
-    return style || "breaking_news_v1";
+  }
+
+  // CP40.7: Populate the export style selector based on capabilities
+  function renderEpisodeExportStyleOptions(capabilities) {
+    if (!selectEpisodeExportStyle) return;
+
+    var supported = capabilities.supported_styles || [];
+    var unsupported = capabilities.unsupported_styles || [];
+
+    selectEpisodeExportStyle.innerHTML = "";
+
+    supported.forEach(function (style) {
+      var opt = document.createElement("option");
+      opt.value = style.id;
+      opt.textContent = (style.name || style.id) + "（支持导出）";
+      selectEpisodeExportStyle.appendChild(opt);
+    });
+
+    unsupported.forEach(function (style) {
+      var opt = document.createElement("option");
+      opt.value = style.id;
+      opt.textContent = (style.name || style.id) + "（暂不支持 MP4 导出）";
+      opt.disabled = true;
+      selectEpisodeExportStyle.appendChild(opt);
+    });
+
+    // Default to the backend's declared default
+    selectEpisodeExportStyle.value = capabilities.default_style_id || "breaking_news_v1";
+
+    updateEpisodeExportStyleHint();
+  }
+
+  // CP40.7: Show a warning when preview style differs from export style
+  function updateEpisodeExportStyleHint() {
+    if (!episodeExportStyleHint) return;
+
+    var previewStyle = selectEpisodePreviewStyle ? selectEpisodePreviewStyle.value : null;
+    var exportStyle = getCurrentEpisodeExportStyleId();
+
+    if (previewStyle && previewStyle !== exportStyle) {
+      episodeExportStyleHint.textContent =
+        "注意：当前预览为 " + previewStyle + "，MP4 导出将使用 " + exportStyle + "。";
+      episodeExportStyleHint.className = "episode-export-style-hint is-warning";
+    } else {
+      episodeExportStyleHint.textContent = "当前 MP4 导出样式：" + exportStyle;
+      episodeExportStyleHint.className = "episode-export-style-hint";
+    }
+  }
+
+  function getCurrentEpisodeExportStyleId() {
+    // Use the explicit export style selector (CP40.7)
+    if (selectEpisodeExportStyle && selectEpisodeExportStyle.value) {
+      return selectEpisodeExportStyle.value;
+    }
+    return "breaking_news_v1";
   }
 
   function renderEpisodeExportStatus(statusData) {
@@ -409,9 +480,17 @@
       return;
     }
 
-    var styleId = getCurrentEpisodeExportStyleId();
-    if (styleId !== "breaking_news_v1") {
-      setStatus("MP4 导出当前仅支持「快讯大屏风」", "info");
+    // CP40.7: Get style from explicit export style selector
+    var exportStyleId = getCurrentEpisodeExportStyleId();
+
+    // Guard: ensure selected style is supported (belt-and-suspenders since disabled options exist)
+    var supportedStyleIds = (episodeExportCapabilities && episodeExportCapabilities.supported_styles
+      ? episodeExportCapabilities.supported_styles.map(function (s) { return s.id; })
+      : []);
+    if (supportedStyleIds.length && !supportedStyleIds.includes(exportStyleId)) {
+      setStatus("当前导出样式暂不支持 MP4 导出", "error");
+      setEpisodeExportButtonState("idle");
+      return;
     }
 
     // Stop any existing polling
@@ -436,7 +515,7 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contract: latestEpisodeTemplateContract,
-          style_id: "breaking_news_v1",
+          style_id: exportStyleId,
           width: 720,
           height: 1280,
           fps: 30,
@@ -4020,12 +4099,16 @@
     });
   }
 
-  // CP35: Episode preview style selector
+  // CP35: Episode preview style selector — also update export style hint (CP40.7)
   if (selectEpisodePreviewStyle) {
     selectEpisodePreviewStyle.addEventListener("change", function () {
       currentEpisodePreviewStyle = selectEpisodePreviewStyle.value || "timeline_daily_v1";
+      updateEpisodeExportStyleHint();
     });
   }
+
+  // CP40.7: Load export capabilities and populate the style picker
+  loadEpisodeExportCapabilities();
 
   // Auto-load hot news on init if mode is hot_ai
   function tryAutoLoadHotNews() {

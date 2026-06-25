@@ -1204,6 +1204,18 @@ def api_delete_episode_export(export_id: str):
 # ---------- episode export (CP40.2) ----------
 
 
+@app.get("/api/episode/export/capabilities")
+def api_episode_export_capabilities():
+    """Return the episode export capabilities document (CP40.7).
+
+    Declares which styles can produce an MP4 and which cannot.
+    Used by the frontend export style picker.
+    No real LLM, no real TTS.
+    """
+    from src.episode_export import get_episode_export_capabilities
+    return JSONResponse(get_episode_export_capabilities())
+
+
 @app.post("/api/episode/export")
 def api_episode_export(body: EpisodeExportRequest):
     """Start an async episode export job.
@@ -1211,6 +1223,7 @@ def api_episode_export(body: EpisodeExportRequest):
     Returns immediately with 202 Accepted. Poll GET /api/episode/exports/{export_id} for status.
     No real LLM, no real TTS.
     CP40.6: supports optional audio_url for muxing an existing local audio file.
+    CP40.7: style_id is validated against ALLOWED_STYLE_IDS (only breaking_news_v1).
     """
     from src.episode_export import (
         start_episode_export_background,

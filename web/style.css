@@ -1364,6 +1364,42 @@ footer {
   display: none;
 }
 
+/* CP40.7: Episode export style picker */
+.episode-export-style-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.episode-export-style-label {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.episode-export-style-select {
+  flex: 1;
+  font-size: 12px;
+  background: #1e293b;
+  color: #f9fafb;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 3px 6px;
+  min-width: 0;
+}
+
+.episode-export-style-hint {
+  font-size: 0.7rem;
+  color: #64748b;
+  margin-top: 3px;
+}
+
+.episode-export-style-hint.is-warning {
+  color: #f59e0b;
+}
+
 /* CP40.4: Export button in episode planner */
 .btn-export {
   background: #1a3a5c !important;

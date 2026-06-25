@@ -39,6 +39,68 @@ ALLOWED_STYLE_IDS = frozenset(["breaking_news_v1"])
 # Allowed audio file extensions for episode export muxing
 ALLOWED_AUDIO_EXTENSIONS = frozenset([".wav", ".mp3", ".m4a", ".aac"])
 
+# All known episode preview styles (CP35)
+ALL_EPISODE_STYLE_IDS = frozenset([
+    "timeline_daily_v1",
+    "breaking_news_v1",
+    "data_dashboard_v1",
+    "research_briefing_v1",
+    "podcast_cards_v1",
+])
+
+# Style display names
+STYLE_DISPLAY_NAMES = {
+    "timeline_daily_v1": "时间线日报风",
+    "breaking_news_v1": "快讯大屏风",
+    "data_dashboard_v1": "数据仪表盘风",
+    "research_briefing_v1": "研究室简报风",
+    "podcast_cards_v1": "播客卡片风",
+}
+
+
+def get_episode_export_capabilities() -> dict:
+    """Return the episode export capabilities document.
+
+    Declares which styles can produce an MP4 and which cannot.
+    This is the single source of truth for the frontend export style picker.
+
+    No real LLM, no real TTS.
+    """
+    supported = []
+    for style_id in sorted(ALLOWED_STYLE_IDS):
+        supported.append({
+            "id": style_id,
+            "name": STYLE_DISPLAY_NAMES.get(style_id, style_id),
+            "status": "supported",
+            "reason": None,
+        })
+
+    unsupported = []
+    for style_id in sorted(ALL_EPISODE_STYLE_IDS - ALLOWED_STYLE_IDS):
+        unsupported.append({
+            "id": style_id,
+            "name": STYLE_DISPLAY_NAMES.get(style_id, style_id),
+            "status": "unsupported",
+            "reason": "Python MP4 renderer not implemented yet",
+        })
+
+    return {
+        "ok": True,
+        "default_style_id": "breaking_news_v1",
+        "supported_styles": supported,
+        "unsupported_styles": unsupported,
+        "limits": {
+            "width": {"default": 720, "min": MIN_WIDTH, "max": MAX_WIDTH},
+            "height": {"default": 1280, "min": MIN_HEIGHT, "max": MAX_HEIGHT},
+            "fps": {"default": 30, "min": MIN_FPS, "max": MAX_FPS},
+        },
+        "audio": {
+            "supports_audio_mux": True,
+            "allowed_extensions": sorted(ALLOWED_AUDIO_EXTENSIONS),
+            "requires_server_relative_outputs_url": True,
+        },
+    }
+
 # Dimension constraints
 MIN_WIDTH = 360
 MAX_WIDTH = 1080
