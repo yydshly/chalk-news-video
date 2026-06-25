@@ -148,6 +148,33 @@ resolve_safe_audio_url("/outputs/episode_exports/.../audio.mp3")   # → Path
 - No audio-only preview
 - No audio format conversion (relies on ffmpeg)
 
+## CP40.6.1: Audio Metadata & UI Availability Fix
+
+### Problem 1: Local Audio Path Leakage
+
+`_run_episode_export_worker()` previously wrote `str(safe_audio_path)` — a local absolute path like `D:\...\outputs\jobs\...\dialogue.wav` — into `export_meta.json.audio_url`, leaking filesystem paths.
+
+### Fix 1: Use Server-Relative URL in Metadata
+
+- `_run_episode_export_worker()` now receives both `safe_audio_path` (for ffmpeg) and `audio_url` (original server-relative URL).
+- `start_episode_export_background()` passes the original `audio_url` to the worker thread.
+- `export_meta.json.audio_url` now stores `/outputs/jobs/.../dialogue.wav` (never a local path).
+- `export_meta.json.audio_ext` records the file extension (e.g. `.wav`).
+- `status.json` result uses `has_audio` only — no path fields.
+
+### Problem 2: Audio Checkbox Hidden Before First Export
+
+The audio mux checkbox was placed inside `episode-export-panel` which has `style="display:none"`, making it invisible until the user exports once and the panel shows.
+
+### Fix 2: Audio Option Visible Before First Export
+
+The audio mux checkbox is now placed directly below the "导出 MP4" button in the episode planner (left input panel), visible at all times without needing to trigger an export first.
+
+- Default: unchecked
+- No text input for paths
+- Reads `preview-audio.src` only when checked
+- Only accepts `/outputs/...` URLs
+
 ## 11. Known Limitations
 
 - If the checked `/outputs/` audio file is deleted before export completes, ffmpeg will fail and the export will be marked `failed`

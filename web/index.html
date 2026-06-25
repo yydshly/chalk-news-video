@@ -95,6 +95,14 @@
         <button id="btn-preview-episode" class="btn-small" type="button" style="margin-top:4px;width:100%">预览合集画面</button>
         <button id="btn-save-episode-html" class="btn-small btn-save" type="button" style="margin-top:4px;width:100%">保存合集 HTML</button>
         <button id="btn-export-episode-mp4" class="btn-small btn-export" type="button" style="margin-top:4px;width:100%">导出 MP4</button>
+        <!-- CP40.6.1: Audio mux option — visible before first export -->
+        <label class="episode-export-audio-option" id="episode-audio-option">
+          <input type="checkbox" id="check-episode-export-audio">
+          使用当前预览音频一起导出
+        </label>
+        <div id="episode-export-audio-hint" class="episode-export-audio-hint">
+          默认不启用；仅当预览音频来自 /outputs/ 时会随 MP4 导出
+        </div>
       </div>
 
       <!-- CP32: Episode HTML Artifact History -->
@@ -265,12 +273,6 @@
         <div id="episode-export-panel" class="episode-export-panel" style="display:none">
           <div id="episode-export-status" class="episode-export-status"></div>
           <a id="episode-export-download" class="episode-export-download" href="#" target="_blank" rel="noopener" style="display:none">下载 MP4</a>
-          <!-- CP40.6: Audio mux option -->
-          <label class="episode-export-audio-option">
-            <input type="checkbox" id="check-episode-export-audio">
-            使用当前预览音频一起导出
-          </label>
-          <div id="episode-export-audio-hint" class="episode-export-audio-hint">仅当当前作品已有音频时可用</div>
         </div>
 
         <!-- CP40.5: Episode export history panel -->

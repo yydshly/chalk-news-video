@@ -295,6 +295,7 @@ def _run_episode_export_worker(
     height: int,
     fps: int,
     safe_audio_path: Optional[Path] = None,
+    audio_url: Optional[str] = None,
 ) -> None:
     """Background worker: renders HTML and exports MP4.
 
@@ -303,9 +304,12 @@ def _run_episode_export_worker(
 
     Args:
         safe_audio_path: resolved local Path to audio file, or None for no audio mux.
+        audio_url: original server-relative audio URL (e.g. /outputs/jobs/.../dialogue.wav),
+                   stored in metadata instead of the local path.
     """
     has_audio = safe_audio_path is not None
     audio_size = 0
+    audio_ext = safe_audio_path.suffix.lower() if safe_audio_path else None
     if safe_audio_path and safe_audio_path.exists():
         try:
             audio_size = safe_audio_path.stat().st_size
@@ -396,7 +400,8 @@ def _run_episode_export_worker(
             "contract_url": f"/outputs/episode_exports/{export_id}/contract.json",
             "mp4_size_bytes": mp4_size,
             "has_audio": has_audio,
-            "audio_url": str(safe_audio_path) if safe_audio_path else None,
+            "audio_url": audio_url if has_audio else None,
+            "audio_ext": audio_ext if has_audio else None,
             "audio_size_bytes": audio_size if has_audio else None,
             "created_at": datetime.now().isoformat(),
         }
@@ -510,7 +515,7 @@ def start_episode_export_background(
     # Launch background thread
     thread = threading.Thread(
         target=_run_episode_export_worker,
-        args=(export_id, contract, style_id, width, height, fps, safe_audio_path),
+        args=(export_id, contract, style_id, width, height, fps, safe_audio_path, audio_url),
         daemon=True,
     )
     thread.start()
@@ -838,6 +843,7 @@ def export_episode_contract_to_mp4(
     # Write export_meta.json
     mp4_size = mp4_path.stat().st_size if mp4_path.exists() else 0
     audio_size = 0
+    audio_ext = safe_audio_path.suffix.lower() if safe_audio_path else None
     if safe_audio_path and safe_audio_path.exists():
         try:
             audio_size = safe_audio_path.stat().st_size
@@ -860,6 +866,7 @@ def export_episode_contract_to_mp4(
         "mp4_size_bytes": mp4_size,
         "has_audio": has_audio,
         "audio_url": audio_url,
+        "audio_ext": audio_ext if has_audio else None,
         "audio_size_bytes": audio_size if has_audio else None,
         "created_at": datetime.now().isoformat(),
     }
