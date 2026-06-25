@@ -1220,6 +1220,52 @@ def api_reliable_sources():
     })
 
 
+# ---------- source feed snapshot API (CP53) ----------
+
+
+@app.get("/api/source-snapshot")
+def api_source_snapshot(source_id: Optional[str] = None, limit: int = 10):
+    """Fetch source feed snapshot(s) (CP53).
+
+    Security:
+      - URL validated (http/https, no private IPs)
+      - 8-second timeout
+      - 1 MB max response
+      - No JS rendering, no crawler, no real LLM/TTS.
+
+    Args:
+        source_id: optional single source to fetch
+        limit: max items per source (default 10, max 20)
+    """
+    from src.source_snapshot import fetch_source_snapshot_batch, list_default_source_feeds
+
+    limit = min(max(1, limit), 20)
+
+    if source_id:
+        all_ids = {f.source_id for f in list_default_source_feeds()}
+        if source_id not in all_ids:
+            return JSONResponse({
+                "ok": False,
+                "error": f"Unknown source_id '{source_id}'. Available: {sorted(all_ids)}",
+            }, status_code=400)
+
+        batch = fetch_source_snapshot_batch(
+            source_ids=[source_id],
+            limit_per_source=limit,
+        )
+        snapshot = batch["snapshots"][0] if batch.get("snapshots") else None
+        return JSONResponse({
+            "ok": True,
+            "snapshot": snapshot,
+        })
+
+    batch = fetch_source_snapshot_batch(limit_per_source=limit)
+    return JSONResponse({
+        "ok": True,
+        "batch": batch,
+    })
+
+
 # ---------- article extraction API (CP45) ----------
 
 
