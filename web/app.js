@@ -286,6 +286,7 @@
       var data = await resp.json();
       episodeExportCapabilities = data;
       renderEpisodeExportStyleOptions(data);
+      updateCapabilityDashboard(data);
     } catch (e) {
       console.warn("Could not load export capabilities:", e.message);
       // Fall back to a minimal default so the UI still works
@@ -295,6 +296,7 @@
         unsupported_styles: [],
       };
       renderEpisodeExportStyleOptions(episodeExportCapabilities);
+      updateCapabilityDashboard(episodeExportCapabilities);
     }
   }
 
@@ -342,6 +344,34 @@
     } else {
       episodeExportStyleHint.textContent = "当前 MP4 导出样式：" + exportStyle;
       episodeExportStyleHint.className = "episode-export-style-hint";
+    }
+  }
+
+  // CP41: Update the capability dashboard summary from the capabilities API response
+  function updateCapabilityDashboard(capabilities) {
+    var capStyleEl = document.getElementById("cap-summary-style");
+    var capAudioEl = document.getElementById("cap-summary-audio");
+
+    if (capStyleEl && capabilities) {
+      var supported = capabilities.supported_styles || [];
+      var unsupported = capabilities.unsupported_styles || [];
+      if (supported.length === 1) {
+        capStyleEl.textContent = supported[0].name || supported[0].id;
+        capStyleEl.style.color = "#4ade80";
+      } else {
+        capStyleEl.textContent = supported.map(function (s) { return s.name || s.id; }).join(", ");
+      }
+    }
+
+    if (capAudioEl && capabilities) {
+      var audioSupport = capabilities.audio && capabilities.audio.supports_audio_mux;
+      if (audioSupport) {
+        capAudioEl.textContent = "支持（仅 /outputs/ 下音频）";
+        capAudioEl.style.color = "#4ade80";
+      } else {
+        capAudioEl.textContent = "不支持";
+        capAudioEl.style.color = "#f87171";
+      }
     }
   }
 

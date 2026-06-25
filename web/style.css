@@ -1555,3 +1555,205 @@ footer {
   background: #991b1b;
 }
 
+/* CP41: Studio Capability Dashboard */
+.studio-capability-dashboard {
+  background: #0f172a;
+  border: 1px solid #1e3a5f;
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 16px;
+}
+
+.capability-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.capability-header-text {
+  flex: 1;
+}
+
+.capability-eyebrow {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #60a5fa;
+  margin-bottom: 4px;
+}
+
+.studio-capability-dashboard h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #f1f5f9;
+  margin: 0 0 6px 0;
+}
+
+.capability-header-text p {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.capability-header-text strong {
+  color: #4ade80;
+}
+
+/* CP41: Flow guide */
+.studio-flow-guide {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin-bottom: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+}
+
+.flow-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.flow-step-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #1e3a5f;
+  color: #93c5fd;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.flow-step-num.is-export {
+  background: #14532d;
+  color: #4ade80;
+}
+
+.flow-step-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.flow-step-body strong {
+  font-size: 0.75rem;
+  color: #e2e8f0;
+  white-space: nowrap;
+}
+
+.flow-step-body span {
+  font-size: 0.65rem;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.flow-step-arrow {
+  color: #334155;
+  font-size: 0.875rem;
+  flex-shrink: 0;
+}
+
+/* CP41: Capability grid */
+.capability-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.capability-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid;
+}
+
+.capability-card.is-real {
+  background: #052e16;
+  border-color: #166534;
+}
+
+.capability-card.is-mock {
+  background: #1c1917;
+  border-color: #44403c;
+}
+
+.capability-card.is-limited {
+  background: #1c1c1c;
+  border-color: #44403c;
+}
+
+.capability-card-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.capability-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.capability-card-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #f1f5f9;
+  margin-bottom: 3px;
+}
+
+.capability-card-desc {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+/* CP41: Export capability summary */
+.export-capability-summary {
+  background: #0f172a;
+  border: 1px solid #1e3a5f;
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.export-capability-summary-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
+.export-capability-summary-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
+.export-cap-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.export-cap-label {
+  font-size: 0.7rem;
+  color: #64748b;
+}
+
+.export-cap-value {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+

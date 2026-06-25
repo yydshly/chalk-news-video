@@ -10,8 +10,145 @@
 <div class="container">
   <header>
     <h1>🎬 Chalk News Video Studio</h1>
-    <p class="subtitle">CP24 — Local Web Studio V1</p>
+    <p class="subtitle">CP41 — Local Web Studio V1</p>
   </header>
+
+  <!-- CP41: Studio Capability Dashboard -->
+  <section id="studio-capability-dashboard" class="studio-capability-dashboard">
+    <div class="capability-header">
+      <div class="capability-header-text">
+        <div class="capability-eyebrow">Chalk News Video Studio</div>
+        <h2>新闻信息视频化工作台</h2>
+        <p>从新闻信息到栏目脚本、视觉预览、MP4 导出与历史管理。当前阶段：<strong>可导出 MP4</strong>。</p>
+      </div>
+    </div>
+
+    <!-- CP41: Workflow steps -->
+    <div class="studio-flow-guide">
+      <div class="flow-step">
+        <div class="flow-step-num">1</div>
+        <div class="flow-step-body">
+          <strong>选择新闻</strong>
+          <span>热门 AI 新闻 / 示例 / 粘贴文本</span>
+        </div>
+      </div>
+      <div class="flow-step-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-step-num">2</div>
+        <div class="flow-step-body">
+          <strong>加入合集</strong>
+          <span>2–4 条新闻组成一期栏目</span>
+        </div>
+      </div>
+      <div class="flow-step-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-step-num">3</div>
+        <div class="flow-step-body">
+          <strong>生成计划</strong>
+          <span>脚本 / 音频 / 视觉计划</span>
+        </div>
+      </div>
+      <div class="flow-step-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-step-num">4</div>
+        <div class="flow-step-body">
+          <strong>预览画面</strong>
+          <span>多种 HTML 视觉样式</span>
+        </div>
+      </div>
+      <div class="flow-step-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-step-num is-export">5</div>
+        <div class="flow-step-body">
+          <strong>导出 MP4</strong>
+          <span>9:16 快讯大屏风（异步）</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- CP41: Capability cards -->
+    <div class="capability-grid">
+      <div class="capability-card is-real">
+        <div class="capability-card-icon">🎬</div>
+        <div class="capability-card-body">
+          <div class="capability-card-title">已可用：MP4 导出</div>
+          <div class="capability-card-desc">支持 9:16 快讯大屏风导出，异步后台生成 output.mp4，可选音频混流。</div>
+        </div>
+      </div>
+      <div class="capability-card is-real">
+        <div class="capability-card-icon">🔊</div>
+        <div class="capability-card-body">
+          <div class="capability-card-title">已可用：音频混流</div>
+          <div class="capability-card-desc">可将 /outputs/ 下已有音频混入 MP4，用 ffprobe 验证音轨存在。</div>
+        </div>
+      </div>
+      <div class="capability-card is-real">
+        <div class="capability-card-icon">📁</div>
+        <div class="capability-card-body">
+          <div class="capability-card-title">已可用：导出历史</div>
+          <div class="capability-card-desc">查看、打开、删除和清理旧导出记录。</div>
+        </div>
+      </div>
+      <div class="capability-card is-real">
+        <div class="capability-card-icon">💾</div>
+        <div class="capability-card-body">
+          <div class="capability-card-title">已可用：HTML 预览与保存</div>
+          <div class="capability-card-desc">实时预览多种视觉样式，保存 HTML 到本地。</div>
+        </div>
+      </div>
+      <div class="capability-card is-mock">
+        <div class="capability-card-icon">🤖</div>
+        <div class="capability-card-body">
+          <div class="capability-card-title">Mock：新闻理解与脚本</div>
+          <div class="capability-card-desc">可生成栏目脚本草案（Mock LLM），未接入真实 LLM。</div>
+        </div>
+      </div>
+      <div class="capability-card is-mock">
+        <div class="capability-card-icon">🎙️</div>
+        <div class="capability-card-body">
+          <div class="capability-card-title">Mock：TTS 语音</div>
+          <div class="capability-card-desc">Mock TTS 可用，未接入真实 MiniMax TTS 到导出链路。</div>
+        </div>
+      </div>
+      <div class="capability-card is-limited">
+        <div class="capability-card-icon">⚠️</div>
+        <div class="capability-card-body">
+          <div class="capability-card-title">限制：导出样式</div>
+          <div class="capability-card-desc">预览支持 5 种样式，MP4 导出当前仅支持快讯大屏风（breaking_news_v1）。</div>
+        </div>
+      </div>
+      <div class="capability-card is-limited">
+        <div class="capability-card-icon">🚫</div>
+        <div class="capability-card-body">
+          <div class="capability-card-title">未接入：Remotion / 云存储</div>
+          <div class="capability-card-desc">无 Remotion 高级动画，无云端上传，本地运行不泄露数据。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CP41: Export capability summary (updated dynamically from capabilities API) -->
+    <div class="export-capability-summary" id="export-capability-summary">
+      <div class="export-capability-summary-title">📊 当前导出能力摘要</div>
+      <div class="export-capability-summary-grid" id="export-capability-summary-grid">
+        <div class="export-cap-item">
+          <span class="export-cap-label">导出样式</span>
+          <span class="export-cap-value" id="cap-summary-style">加载中…</span>
+        </div>
+        <div class="export-cap-item">
+          <span class="export-cap-label">视频比例</span>
+          <span class="export-cap-value">9:16 (720×1280)</span>
+        </div>
+        <div class="export-cap-item">
+          <span class="export-cap-label">帧率</span>
+          <span class="export-cap-value">30 fps</span>
+        </div>
+        <div class="export-cap-item">
+          <span class="export-cap-label">音频混流</span>
+          <span class="export-cap-value" id="cap-summary-audio">加载中…</span>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <main class="layout">
     <!-- Left: Input Panel -->
