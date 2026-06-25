@@ -209,3 +209,44 @@ Debug tabs show a persistent hint: "这是工程调试数据，普通用户可�
 - No真实生成物 were committed
 - `preview iframe`, `video`, `audio`, export panel, and export history panel all remain fully functional
 
+---
+
+## CP41.3: First-run Guidance / Demo Path
+
+### What was added
+
+A new `first-run-guide` section was added between the capability dashboard and the main layout, giving new users a clear 6-step "fastest path to see a result" without requiring any configuration.
+
+### UI structure
+
+The guide appears as a card below the CP41 dashboard and above the input/result panels. It contains:
+
+**Header** — eyebrow label, title, one-line description, and a collapse/expand button.
+
+**6-step grid** — step cards for each phase of the workflow:
+1. 选新闻
+2. 加入合集
+3. 规划
+4. 预览
+5. 导出 MP4 (highlighted in green as the active/export step)
+6. 查看历史
+
+**Boundary note** — a yellow-highlighted note clarifying which capabilities are real vs mock.
+
+### Optional collapse state
+
+A lightweight localStorage-based collapse button lets users hide the guide after they have used the app once. State is purely client-side and does not affect any backend or API call.
+
+### Files changed
+
+- `web/index.html` — added `#first-run-guide` section with step cards and boundary note
+- `web/style.css` — new `.first-run-guide`, `.first-run-guide-header`, `.first-run-steps`, `.first-run-step`, `.first-run-step.is-export`, `.first-run-step-num`, `.first-run-note`, `.first-run-collapse-btn`, `.first-run-guide.is-collapsed` styles
+- `web/app.js` — new `initFirstRunGuide()` function and DOM refs; called at the end of `init()`
+- `docs/CP41_STUDIO_CAPABILITY_DASHBOARD.md` — this section
+
+### What was not changed
+
+- No backend, renderer, export logic, LLM, TTS, or Remotion integration
+- All existing CP41, CP41.1, CP41.2 UI elements remain in place
+- The guide does not auto-scroll or navigate — it is purely informational
+

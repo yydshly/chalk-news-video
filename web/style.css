@@ -1952,3 +1952,112 @@ footer {
   color: #93c5fd;
 }
 
+/* CP41.3: First-run Guide / Demo Path */
+.first-run-guide {
+  background: #111827;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 18px 22px;
+  margin-bottom: 16px;
+}
+
+.first-run-guide-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.first-run-eyebrow {
+  font-size: 0.7rem;
+  color: #93c5fd;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.first-run-guide h3 {
+  font-size: 1rem;
+  color: #f8fafc;
+  margin-bottom: 4px;
+}
+
+.first-run-guide-header p {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.first-run-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.first-run-step {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #2d3748;
+  border-radius: 10px;
+  background: #0f172a;
+}
+
+.first-run-step.is-export {
+  border-color: #166534;
+  background: #052e16;
+}
+
+.first-run-step-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #1e3a5f;
+  color: #93c5fd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  flex-shrink: 0;
+  font-size: 0.75rem;
+}
+
+.first-run-step strong {
+  color: #e2e8f0;
+  font-size: 0.8rem;
+  display: block;
+  margin-bottom: 3px;
+}
+
+.first-run-step p {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.first-run-note {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #94a3b8;
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.first-run-note strong {
+  color: #fbbf24;
+}
+
+.first-run-collapse-btn {
+  flex-shrink: 0;
+}
+
+.first-run-guide.is-collapsed .first-run-steps,
+.first-run-guide.is-collapsed .first-run-note {
+  display: none;
+}
+

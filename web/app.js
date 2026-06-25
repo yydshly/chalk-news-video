@@ -108,6 +108,10 @@
   const visualPlanEmpty = document.getElementById("visual-plan-empty");
   const historyEmptyState = document.getElementById("history-empty-state");
 
+  // CP41.3: First-run guide DOM refs
+  const firstRunGuide = document.getElementById("first-run-guide");
+  const btnCollapseFirstRunGuide = document.getElementById("btn-collapse-first-run-guide");
+
   // ---------- state ----------
   let lastResult = null;
   let currentEventSource = null;
@@ -732,6 +736,22 @@
     return (bytes / (1024 * 1024)).toFixed(1) + " MB";
   }
 
+  // CP41.3: First-run guide collapse button
+  function initFirstRunGuide() {
+    if (!firstRunGuide || !btnCollapseFirstRunGuide) return;
+
+    var collapsed = localStorage.getItem("chalk_first_run_guide_collapsed") === "1";
+    firstRunGuide.classList.toggle("is-collapsed", collapsed);
+    btnCollapseFirstRunGuide.textContent = collapsed ? "展开引导" : "收起引导";
+
+    btnCollapseFirstRunGuide.addEventListener("click", function () {
+      var nextCollapsed = !firstRunGuide.classList.contains("is-collapsed");
+      firstRunGuide.classList.toggle("is-collapsed", nextCollapsed);
+      localStorage.setItem("chalk_first_run_guide_collapsed", nextCollapsed ? "1" : "0");
+      btnCollapseFirstRunGuide.textContent = nextCollapsed ? "展开引导" : "收起引导";
+    });
+  }
+
   // ---------- init ----------
   async function init() {
     setStatus("加载主题列表...", "info");
@@ -786,6 +806,9 @@
 
     // Load history on startup and auto-preview latest succeeded
     await loadHistoryAndAutoPreview();
+
+    // CP41.3: Init first-run guide collapse state
+    initFirstRunGuide();
 
     // CP32: Load episode HTML artifact history
     loadEpisodeHtmlHistory();
