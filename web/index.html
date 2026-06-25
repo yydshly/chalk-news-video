@@ -418,21 +418,41 @@
     <section class="panel result-panel">
       <h2>预览结果</h2>
 
-      <!-- Tabs -->
-      <div class="tabs">
-        <button class="tab-btn active" data-tab="preview">视频预览</button>
-        <button class="tab-btn" data-tab="render_ir">render_ir</button>
-        <button class="tab-btn" data-tab="semantic_ir">semantic_ir</button>
-        <button class="tab-btn" data-tab="dialogue_script">dialogue_script</button>
-        <button class="tab-btn" data-tab="history">历史作品</button>
-        <button class="tab-btn" data-tab="episode_plan">栏目计划</button>
-        <button class="tab-btn" data-tab="episode_script">栏目脚本</button>
-        <button class="tab-btn" data-tab="audio_manifest">音频计划</button>
-        <button class="tab-btn" data-tab="visual_plan">视觉计划</button>
+      <!-- Result panel guide -->
+      <div class="result-panel-guide">
+        <strong>结果区</strong>
+        <span>上方展示视频预览、栏目计划、脚本、音频计划、视觉计划和历史产物。下方调试入口供工程师检查生成结构。</span>
+      </div>
+
+      <!-- Tabs: Main results -->
+      <div class="result-nav-section">
+        <div class="result-nav-label">结果</div>
+        <div class="tabs result-tabs-main">
+          <button class="tab-btn active" data-tab="preview">视频预览</button>
+          <button class="tab-btn" data-tab="episode_plan">栏目计划</button>
+          <button class="tab-btn" data-tab="episode_script">栏目脚本</button>
+          <button class="tab-btn" data-tab="audio_manifest">音频计划</button>
+          <button class="tab-btn" data-tab="visual_plan">视觉计划</button>
+          <button class="tab-btn" data-tab="history">历史作品</button>
+        </div>
+
+        <!-- Tabs: Debug data -->
+        <div class="result-nav-label">调试数据</div>
+        <div class="debug-tabs-hint">调试数据用于检查生成结构，普通使用时可以忽略。</div>
+        <div class="tabs result-tabs-debug">
+          <button class="tab-btn" data-tab="render_ir">render_ir</button>
+          <button class="tab-btn" data-tab="semantic_ir">semantic_ir</button>
+          <button class="tab-btn" data-tab="dialogue_script">dialogue_script</button>
+        </div>
       </div>
 
       <!-- Tab Content: Preview -->
       <div id="tab-preview" class="tab-content active">
+        <!-- Empty state for preview -->
+        <div id="preview-empty-state" class="result-empty-state" style="display:none">
+          <strong>还没有视频预览</strong>
+          <span>请先选择新闻，点击左侧「生成快速预览」或在合集区点击「预览合集画面」。</span>
+        </div>
         <!-- Auto-preview banner -->
         <div id="auto-preview-banner" class="auto-preview-banner" style="display:none">
           最近成功作品
@@ -474,16 +494,28 @@
 
       <!-- Tab Content: render_ir -->
       <div id="tab-render_ir" class="tab-content">
+        <div class="result-empty-state">
+          <strong>画面结构 render_ir</strong>
+          <span>生成预览后自动填充。这是工程调试数据，普通用户可以忽略。</span>
+        </div>
         <pre id="json-render_ir" class="json-pre"></pre>
       </div>
 
       <!-- Tab Content: semantic_ir -->
       <div id="tab-semantic_ir" class="tab-content">
+        <div class="result-empty-state">
+          <strong>语义结构 semantic_ir</strong>
+          <span>生成预览后自动填充。这是工程调试数据，普通用户可以忽略。</span>
+        </div>
         <pre id="json-semantic_ir" class="json-pre"></pre>
       </div>
 
       <!-- Tab Content: dialogue_script -->
       <div id="tab-dialogue_script" class="tab-content">
+        <div class="result-empty-state">
+          <strong>对话脚本 JSON</strong>
+          <span>生成预览后自动填充。这是工程调试数据，普通用户可以忽略。</span>
+        </div>
         <pre id="json-dialogue_script" class="json-pre"></pre>
       </div>
 
@@ -492,26 +524,46 @@
         <div class="history-toolbar">
           <button id="btn-refresh-history" class="btn-small">刷新历史</button>
         </div>
+        <div id="history-empty-state" class="result-empty-state" style="display:none">
+          <strong>暂无历史作品</strong>
+          <span>生成或导出后会在这里出现。</span>
+        </div>
         <div id="history-list" class="history-list"></div>
       </div>
 
       <!-- Tab Content: Episode Plan (CP24) -->
       <div id="tab-episode_plan" class="tab-content">
+        <div id="episode-plan-empty" class="result-empty-state" style="display:none">
+          <strong>还没有栏目计划</strong>
+          <span>请先在左侧「规划」中点击「查看栏目计划」。</span>
+        </div>
         <pre id="json-episode_plan" class="json-pre"></pre>
       </div>
 
       <!-- Tab Content: Episode Script (CP25) -->
       <div id="tab-episode_script" class="tab-content">
+        <div id="episode-script-empty" class="result-empty-state" style="display:none">
+          <strong>还没有栏目脚本</strong>
+          <span>请先在左侧「规划」中点击「生成栏目脚本草案」。</span>
+        </div>
         <pre id="json-episode_script" class="json-pre"></pre>
       </div>
 
       <!-- Tab Content: Audio Manifest (CP26) -->
       <div id="tab-audio_manifest" class="tab-content">
+        <div id="audio-manifest-empty" class="result-empty-state" style="display:none">
+          <strong>还没有音频计划</strong>
+          <span>请先在左侧「规划」中点击「生成音频计划」。</span>
+        </div>
         <pre id="json-audio_manifest" class="json-pre"></pre>
       </div>
 
       <!-- Tab Content: Visual Plan (CP27) -->
       <div id="tab-visual_plan" class="tab-content">
+        <div id="visual-plan-empty" class="result-empty-state" style="display:none">
+          <strong>还没有视觉计划</strong>
+          <span>请先在左侧「规划」中点击「生成视觉计划」。</span>
+        </div>
         <pre id="json-visual_plan" class="json-pre"></pre>
       </div>
     </section>

@@ -100,6 +100,14 @@
   const selectEpisodeExportStyle = document.getElementById("select-episode-export-style");
   const episodeExportStyleHint = document.getElementById("episode-export-style-hint");
 
+  // CP41.2: Empty state DOM refs
+  const previewEmptyState = document.getElementById("preview-empty-state");
+  const episodePlanEmpty = document.getElementById("episode-plan-empty");
+  const episodeScriptEmpty = document.getElementById("episode-script-empty");
+  const audioManifestEmpty = document.getElementById("audio-manifest-empty");
+  const visualPlanEmpty = document.getElementById("visual-plan-empty");
+  const historyEmptyState = document.getElementById("history-empty-state");
+
   // ---------- state ----------
   let lastResult = null;
   let currentEventSource = null;
@@ -1613,6 +1621,9 @@
       jsonEl.textContent = output;
     }
 
+    // CP41.2: Hide empty state
+    setTabEmptyState("episode_plan", false);
+
     // Show validation status in status msg
     if (!result.ok) {
       setStatus("栏目计划有误：" + result.errors.join("；"), "error");
@@ -1658,6 +1669,9 @@
       var output = JSON.stringify({ script: script, validation: scriptResult }, null, 2);
       jsonEl.textContent = output;
     }
+
+    // CP41.2: Hide empty state
+    setTabEmptyState("episode_script", false);
 
     if (!scriptResult.ok) {
       setStatus("栏目脚本有误：" + scriptResult.errors.join("；"), "error");
@@ -1874,6 +1888,9 @@
       var output = JSON.stringify({ manifest: manifest, validation: manifestResult }, null, 2);
       jsonEl.textContent = output;
     }
+
+    // CP41.2: Hide empty state
+    setTabEmptyState("audio_manifest", false);
 
     if (!manifestResult.ok) {
       setStatus("音频计划有误：" + manifestResult.errors.join("；"), "error");
@@ -2165,6 +2182,9 @@
       var output = JSON.stringify({ render_ir: renderIr, validation: renderIrResult }, null, 2);
       jsonEl.textContent = output;
     }
+
+    // CP41.2: Hide empty state
+    setTabEmptyState("visual_plan", false);
 
     if (!renderIrResult.ok) {
       setStatus("视觉计划有误：" + renderIrResult.errors.join("；"), "error");
@@ -4210,8 +4230,59 @@
       if (tabId === "history") {
         loadHistory();
       }
+
+      // CP41.2: Update empty state based on whether content already exists
+      updateTabEmptyState(tabId);
     });
   });
+
+  // CP41.2: Update empty state visibility based on existing content
+  function updateTabEmptyState(tabId) {
+    var contentElMap = {
+      "preview": previewHtml,
+      "episode_plan": document.getElementById("json-episode_plan"),
+      "episode_script": document.getElementById("json-episode_script"),
+      "audio_manifest": document.getElementById("json-audio_manifest"),
+      "visual_plan": document.getElementById("json-visual_plan"),
+      "render_ir": document.getElementById("json-render_ir"),
+      "semantic_ir": document.getElementById("json-semantic_ir"),
+      "dialogue_script": document.getElementById("json-dialogue_script"),
+    };
+    var emptyElMap = {
+      "preview": previewEmptyState,
+      "episode_plan": episodePlanEmpty,
+      "episode_script": episodeScriptEmpty,
+      "audio_manifest": audioManifestEmpty,
+      "visual_plan": visualPlanEmpty,
+    };
+
+    var contentEl = contentElMap[tabId];
+    var emptyEl = emptyElMap[tabId];
+
+    // For debug tabs (render_ir, semantic_ir, dialogue_script), show the
+    // empty-state div only when there's no content; the div itself carries
+    // the "普通用户可以忽略" hint so it stays visible.
+    if (!emptyEl) return;
+
+    var hasContent = contentEl && contentEl.textContent && contentEl.textContent.trim().length > 0;
+    emptyEl.style.display = hasContent ? "none" : "block";
+  }
+
+  // CP41.2: Empty state helper
+  function setTabEmptyState(tabId, isEmpty) {
+    var map = {
+      "preview": previewEmptyState,
+      "episode_plan": episodePlanEmpty,
+      "episode_script": episodeScriptEmpty,
+      "audio_manifest": audioManifestEmpty,
+      "visual_plan": visualPlanEmpty,
+      "history": historyEmptyState,
+    };
+    var el = map[tabId];
+    if (el) {
+      el.style.display = isEmpty ? "block" : "none";
+    }
+  }
 
   // ---------- generate (async job) ----------
   btnGenerate.addEventListener("click", async function () {
@@ -4383,6 +4454,8 @@
 
       if (!data.ok) {
         historyList.innerHTML = '<div class="history-empty">加载失败</div>';
+        // CP41.2: Show history empty state
+        if (historyEmptyState) historyEmptyState.style.display = "block";
         return;
       }
 
@@ -4390,10 +4463,14 @@
 
       if (items.length === 0) {
         historyList.innerHTML = '<div class="history-empty">暂无历史作品</div>';
+        // CP41.2: Show history empty state
+        if (historyEmptyState) historyEmptyState.style.display = "block";
         return;
       }
 
       historyList.innerHTML = "";
+      // CP41.2: Hide history empty state
+      if (historyEmptyState) historyEmptyState.style.display = "none";
 
       // CP15.6: Track latest succeeded job for auto-preview
       latestSucceededJob = null;
@@ -4407,6 +4484,8 @@
       });
     } catch (e) {
       historyList.innerHTML = '<div class="history-empty">加载失败: ' + e.message + '</div>';
+      // CP41.2: Show history empty state
+      if (historyEmptyState) historyEmptyState.style.display = "block";
     }
   }
 
@@ -4651,6 +4730,8 @@
     setExportHint(null);
     audioPlayerWrap.style.display = "none";
     autoPreviewBanner.style.display = "none";
+    // CP41.2: Show preview empty state when cleared
+    setTabEmptyState("preview", true);
     // CP18.3.1: Reset to HTML preview mode as default
     setPreviewMode("html");
   }
@@ -4689,6 +4770,9 @@
 
   function showPreview(result, autoPreview) {
     const ts = "?t=" + Date.now();
+
+    // CP41.2: Hide preview empty state when content is shown
+    setTabEmptyState("preview", false);
 
     if (autoPreview) {
       autoPreviewBanner.style.display = "block";

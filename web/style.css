@@ -1844,3 +1844,111 @@ footer {
   padding: 4px 0 2px;
 }
 
+/* CP41.2: Result Panel Navigation & Empty States */
+
+/* Result panel guide text */
+.result-panel-guide {
+  background: #0f172a;
+  border: 1px solid #1e3a5f;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  font-size: 0.78rem;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+.result-panel-guide strong {
+  display: block;
+  color: #e2e8f0;
+  margin-bottom: 3px;
+  font-size: 0.8rem;
+}
+
+/* Tab navigation section */
+.result-nav-section {
+  margin-bottom: 16px;
+}
+
+/* Section labels for tab groups */
+.result-nav-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+  margin-top: 12px;
+}
+
+.result-nav-label:first-child {
+  margin-top: 0;
+}
+
+/* Main result tabs - more prominent */
+.result-tabs-main {
+  border-bottom: 2px solid #2d3748;
+}
+
+.result-tabs-main .tab-btn {
+  font-size: 0.8rem;
+  padding: 8px 14px;
+}
+
+.result-tabs-main .tab-btn.active {
+  color: #38bdf8;
+  border-bottom-color: #38bdf8;
+  font-weight: 600;
+}
+
+/* Debug tabs - subdued */
+.result-tabs-debug {
+  border-bottom: 1px dashed #2d3748;
+}
+
+.result-tabs-debug .tab-btn {
+  color: #475569;
+  font-size: 0.75rem;
+  padding: 6px 12px;
+}
+
+.result-tabs-debug .tab-btn:hover {
+  color: #64748b;
+}
+
+.result-tabs-debug .tab-btn.active {
+  color: #64748b;
+  border-bottom-color: #475569;
+}
+
+/* Debug tabs hint text */
+.debug-tabs-hint {
+  font-size: 0.7rem;
+  color: #475569;
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+
+/* Empty state component */
+.result-empty-state {
+  border: 1px dashed #334155;
+  border-radius: 10px;
+  padding: 18px;
+  background: #0f172a;
+  color: #94a3b8;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+.result-empty-state strong {
+  display: block;
+  color: #e2e8f0;
+  margin-bottom: 6px;
+  font-size: 0.875rem;
+}
+
+.result-empty-state code {
+  color: #93c5fd;
+}
+

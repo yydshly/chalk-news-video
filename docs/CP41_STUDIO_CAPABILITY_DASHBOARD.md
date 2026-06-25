@@ -136,3 +136,76 @@ The episode planner's action buttons were reorganized into four clearly-labeled 
 - Export style selector, MP4 export button, audio checkbox, export status panel, and export history panel remain fully functional
 
 CP42: Episode Export Concurrent Job Limit — limit the number of concurrent running exports per session.
+
+---
+
+## CP41.2: Result Panel Capability Navigation / Empty State Polish
+
+### What was added
+
+The right-side result panel was reorganized to make product tabs and debug tabs visually distinct, and every tab received a clear empty-state message that tells the user what action to take.
+
+#### Tab group structure
+
+**结果 (Main results)** — prominent styling:
+- 视频预览
+- 栏目计划
+- 栏目脚本
+- 音频计划
+- 视觉计划
+- 历史作品
+
+**调试数据 (Debug data)** — subdued styling with permanent hint:
+- render_ir
+- semantic_ir
+- dialogue_script
+
+A `result-panel-guide` box at the top of the result panel explains what the area contains.
+
+#### Empty states
+
+Each product tab shows a guide box when empty:
+
+| Tab | Empty state title | Guidance |
+|---|---|---|
+| 视频预览 | 还没有视频预览 | 点击左侧「生成快速预览」或在合集区点击「预览合集画面」 |
+| 栏目计划 | 还没有栏目计划 | 在左侧「规划」中点击「查看栏目计划」 |
+| 栏目脚本 | 还没有栏目脚本 | 在左侧「规划」中点击「生成栏目脚本草案」 |
+| 音频计划 | 还没有音频计划 | 在左侧「规划」中点击「生成音频计划」 |
+| 视觉计划 | 还没有视觉计划 | 在左侧「规划」中点击「生成视觉计划」 |
+| 历史作品 | 暂无历史作品 | 生成或导出后会在这里出现 |
+
+Debug tabs show a persistent hint: "这是工程调试数据，普通用户可以忽略。"
+
+#### JS empty-state control
+
+- `setTabEmptyState(tabId, isEmpty)` — hides/shows the empty-state div for a given tab
+- `updateTabEmptyState(tabId)` — called on tab switch; checks whether the content `pre` element already has text and toggles the empty state accordingly
+- `showPreview()`, `clearPreview()`, `showEpisodePlan()`, `showEpisodeScript()`, `showEpisodeAudioManifest()`, `showEpisodeRenderIr()` all call `setTabEmptyState` to hide the empty state when content is populated
+- `loadHistory()` manages the history empty state based on API response
+
+### Files changed
+
+- `web/index.html` — restructured tabs into `result-tabs-main` and `result-tabs-debug` groups; added `result-panel-guide`, `debug-tabs-hint`, and empty-state `div` elements
+- `web/style.css` — new `.result-panel-guide`, `.result-nav-section`, `.result-nav-label`, `.result-tabs-main`, `.result-tabs-debug`, `.debug-tabs-hint`, `.result-empty-state` styles
+- `web/app.js` — new empty-state DOM refs, `setTabEmptyState()` and `updateTabEmptyState()` helpers, calls wired into all content-generating functions
+- `docs/CP41_STUDIO_CAPABILITY_DASHBOARD.md` — this section
+
+### Design principles
+
+- All original `data-tab` values are preserved — the existing tab-switching JS (`tabBtns.forEach + click`) continues to work unchanged
+- All original content `pre` IDs (`json-episode_plan`, `json-episode_script`, etc.) are preserved
+- Debug tabs use subdued colors so they are visually de-emphasized without being hidden
+- Empty states are dashed-border boxes that match the dark theme, not alarming error states
+- Tab group labels ("结果", "调试数据") provide orientation without adding engineering jargon to button labels
+
+### What was not changed
+
+- No backend (`server.py`, `episode_export.py`, `render_episode_html.py`, `export_video.py`) was modified
+- No renderer was modified
+- No MP4 export logic was changed
+- No real LLM or real TTS integration was added
+- No Remotion was introduced
+- No真实生成物 were committed
+- `preview iframe`, `video`, `audio`, export panel, and export history panel all remain fully functional
+
