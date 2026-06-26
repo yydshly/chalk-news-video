@@ -240,8 +240,9 @@ def test_capabilities() -> None:
     assert unsupported_ids == [], f"Expected no unsupported styles, got {unsupported_ids}"
 
     assert data["audio"]["supports_audio_mux"] is True
-    assert data["limits"]["width"]["default"] == 720
-    assert data["limits"]["height"]["default"] == 1280
+    # CP60: 16:9 landscape is the default frame
+    assert data["limits"]["width"]["default"] == 1280
+    assert data["limits"]["height"]["default"] == 720
     assert data["limits"]["fps"]["default"] == 30
 
     print("[PASS] test_capabilities")

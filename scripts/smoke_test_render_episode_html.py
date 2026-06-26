@@ -150,7 +150,7 @@ def main() -> None:
     checks = [
         ("<!DOCTYPE html>" in html, "DOCTYPE present"),
         ("<html lang=" in html, "html lang attribute"),
-        ("video-stage stage-9x16" in html, "video-stage stage-9x16 class"),
+        ("video-stage stage-16x9" in html, "video-stage stage-16x9 class (CP60 16:9)"),
         ("cartoon-anchor-svg" in html, "cartoon-anchor-svg in output"),
         ("stage-shot-meta" in html, "stage-shot-meta present"),
         ("window.__getTotalDuration__" in html, "window.__getTotalDuration__ shim"),
@@ -162,8 +162,8 @@ def main() -> None:
         ('data-section-type="news_segment"' in html, "data-section-type=news_segment"),
         ("tl-rail" in html, "tl-rail timeline rail"),
         ("tl-time" in html, "tl-time timecode markers"),
-        ("📍 开场" in html or "开场" in html, "开场 label"),
-        ("📍 结尾" in html or "结尾" in html, "结尾 label"),
+        ("stage-main-row" in html, "stage-main-row (CP60 16:9 flex layout)"),
+        ("stage-anchor-col" in html, "stage-anchor-col (CP60 16:9 anchor column)"),
         ("stage-anchor-enter" in html, "stage-anchor-enter present"),
         ("stage-anchor-layer" in html, "stage-anchor-layer present"),
         ("stage-main-card" in html, "stage-main-card present"),
@@ -257,7 +257,7 @@ def main() -> None:
         check(out.exists(), f"file written to {out}")
         content = out.read_text(encoding="utf-8")
         check(len(content) > 1000, f"file size > 1KB (got {len(content)})")
-        check("video-stage stage-9x16" in content, "file contains stage class")
+        check("video-stage stage-16x9" in content, "file contains stage class")
     finally:
         tmp_path.unlink(missing_ok=True)
 

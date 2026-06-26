@@ -14,6 +14,36 @@
   var selectedStyle = null;
   var pollTimer = null;
 
+  // ratio → export dimensions + preview iframe size
+  var RATIOS = {
+    portrait:  { w: 720,  h: 1280, pw: 360, ph: 640 },
+    square:    { w: 1080, h: 1080, pw: 460, ph: 460 },
+    landscape: { w: 1280, h: 720,  pw: 600, ph: 338 },
+  };
+  var selectedRatio = "landscape";  // CP60: 16:9 landscape is the default
+
+  function applyPreviewSize() {
+    var r = RATIOS[selectedRatio];
+    previewEl.style.width = r.pw + "px";
+    previewEl.style.height = r.ph + "px";
+    videoEl.style.width = r.pw + "px";
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll(".ratio-btn"), function (btn) {
+    btn.addEventListener("click", function () {
+      selectedRatio = btn.getAttribute("data-ratio");
+      Array.prototype.forEach.call(document.querySelectorAll(".ratio-btn"), function (b) {
+        b.classList.toggle("selected", b === btn);
+      });
+      applyPreviewSize();
+      var note = document.getElementById("ratio-note");
+      if (note) {
+        note.textContent = (selectedStyle === "breaking_news_v1" && selectedRatio !== "portrait")
+          ? "提示：快讯大屏风专为 9:16 设计，非竖屏会有留白。" : "";
+      }
+    });
+  });
+
   var STYLE_DESC = {
     breaking_news_v1: "深红突发快讯，大屏标题 + 卡通主播",
     timeline_daily_v1: "浅色日报，竖向时间线，头条高亮",
@@ -142,10 +172,11 @@
       }).catch(function () { return null; });
     }).then(function (audioUrl) {
       setStatus("③ 渲染并导出 MP4（约 20–40 秒）…", "work");
+      var dim = RATIOS[selectedRatio];
       return fetch("/api/episode/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contract: theContract, style_id: selectedStyle, width: 720, height: 1280, fps: 30, audio_url: audioUrl }),
+        body: JSON.stringify({ contract: theContract, style_id: selectedStyle, width: dim.w, height: dim.h, fps: 30, audio_url: audioUrl }),
       }).then(function (r) { return r.json(); });
     }).then(function (d) {
       if (d.status === "failed") throw new Error(d.message || "导出失败");
@@ -179,4 +210,5 @@
   }
 
   loadStyles();
+  applyPreviewSize();
 })();

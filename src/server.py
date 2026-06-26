@@ -1285,8 +1285,8 @@ def api_episode_preview_html(body: EpisodePreviewHtmlRequest):
 class EpisodeExportRequest(BaseModel):
     contract: dict
     style_id: str = "breaking_news_v1"
-    width: int = 720
-    height: int = 1280
+    width: int = 1280  # CP60: 16:9 landscape is the primary format
+    height: int = 720
     fps: int = 30
     audio_url: Optional[str] = None  # CP40.6: server-relative /outputs/ audio URL
 

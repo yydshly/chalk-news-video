@@ -31,8 +31,18 @@
   </section>
 
   <section class="card">
-    <div class="step"><span class="step-num">3</span> 选项</div>
-    <label class="check"><input type="checkbox" id="opt-tts" checked> 生成真人口播旁白（MiniMax）</label>
+    <div class="step"><span class="step-num">3</span> 画面比例</div>
+    <div id="ratios" class="ratio-row">
+      <button class="ratio-btn selected" data-ratio="landscape" type="button"><span class="rb-box r-landscape"></span>横屏 16:9</button>
+      <button class="ratio-btn" data-ratio="square" type="button"><span class="rb-box r-square"></span>方形 1:1</button>
+      <button class="ratio-btn" data-ratio="portrait" type="button"><span class="rb-box r-portrait"></span>竖屏 9:16</button>
+    </div>
+    <div class="muted small" id="ratio-note"></div>
+  </section>
+
+  <section class="card">
+    <div class="step"><span class="step-num">4</span> 选项</div>
+    <label class="check"><input type="checkbox" id="opt-tts" checked> 生成真人口播旁白（MiniMax，实验）</label>
     <div class="muted small">关闭则导出无声视频，速度更快</div>
   </section>
 

@@ -110,6 +110,19 @@ textarea:focus { outline: none; border-color: #2563eb; }
 .style-card .sc-check { float: right; color: #3b82f6; font-weight: 700; visibility: hidden; }
 .style-card.selected .sc-check { visibility: visible; }
 
+.ratio-row { display: flex; gap: 10px; }
+.ratio-btn {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  background: #11151c; border: 1.5px solid #2a3340; border-radius: 11px;
+  padding: 12px; cursor: pointer; color: #c3cad6; font-size: 0.85rem; font-family: inherit;
+}
+.ratio-btn:hover { border-color: #3b82f6; }
+.ratio-btn.selected { border-color: #2563eb; background: #15203a; color: #eef1f6; }
+.rb-box { display: block; background: #3b82f6; border-radius: 3px; }
+.r-portrait { width: 18px; height: 32px; }
+.r-square { width: 28px; height: 28px; }
+.r-landscape { width: 32px; height: 18px; }
+
 .check { display: flex; align-items: center; gap: 9px; font-size: 0.92rem; cursor: pointer; }
 .check input { width: 16px; height: 16px; accent-color: #2563eb; }
 

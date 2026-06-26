@@ -97,8 +97,8 @@ def get_episode_export_capabilities() -> dict:
         "supported_styles": supported,
         "unsupported_styles": unsupported,
         "limits": {
-            "width": {"default": 720, "min": MIN_WIDTH, "max": MAX_WIDTH},
-            "height": {"default": 1280, "min": MIN_HEIGHT, "max": MAX_HEIGHT},
+            "width": {"default": 1280, "min": MIN_WIDTH, "max": MAX_WIDTH},
+            "height": {"default": 720, "min": MIN_HEIGHT, "max": MAX_HEIGHT},
             "fps": {"default": 30, "min": MIN_FPS, "max": MAX_FPS},
         },
         "audio": {
@@ -109,9 +109,11 @@ def get_episode_export_capabilities() -> dict:
     }
 
 # Dimension constraints
+# CP60: widened to support portrait (720×1280), square (1080×1080) and
+# landscape (1280×720) export frames.
 MIN_WIDTH = 360
-MAX_WIDTH = 1080
-MIN_HEIGHT = 640
+MAX_WIDTH = 1920
+MIN_HEIGHT = 360
 MAX_HEIGHT = 1920
 MIN_FPS = 1
 MAX_FPS = 30
@@ -516,8 +518,8 @@ def start_episode_export_background(
     contract: dict,
     *,
     style_id: str = "breaking_news_v1",
-    width: int = 720,
-    height: int = 1280,
+    width: int = 1280,
+    height: int = 720,
     fps: int = 30,
     audio_url: Optional[str] = None,
 ) -> dict[str, Any]:
@@ -833,8 +835,8 @@ def export_episode_contract_to_mp4(
     contract: dict,
     *,
     style_id: str = "breaking_news_v1",
-    width: int = 720,
-    height: int = 1280,
+    width: int = 1280,
+    height: int = 720,
     fps: int = 30,
     audio_url: Optional[str] = None,
     export_id: Optional[str] = None,

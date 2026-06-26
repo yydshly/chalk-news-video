@@ -18,12 +18,12 @@
       var audio = d.audio || {};
       capsEl.innerHTML =
         tile("可出片风格", sup.length + " 种") +
-        tile("默认尺寸", (w.default || 720) + "×" + (h.default || 1280) + "（9:16 竖屏）") +
+        tile("默认尺寸", (w.default || 1280) + "×" + (h.default || 720) + "（16:9 横屏）") +
         tile("尺寸范围", (w.min || 360) + "–" + (w.max || 1080) + " × " + (h.min || 640) + "–" + (h.max || 1920)) +
         tile("帧率", (fps.default || 30) + " fps（上限 " + (fps.max || 30) + "）") +
         tile("真人口播 (MiniMax)", "实验能力", "") +
         tile("音频混流", audio.supports_audio_mux ? "支持" : "不支持", audio.supports_audio_mux ? "yes" : "no");
-      ratioNote.textContent = "注：当前 5 种风格的版面是按 9:16 竖屏设计的；横屏(16:9)/方形(1:1)需要逐风格适配版面（尚未做）。";
+      ratioNote.textContent = "注：默认 16:9 横屏；5 种风格均为铺满式弹性布局，可切 9:16 竖屏 / 1:1 方形。";
       buildGallery(d.supported_styles || []);
     })
     .catch(function () { capsEl.innerHTML = '<span class="muted">能力加载失败</span>'; });
