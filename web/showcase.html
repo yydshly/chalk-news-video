@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>已有能力一览</title>
+<link rel="stylesheet" href="/simple.css">
+<style>
+  .cap-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 10px; }
+  .cap-tile { background: #11151c; border: 1px solid #242a35; border-radius: 10px; padding: 12px; }
+  .cap-tile .k { font-size: 0.78rem; color: #7b8494; }
+  .cap-tile .v { font-size: 1rem; font-weight: 600; color: #eef1f6; margin-top: 4px; }
+  .cap-tile .v.no { color: #f87171; }
+  .cap-tile .v.yes { color: #4ade80; }
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 18px; }
+  .shot { background: #07090d; border: 1px solid #242a35; border-radius: 12px; padding: 12px; }
+  .shot h3 { font-size: 0.95rem; color: #eef1f6; margin-bottom: 8px; }
+  .shot .tag { font-size: 0.72rem; color: #4ade80; margin-left: 6px; }
+  .shot iframe { width: 200px; height: 356px; border: none; border-radius: 12px; background: #000; display: block; margin: 0 auto; }
+  .shot .loading { width: 200px; height: 356px; display: flex; align-items: center; justify-content: center; color: #5b6472; font-size: 0.82rem; margin: 0 auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>🧩 已有能力一览</h1>
+    <a class="adv-link" href="/">← 返回制作</a>
+  </header>
+
+  <section class="card">
+    <div class="step">导出能力</div>
+    <div id="caps" class="cap-grid"><span class="muted">加载中…</span></div>
+    <div class="muted small" id="ratio-note"></div>
+  </section>
+
+  <section class="card">
+    <div class="step">视频风格样例（实时渲染，即导出效果）</div>
+    <div id="gallery" class="gallery"><span class="muted">生成样例中…</span></div>
+  </section>
+</div>
+<script src="/showcase.js"></script>
+</body>
+</html>

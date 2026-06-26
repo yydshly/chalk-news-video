@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>新闻 → 视频</title>
+<link rel="stylesheet" href="/simple.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>📰 新闻 → 视频</h1>
+    <span class="top-links">
+      <a class="adv-link" href="/showcase">🧩 已有能力</a>
+      <a class="adv-link" href="/advanced">高级模式 ↗</a>
+    </span>
+  </header>
+
+  <section class="card">
+    <div class="step"><span class="step-num">1</span> 粘贴新闻</div>
+    <textarea id="news" rows="6" placeholder="把一条新闻粘贴进来（第一行作为标题）…"></textarea>
+    <div class="inline">
+      <button id="btn-hot" class="btn ghost" type="button">⚡ 用今日热点填充</button>
+      <span id="hot-status" class="muted"></span>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="step"><span class="step-num">2</span> 选择风格</div>
+    <div id="styles" class="style-grid"><span class="muted">加载风格中…</span></div>
+  </section>
+
+  <section class="card">
+    <div class="step"><span class="step-num">3</span> 选项</div>
+    <label class="check"><input type="checkbox" id="opt-tts" checked> 生成真人口播旁白（MiniMax）</label>
+    <div class="muted small">关闭则导出无声视频，速度更快</div>
+  </section>
+
+  <div class="actions">
+    <button id="btn-preview" class="btn secondary" type="button">👁 预览效果（快）</button>
+    <button id="btn-generate" class="btn primary" type="button">▶ 生成视频 MP4</button>
+  </div>
+  <div id="status" class="status"></div>
+
+  <section id="result" class="card result" style="display:none">
+    <div class="step">结果</div>
+    <div class="frame-wrap">
+      <iframe id="preview" class="preview-frame" title="预览"></iframe>
+      <video id="video" class="video" controls style="display:none"></video>
+    </div>
+    <div id="result-actions" class="result-actions"></div>
+  </section>
+</div>
+<script src="/simple.js"></script>
+</body>
+</html>

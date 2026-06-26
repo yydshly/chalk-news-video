@@ -380,8 +380,12 @@ def _run_episode_export_worker(
 
     try:
         # Import heavy deps inside worker (defer module load)
-        from render_episode_html import render_episode_stage_html_to_file
-        from export_video import export_video
+        try:
+            from render_episode_html import render_episode_stage_html_to_file
+            from export_video import export_video
+        except ModuleNotFoundError:
+            from src.render_episode_html import render_episode_stage_html_to_file
+            from src.export_video import export_video
 
         # Mark as running
         write_episode_export_status(
@@ -883,8 +887,12 @@ def export_episode_contract_to_mp4(
         json.dump(contract, f, ensure_ascii=False, indent=2)
 
     # Import render and export
-    from render_episode_html import render_episode_stage_html_to_file
-    from export_video import export_video
+    try:
+        from render_episode_html import render_episode_stage_html_to_file
+        from export_video import export_video
+    except ModuleNotFoundError:
+        from src.render_episode_html import render_episode_stage_html_to_file
+        from src.export_video import export_video
 
     # Render HTML
     html_path = export_dir / "animation.html"

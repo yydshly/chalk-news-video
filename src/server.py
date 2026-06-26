@@ -1028,6 +1028,32 @@ def _run_pipeline(body: GenerateRequest, job_id: str, output_dir: Path) -> tuple
 
 @app.get("/")
 def serve_index():
+    # CP60: minimal operable studio is the default; full tool moved to /advanced.
+    return FileResponse(str(WEB_DIR / "simple.html"))
+
+
+@app.get("/simple.js")
+def serve_simple_js():
+    return FileResponse(str(WEB_DIR / "simple.js"))
+
+
+@app.get("/simple.css")
+def serve_simple_css():
+    return FileResponse(str(WEB_DIR / "simple.css"))
+
+
+@app.get("/showcase")
+def serve_showcase():
+    return FileResponse(str(WEB_DIR / "showcase.html"))
+
+
+@app.get("/showcase.js")
+def serve_showcase_js():
+    return FileResponse(str(WEB_DIR / "showcase.js"))
+
+
+@app.get("/advanced")
+def serve_advanced():
     return FileResponse(str(WEB_DIR / "index.html"))
 
 
@@ -1230,8 +1256,10 @@ def api_episode_preview_html(body: EpisodePreviewHtmlRequest):
         short_id = uuid.uuid4().hex[:8]
         filename = f"episode_{body.style_id}_{timestamp}_{short_id}.html"
     else:
-        # Ephemeral live preview — single reused file, excluded from history (leading _).
-        filename = "_live_preview.html"
+        # Ephemeral live preview — one reused file per style (leading _ → excluded from
+        # history), so a gallery can render all styles at once without collisions.
+        safe_style = re.sub(r"[^a-z0-9_]", "", body.style_id.lower())
+        filename = f"_preview_{safe_style}.html"
     file_path = EPISODE_PREVIEWS_DIR / filename
     try:
         file_path.write_text(html, encoding="utf-8")
