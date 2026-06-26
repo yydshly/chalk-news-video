@@ -42,7 +42,9 @@
 
   <section class="card">
     <div class="step"><span class="step-num">4</span> 选项</div>
-    <label class="check"><input type="checkbox" id="opt-tts" checked> 生成真人口播旁白（MiniMax，实验）</label>
+    <label class="check"><input type="checkbox" id="opt-llm" checked> 用 AI 理解新闻（LLM 拆解 + 写口播文稿）</label>
+    <div class="muted small">开启后由大模型把新闻拆成要点并写旁白（约 5–15 秒）；关闭则用规则拆分，秒出。AI 内容发布前请人工核实。</div>
+    <label class="check" style="margin-top:12px"><input type="checkbox" id="opt-tts" checked> 生成真人口播旁白（MiniMax，实验）</label>
     <div class="muted small">关闭则导出无声视频，速度更快</div>
   </section>
 

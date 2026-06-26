@@ -41,6 +41,7 @@ ALLOWED_STYLE_IDS = frozenset([
     "data_dashboard_v1",
     "podcast_cards_v1",
     "research_briefing_v1",
+    "illustrated_v1",
 ])
 
 # Allowed audio file extensions for episode export muxing
@@ -53,6 +54,7 @@ ALL_EPISODE_STYLE_IDS = frozenset([
     "data_dashboard_v1",
     "research_briefing_v1",
     "podcast_cards_v1",
+    "illustrated_v1",
 ])
 
 # Style display names
@@ -62,6 +64,7 @@ STYLE_DISPLAY_NAMES = {
     "data_dashboard_v1": "数据仪表盘风",
     "research_briefing_v1": "研究室简报风",
     "podcast_cards_v1": "播客卡片风",
+    "illustrated_v1": "AI 插画解说风",
 }
 
 

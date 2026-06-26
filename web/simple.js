@@ -16,9 +16,9 @@
 
   // ratio → export dimensions + preview iframe size
   var RATIOS = {
-    portrait:  { w: 720,  h: 1280, pw: 360, ph: 640 },
-    square:    { w: 1080, h: 1080, pw: 460, ph: 460 },
-    landscape: { w: 1280, h: 720,  pw: 600, ph: 338 },
+    portrait:  { w: 720,  h: 1280, pw: 360, ph: 640, ar: "9:16" },
+    square:    { w: 1080, h: 1080, pw: 460, ph: 460, ar: "1:1" },
+    landscape: { w: 1280, h: 720,  pw: 600, ph: 338, ar: "16:9" },
   };
   var selectedRatio = "landscape";  // CP60: 16:9 landscape is the default
 
@@ -45,6 +45,7 @@
   });
 
   var STYLE_DESC = {
+    illustrated_v1: "🎨 AI 插画解说，满屏插画 + 旁白字幕（每段约 10 秒生成）",
     breaking_news_v1: "深红突发快讯，大屏标题 + 卡通主播",
     timeline_daily_v1: "浅色日报，竖向时间线，头条高亮",
     data_dashboard_v1: "深色仪表盘，统计磁贴 + 条形图",
@@ -107,10 +108,27 @@
       .catch(function () { hs.textContent = "获取失败"; });
   });
 
-  // ---- build contract from pasted news ----
+  var lastGeneratedBy = null;  // "llm" | "rules" — content provenance of last build
+
+  // ---- build contract from pasted news (LLM or rule-based) ----
   function buildContract() {
     var text = (newsEl.value || "").trim();
     if (!text) return Promise.reject(new Error("请先粘贴新闻内容"));
+    var useLlm = document.getElementById("opt-llm") && document.getElementById("opt-llm").checked;
+
+    if (useLlm) {
+      setStatus("AI 正在拆解新闻并撰写口播…（约 5–15 秒）", "work");
+      return fetch("/api/episode/llm-contract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: text }),
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        if (!d.ok || !d.contract) throw new Error(d.error || "AI 生成失败");
+        lastGeneratedBy = d.generated_by || "llm";
+        return d.contract;
+      });
+    }
+
     var title = text.split("\n")[0].slice(0, 80);
     return fetch("/api/episode/source-contract", {
       method: "POST",
@@ -118,6 +136,33 @@
       body: JSON.stringify({ source_type: "inline_text", text: text, episode_title: title }),
     }).then(function (r) { return r.json(); }).then(function (d) {
       if (!d.ok || !d.contract) throw new Error(d.error || "生成契约失败");
+      lastGeneratedBy = "rules";
+      return d.contract;
+    });
+  }
+
+  function provenanceLabel() {
+    if (lastGeneratedBy === "llm") return "（内容：AI 拆解，请人工核实）";
+    if (lastGeneratedBy === "rules") return "（内容：规则拆分）";
+    return "";
+  }
+
+  // CP62: for the illustrated style, generate one AI illustration per scene and
+  // return the image-enriched contract. Other styles pass through unchanged.
+  function enrichForStyle(contract) {
+    if (selectedStyle !== "illustrated_v1") return Promise.resolve(contract);
+    setStatus("AI 正在为每个场景生成插画…（每段约 10 秒）", "work");
+    var ar = (RATIOS[selectedRatio] && RATIOS[selectedRatio].ar) || "16:9";
+    return fetch("/api/episode/illustrate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contract: contract, aspect_ratio: ar }),
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.ok || !d.contract) {
+        // graceful: render illustrated with placeholders rather than failing
+        setStatus("插画生成失败，用占位底图继续：" + (d.error || ""), "work");
+        return contract;
+      }
       return d.contract;
     });
   }
@@ -135,7 +180,7 @@
   // ---- fast preview (styled HTML) ----
   $("btn-preview").addEventListener("click", function () {
     setStatus("正在生成预览…", "work");
-    Promise.resolve().then(ensureStyle).then(buildContract).then(function (contract) {
+    Promise.resolve().then(ensureStyle).then(buildContract).then(enrichForStyle).then(function (contract) {
       return fetch("/api/episode/preview-html", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -148,7 +193,7 @@
       previewEl.src = d.path + "?t=" + Date.now();
       resultActions.innerHTML = "";
       showResult();
-      setStatus("预览已生成（即为导出效果）", "ok");
+      setStatus("预览已生成（即为导出效果）" + provenanceLabel(), "ok");
     }).catch(function (e) { setStatus(e.message, "err"); });
   });
 
@@ -157,7 +202,7 @@
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
     setStatus("① 准备内容…", "work");
     var theContract = null;
-    Promise.resolve().then(ensureStyle).then(buildContract).then(function (contract) {
+    Promise.resolve().then(ensureStyle).then(buildContract).then(enrichForStyle).then(function (contract) {
       theContract = contract;
       // optional TTS narration
       if (!optTts.checked) return null;
@@ -197,7 +242,7 @@
           resultActions.innerHTML =
             '<a class="dl" href="' + url + '" download>💾 下载 MP4</a>' +
             '<a href="' + url + '" target="_blank" rel="noopener">↗ 新窗口打开</a>';
-          setStatus("✅ 视频已生成", "ok");
+          setStatus("✅ 视频已生成" + provenanceLabel(), "ok");
         } else if (s.status === "failed") {
           clearInterval(pollTimer); pollTimer = null;
           setStatus("导出失败：" + (s.error_message || "未知错误"), "err");

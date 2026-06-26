@@ -1750,6 +1750,135 @@ def api_episode_source_contract(body: dict):
     })
 
 
+# ---------- LLM-backed episode contract (CP61) ----------
+
+
+class EpisodeLlmContractRequest(BaseModel):
+    text: str
+    profile: Optional[str] = None  # llm.yaml profile; None = default
+
+
+@app.post("/api/episode/llm-contract")
+def api_episode_llm_contract(body: EpisodeLlmContractRequest):
+    """Build an episode_template_v1 contract from pasted news using a real LLM (CP61).
+
+    The LLM breaks the news into a lead + supporting points and writes a spoken
+    narration script per section (embedded in the contract for episode_tts).
+
+    Never hard-fails: on any LLM/parse/network error it falls back to the
+    rule-based pipeline and reports generated_by="rules".
+    """
+    from src.news_source_pipeline import (
+        normalize_inline_text,
+        build_episode_items_from_news,
+        build_episode_contract_from_news_items,
+        contract_has_secrets,
+        DEFAULT_TEMPLATE_ID,
+    )
+
+    text = (body.text or "").strip()
+    if not text:
+        return JSONResponse({"ok": False, "error": "text cannot be empty"}, status_code=400)
+    if len(text) > MAX_INLINE_TEXT_CHARS:
+        return JSONResponse({
+            "ok": False,
+            "error": f"text exceeds {MAX_INLINE_TEXT_CHARS} character limit",
+        }, status_code=400)
+
+    # 1) Try real LLM.
+    try:
+        from src.llm_episode import generate_episode_contract_from_text
+        result = generate_episode_contract_from_text(text, profile=body.profile)
+        contract = result["contract"]
+        if contract_has_secrets(contract):
+            raise ValueError("contract contains disallowed secrets")
+        return JSONResponse({
+            "ok": True,
+            "generated_by": "llm",
+            "model": result.get("model"),
+            "contract": contract,
+            "script": result.get("script"),
+            "facts_guard": "AI 摘要，发布前请人工核实",
+        })
+    except Exception as exc:
+        llm_error = _redact_secret_text(str(exc))
+
+    # 2) Fall back to rule-based — always usable offline.
+    try:
+        item = normalize_inline_text(text, source="Manual")
+        episode_items = build_episode_items_from_news([item], limit=1)
+        contract = build_episode_contract_from_news_items(
+            episode_items,
+            template_id=DEFAULT_TEMPLATE_ID,
+            title=str(item.get("title") or "今日要闻"),
+        )
+        if contract_has_secrets(contract):
+            return JSONResponse({"ok": False, "error": "contract contains disallowed secrets"}, status_code=400)
+        return JSONResponse({
+            "ok": True,
+            "generated_by": "rules",
+            "contract": contract,
+            "note": "AI 生成不可用，已用规则版兜底。",
+            "llm_error": llm_error,
+        })
+    except Exception as exc:
+        return JSONResponse({
+            "ok": False,
+            "error": _redact_secret_text(str(exc)),
+        }, status_code=500)
+
+
+# ---------- illustrated scenes via MiniMax T2I (CP62) ----------
+
+
+class EpisodeIllustrateRequest(BaseModel):
+    contract: dict
+    aspect_ratio: str = "16:9"  # 16:9 | 1:1 | 9:16
+
+
+@app.post("/api/episode/illustrate")
+def api_episode_illustrate(body: EpisodeIllustrateRequest):
+    """Generate one AI illustration per news card (MiniMax T2I) and embed the
+    local image paths into the contract (CP62).
+
+    Returns the enriched contract; the illustrated_v1 renderer base64-embeds the
+    images. On failure returns ok=false — the caller may still render
+    illustrated_v1 (it shows colored placeholders) or pick another style.
+    """
+    from src.image_gen import generate_contract_images, ALLOWED_ASPECT
+
+    if not isinstance(body.contract, dict):
+        return JSONResponse({"ok": False, "error": "contract must be an object"}, status_code=400)
+    aspect = body.aspect_ratio if body.aspect_ratio in ALLOWED_ASPECT else "16:9"
+    try:
+        result = generate_contract_images(body.contract, aspect_ratio=aspect)
+        return JSONResponse({
+            "ok": True,
+            "image_id": result["image_id"],
+            "count": result["count"],
+            "contract": result["contract"],
+        })
+    except Exception as exc:
+        return JSONResponse({
+            "ok": False,
+            "error": _redact_secret_text(str(exc)),
+        }, status_code=502)
+
+
+@app.get("/outputs/episode_images/{image_id}/{filename}")
+def serve_episode_image(image_id: str, filename: str):
+    """Serve a generated illustration (CP62). Whitelisted dir + .jpg only."""
+    import re as _re
+    from src.image_gen import EPISODE_IMAGES_DIR
+
+    if not _re.match(r"^img_[a-f0-9]{12}$", image_id) or not _re.match(r"^card_\d{2}\.jpg$", filename):
+        raise HTTPException(status_code=404, detail="Not found")
+    fp = (EPISODE_IMAGES_DIR / image_id / filename).resolve()
+    if not str(fp).startswith(str(EPISODE_IMAGES_DIR.resolve())) or not fp.exists():
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse(str(fp), media_type="image/jpeg")
+
+
 # ---------- episode export (CP40.2) ----------
 
 

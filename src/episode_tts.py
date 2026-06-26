@@ -55,17 +55,21 @@ def build_narration_script(contract: dict) -> list[dict]:
 
     segments: list[dict] = []
 
-    # Opening — prefer an explicit opening title, fall back to episode title/subtitle.
+    # Opening — CP61: prefer an LLM-written narration script; else fall back to titles.
     opening = sections.get("opening") or {}
-    opening_text = _clean(opening.get("title")) or _clean(episode.get("title"))
-    subtitle = _clean(episode.get("subtitle"))
-    if opening_text:
-        lead_in = opening_text
-        if subtitle and subtitle not in opening_text:
-            lead_in = f"{opening_text}。{subtitle}"
-        segments.append({"section": "opening", "text": f"{lead_in}。"})
+    opening_narration = _clean(opening.get("narration"))
+    if opening_narration:
+        segments.append({"section": "opening", "text": opening_narration})
+    else:
+        opening_text = _clean(opening.get("title")) or _clean(episode.get("title"))
+        subtitle = _clean(episode.get("subtitle"))
+        if opening_text:
+            lead_in = opening_text
+            if subtitle and subtitle not in opening_text:
+                lead_in = f"{opening_text}。{subtitle}"
+            segments.append({"section": "opening", "text": f"{lead_in}。"})
 
-    # News cards — ordered, with light broadcast connectives by position.
+    # News cards — CP61: prefer per-card narration; else headline + broadcast connective.
     cards = sections.get("news_cards") or []
     ordered = sorted(
         [c for c in cards if isinstance(c, dict)],
@@ -73,24 +77,29 @@ def build_narration_script(contract: dict) -> list[dict]:
     )
     connectives = ["首先", "接下来", "另外", "此外", "最后"]
     for idx, card in enumerate(ordered):
+        narration = _clean(card.get("narration"))
+        section_key = card.get("section_id") or f"card_{idx}"
+        if narration:
+            segments.append({"section": section_key, "text": narration})
+            continue
         headline = _clean(card.get("headline"))
         if not headline:
             continue
-        role = card.get("role")
-        if role == "lead":
+        if card.get("role") == "lead":
             prefix = "先看今天的重点。"
         else:
             prefix = (connectives[idx] + "，") if idx < len(connectives) else ""
-        segments.append({
-            "section": card.get("section_id") or f"card_{idx}",
-            "text": f"{prefix}{headline}。",
-        })
+        segments.append({"section": section_key, "text": f"{prefix}{headline}。"})
 
-    # Closing.
+    # Closing — CP61: prefer narration; else closing title.
     closing = sections.get("closing") or {}
-    closing_text = _clean(closing.get("title"))
-    if closing_text:
-        segments.append({"section": "closing", "text": f"{closing_text}。"})
+    closing_narration = _clean(closing.get("narration"))
+    if closing_narration:
+        segments.append({"section": "closing", "text": closing_narration})
+    else:
+        closing_text = _clean(closing.get("title"))
+        if closing_text:
+            segments.append({"section": "closing", "text": f"{closing_text}。"})
 
     return segments
 

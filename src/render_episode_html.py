@@ -1555,6 +1555,127 @@ def render_research_briefing_stage_episode_html(contract: dict) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Style: illustrated_v1 (插画解说) — full-bleed AI illustration per scene
+# ---------------------------------------------------------------------------
+
+def _img_data_uri(path: Any) -> str:
+    """Read a local image and return a base64 data URI (self-contained HTML)."""
+    import base64
+    try:
+        raw = Path(str(path)).read_bytes()
+        b64 = base64.b64encode(raw).decode("ascii")
+        return "data:image/jpeg;base64," + b64
+    except Exception:
+        return ""
+
+
+def render_illustrated_stage_episode_html(contract: dict) -> str:
+    """Render a self-contained illustrated_v1 stage.
+
+    Each news card becomes a full-bleed scene: an AI-generated illustration
+    (base64-embedded) with a bottom gradient + headline + caption. Scenes are
+    stacked and revealed in sequence via the shared seek contract — later scenes
+    cover earlier ones, giving a narrated slideshow synced to the voiceover.
+    Falls back to a colored placeholder when a card has no illustration.
+    """
+    episode = contract.get("episode") or {}
+    sections = contract.get("sections") or {}
+
+    title = escape_html(episode.get("title") or "今日要闻")
+    subtitle = escape_html(episode.get("subtitle") or "")
+    estimated_sec = float(episode.get("estimated_duration_sec") or 30)
+    total_time_str = format_timecode(estimated_sec)
+
+    d, total_dur = _stage_delays(contract)
+
+    cards = [c for c in (sections.get("news_cards") or []) if isinstance(c, dict)]
+    cards.sort(key=lambda c: c.get("order", 0))
+    scene_delays = [d["mainCard"], d["support1"], d["support2"], d["support3"]]
+
+    scenes = []
+    for i, card in enumerate(cards[:4]):
+        appear = scene_delays[i] if i < len(scene_delays) else d["supporting"] + i * 0.4
+        data_uri = _img_data_uri(card.get("image_path")) if card.get("image_path") else ""
+        bg = ("background-image:url(" + data_uri + ");") if data_uri else ""
+        placeholder = "" if data_uri else " il-img-empty"
+        is_lead = bool(card.get("is_lead")) or card.get("role") == "lead"
+        badge = "★ 头条" if is_lead else ("要点 " + str(i + 1))
+        caption = escape_html(card.get("narration") or card.get("description") or "")
+        scenes.append(
+            '<div class="il-scene stage-layer" data-appear-at="' + str(appear) + '" style="z-index:' + str(10 + i) + '">'
+            '<div class="il-img' + placeholder + '" style="' + bg + '"></div>'
+            '<div class="il-overlay"></div>'
+            '<div class="il-text">'
+            '<div class="il-badge">' + badge + '</div>'
+            '<div class="il-headline">' + escape_html(card.get("headline") or "") + '</div>'
+            '<div class="il-caption">' + caption + '</div>'
+            '</div>'
+            '</div>'
+        )
+    scenes_html = "".join(scenes)
+
+    css_parts = [
+        '*{box-sizing:border-box;margin:0;padding:0;}',
+        '.video-stage-shell{width:100vw;height:100vh;background:#05060a;overflow:hidden;}',
+        '.video-stage{position:relative;width:100%;height:100%;overflow:hidden;background:#05060a;'
+        "font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;}",
+        # Scene (full-bleed, stacked)
+        '.il-scene{position:absolute;inset:0;}',
+        '.il-img{position:absolute;inset:0;background-size:cover;background-position:center;'
+        'animation:ilZoom ' + str(max(6.0, total_dur)) + 's ease-out both;}',
+        '.il-img-empty{background:linear-gradient(135deg,#1e293b,#0b1220);}',
+        '@keyframes ilZoom{from{transform:scale(1.08);}to{transform:scale(1);}}',
+        '.il-overlay{position:absolute;inset:0;background:linear-gradient(0deg,'
+        'rgba(5,6,10,.92) 0%,rgba(5,6,10,.55) 28%,rgba(5,6,10,0) 55%);}',
+        '.il-text{position:absolute;left:0;right:0;bottom:0;padding:0 7% 9%;}',
+        '.il-badge{display:inline-block;background:#6366f1;color:#fff;font-size:13px;font-weight:800;'
+        'letter-spacing:1px;padding:4px 12px;border-radius:6px;margin-bottom:14px;}',
+        '.il-headline{color:#fff;font-size:34px;font-weight:800;line-height:1.2;'
+        'text-shadow:0 2px 14px rgba(0,0,0,.7);margin-bottom:14px;max-width:88%;}',
+        '.il-caption{color:#e8ecf5;font-size:17px;line-height:1.55;max-width:80%;'
+        'text-shadow:0 1px 8px rgba(0,0,0,.8);'
+        'display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}',
+        # Persistent top bar
+        '.il-topbar{position:absolute;top:0;left:0;right:0;z-index:30;padding:22px 7% 30px;'
+        'background:linear-gradient(180deg,rgba(5,6,10,.85) 0%,rgba(5,6,10,0) 100%);}',
+        '.il-kicker{display:inline-block;background:rgba(99,102,241,.25);border:1px solid #6366f1;'
+        'color:#c7d2fe;font-size:11px;font-weight:700;letter-spacing:2px;padding:3px 10px;border-radius:999px;margin-bottom:8px;}',
+        '.il-title{color:#fff;font-size:18px;font-weight:700;text-shadow:0 2px 10px rgba(0,0,0,.8);}',
+        '.il-sub{color:#aab3c5;font-size:12px;margin-top:2px;}',
+        # Progress
+        '.il-footer{position:absolute;bottom:0;left:0;right:0;z-index:31;padding:0 7% 18px;}',
+        '.stage-progress-track{width:100%;height:4px;background:rgba(255,255,255,.18);border-radius:999px;overflow:hidden;}',
+        '.stage-progress-fill{width:0%;height:100%;background:linear-gradient(90deg,#6366f1,#a855f7);'
+        'border-radius:999px;animation:ilProgress ' + str(total_dur) + 's linear forwards;}',
+        '@keyframes ilProgress{0%{width:0%;}100%{width:100%;}}',
+        # Live (non-seek) entrance
+        '.il-scene{opacity:0;animation:ilFade .6s ease-out both;}',
+        '@keyframes ilFade{from{opacity:0;}to{opacity:1;}}',
+    ] + _seek_mode_css_rules()
+    stage_css = "<style>\n" + "\n".join(css_parts) + "\n</style>\n"
+
+    news_count = len(cards)
+    return (
+        '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n'
+        f'<title>{title}</title>\n{stage_css}</head>\n<body>\n'
+        '<div class="video-stage-shell">\n<div class="video-stage stage-16x9">\n'
+        f'{scenes_html}\n'
+        '<div class="il-topbar stage-layer" data-appear-at="' + str(d["title"]) + '">'
+        f'<div class="il-kicker">AI 新闻解说 · {news_count} 段 · {total_time_str}</div>'
+        f'<div class="il-title">{title}</div>'
+        f'<div class="il-sub">{subtitle}</div>'
+        '</div>\n'
+        '<div class="il-footer stage-layer" data-appear-at="0">'
+        '<div class="stage-progress-track"><div class="stage-progress-fill" data-progress-fill="true"></div></div>'
+        '</div>\n'
+        '</div>\n</div>\n'
+        f'{_timing_shim(total_dur)}'
+        '</body>\n</html>\n'
+    )
+
+
+# ---------------------------------------------------------------------------
 # Public entry points
 # ---------------------------------------------------------------------------
 
@@ -1566,6 +1687,7 @@ EPISODE_STYLE_RENDERERS = {
     "data_dashboard_v1": render_data_dashboard_stage_episode_html,
     "podcast_cards_v1": render_podcast_cards_stage_episode_html,
     "research_briefing_v1": render_research_briefing_stage_episode_html,
+    "illustrated_v1": render_illustrated_stage_episode_html,
 }
 
 
