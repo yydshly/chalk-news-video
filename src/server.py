@@ -1028,7 +1028,7 @@ def _run_pipeline(body: GenerateRequest, job_id: str, output_dir: Path) -> tuple
 
 @app.get("/")
 def serve_index():
-    # CP60: minimal operable studio is the default; full tool moved to /advanced.
+    # Simple studio is the default entry; advanced studio remains available at /advanced.
     return FileResponse(str(WEB_DIR / "simple.html"))
 
 

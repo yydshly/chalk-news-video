@@ -21,7 +21,7 @@
         tile("默认尺寸", (w.default || 720) + "×" + (h.default || 1280) + "（9:16 竖屏）") +
         tile("尺寸范围", (w.min || 360) + "–" + (w.max || 1080) + " × " + (h.min || 640) + "–" + (h.max || 1920)) +
         tile("帧率", (fps.default || 30) + " fps（上限 " + (fps.max || 30) + "）") +
-        tile("真人口播 (MiniMax)", "支持", "yes") +
+        tile("真人口播 (MiniMax)", "实验能力", "") +
         tile("音频混流", audio.supports_audio_mux ? "支持" : "不支持", audio.supports_audio_mux ? "yes" : "no");
       ratioNote.textContent = "注：当前 5 种风格的版面是按 9:16 竖屏设计的；横屏(16:9)/方形(1:1)需要逐风格适配版面（尚未做）。";
       buildGallery(d.supported_styles || []);

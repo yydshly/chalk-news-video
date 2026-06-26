@@ -24,6 +24,10 @@ outputs/latest/*.m4a
 outputs/jobs/*
 !outputs/jobs/.gitkeep
 
+# Episode TTS audio (CP56, experimental)
+outputs/episode_audio/
+!outputs/episode_audio/.gitkeep
+
 # Episode preview HTML artifacts (CP31)
 outputs/episode_previews/*.html
 !outputs/episode_previews/.gitkeep

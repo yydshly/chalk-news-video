@@ -1,4 +1,7 @@
-"""Episode TTS narration (CP56).
+"""Experimental TTS narration helper (CP56).
+
+.. deprecated:: This module is not part of the stable CP53.2 capability surface.
+   Formal TTS integration is planned for a later checkpoint.
 
 Builds a broadcast-style narration script from an episode_template_v1 contract
 and synthesizes it into a single WAV using a real TTS provider (MiniMax by default).
